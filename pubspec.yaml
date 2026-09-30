@@ -1,0 +1,15 @@
+name: daily_consume
+description: Offline-first Android app for body, meal, and food spending records.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.4.4
+
+flutter:
+  uses-material-design: true

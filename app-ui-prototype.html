@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f3ed">
+  <title>日常 · 身体与饮食记录</title>
+  <style>
+    :root {
+      --paper: #f4f3ed;
+      --screen: #fbfaf6;
+      --ink: #252820;
+      --muted: #85877d;
+      --line: #e8e7df;
+      --sage: #64765a;
+      --sage-soft: #e9eee4;
+      --clay: #b4775d;
+      --clay-soft: #f2e9e2;
+      --white: #fffefa;
+      --shadow: 0 26px 70px rgba(39, 42, 33, .14);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse at 18% 8%, rgba(255,255,255,.95), transparent 36%),
+        var(--paper);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .studio { max-width: 1180px; margin: 0 auto; padding: 34px 30px 48px; }
+    .topline { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .brand-mark {
+      width:34px;height:34px;border-radius:50%;background:var(--sage);color:#fff;
+      display:grid;place-items:center;font-family:Georgia,serif;font-size:20px;font-style:italic;
+    }
+    .brand-name { font-size:12px;letter-spacing:.16em;font-weight:700; }
+    .brand-sub { margin-top:3px;font-size:10px;color:var(--muted);letter-spacing:.04em; }
+    .offline-pill { display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #dfdfd6;border-radius:99px;color:#606657;font-size:11px;background:rgba(255,254,250,.62); }
+    .offline-pill i { width:6px;height:6px;border-radius:50%;background:#758b64;display:block; }
+    .intro { margin:42px 0 30px; display:flex;align-items:end;justify-content:space-between;gap:24px; }
+    .eyebrow { color:var(--sage);font-size:10px;letter-spacing:.19em;font-weight:700;text-transform:uppercase; }
+    h1 { margin:10px 0 0;font-family:Georgia,"Songti SC",serif;font-size:clamp(30px,4vw,48px);font-weight:400;letter-spacing:-.045em;line-height:1.04; }
+    .intro-note { max-width:290px;color:#77796f;font-size:13px;line-height:1.65;margin:0 3px 3px 0; }
+    .board { display:grid;grid-template-columns:repeat(2,minmax(320px,390px));justify-content:center;gap:72px;align-items:start; }
+    .screen-label { display:flex;justify-content:space-between;align-items:center;margin:0 3px 13px;font-size:11px;color:#73766b;letter-spacing:.08em; }
+    .screen-label strong { font-size:11px;color:#34372f;letter-spacing:.12em;font-weight:700; }
+    .phone {
+      width:100%;max-width:390px;height:820px;padding:8px;border:1px solid #d0d0c9;border-radius:43px;
+      background:#20221e;box-shadow:var(--shadow);position:relative;overflow:hidden;
+    }
+    .phone::before { content:"";position:absolute;z-index:4;top:14px;left:50%;transform:translateX(-50%);width:86px;height:24px;background:#20221e;border-radius:99px; }
+    .phone-screen { height:100%;border-radius:35px;background:var(--screen);overflow:hidden;position:relative; }
+    .status { height:43px;padding:12px 23px 0;display:flex;justify-content:space-between;align-items:flex-start;font-size:10px;font-weight:700;letter-spacing:.02em; }
+    .status-right { display:flex;gap:5px;align-items:center; }
+    .signal { width:12px;height:8px;border-bottom:2px solid var(--ink);border-left:2px solid var(--ink);transform:skew(-25deg); }
+    .battery { width:16px;height:8px;border:1.4px solid var(--ink);border-radius:2px;position:relative; }
+    .battery::after { content:"";position:absolute;right:-3px;top:2px;width:2px;height:3px;background:var(--ink); }
+    .battery::before { content:"";position:absolute;inset:1px 3px 1px 1px;background:var(--ink); }
+    .app-content { height:calc(100% - 43px);overflow:auto;padding:13px 22px 92px;scrollbar-width:none; }
+    .app-content::-webkit-scrollbar { display:none; }
+    .app-header { display:flex;justify-content:space-between;align-items:center;margin:3px 0 23px; }
+    .app-wordmark { font-family:Georgia,"Songti SC",serif;font-size:18px;letter-spacing:-.04em; }
+    .date-chip { background:#f0efe8;border:0;border-radius:99px;padding:8px 11px;color:#65685f;font-size:10px;letter-spacing:.04em; }
+    .section-kicker { font-size:9px;font-weight:700;letter-spacing:.18em;color:var(--sage); }
+    .hero-title { font-family:Georgia,"Songti SC",serif;font-size:27px;line-height:1.18;letter-spacing:-.045em;font-weight:400;margin:9px 0 7px; }
+    .hero-copy { color:var(--muted);font-size:11px;line-height:1.6;margin:0; }
+    .metric-row { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:21px 0 19px; }
+    .metric { min-height:101px;padding:14px 14px 12px;border-radius:16px;background:#f0efe8;position:relative; }
+    .metric.weight { background:var(--sage-soft); }
+    .metric-label { color:#73766d;font-size:10px; }
+    .metric-value { margin-top:10px;font-family:Georgia,serif;font-size:27px;letter-spacing:-.04em; }
+    .metric-value small { margin-left:3px;font:11px Inter,-apple-system,sans-serif;color:#74776e;letter-spacing:0; }
+    .metric-foot { margin-top:5px;font-size:9px;color:#8a8c83; }
+    .metric.weight .metric-foot { color:var(--sage); }
+    .chart-panel { padding:15px 14px 11px;border:1px solid var(--line);border-radius:17px;background:var(--white); }
+    .chart-head { display:flex;justify-content:space-between;align-items:center;gap:10px; }
+    .chart-title { font-size:11px;font-weight:650; }
+    .segmented { display:flex;gap:2px;padding:3px;background:#f1f0e9;border-radius:99px; }
+    .segmented button { border:0;background:transparent;border-radius:99px;padding:5px 9px;font-size:9px;color:#878980; }
+    .segmented button.selected { background:#fffefa;color:#34372f;box-shadow:0 1px 3px rgba(31,33,27,.08); }
+    .chart-legend { display:flex;align-items:baseline;gap:5px;margin-top:15px; }
+    .chart-current { font-family:Georgia,serif;font-size:22px; }
+    .chart-delta { color:var(--sage);font-size:9px; }
+    .line-chart { width:100%;height:112px;display:block;margin-top:2px;overflow:visible; }
+    .chart-labels { display:flex;justify-content:space-between;margin:0 2px;color:#a0a196;font-size:8px; }
+    .log-weight { margin-top:15px;padding:13px 14px;border-radius:15px;background:#ebece4;display:flex;align-items:center;justify-content:space-between;gap:12px; }
+    .log-copy strong { display:block;font-size:11px;font-weight:650; }
+    .log-copy span { display:block;margin-top:4px;font-size:9px;color:#777a70; }
+    .primary-btn { border:0;border-radius:99px;background:var(--sage);color:white;padding:10px 13px;font-size:10px;font-weight:600;white-space:nowrap;transition:transform .18s,background .18s; }
+    .primary-btn:hover { background:#53664b;transform:translateY(-1px); }
+    .footnote { margin:13px 2px 0;color:#9a9b91;font-size:9px;line-height:1.5; }
+    .bottom-nav { position:absolute;z-index:3;left:8px;right:8px;bottom:8px;height:72px;border-radius:0 0 34px 34px;background:rgba(251,250,246,.96);border-top:1px solid #eeede5;display:flex;justify-content:space-around;align-items:center;padding:5px 30px 9px; }
+    .nav-item { display:flex;flex-direction:column;align-items:center;gap:5px;color:#a0a196;font-size:9px;min-width:76px; }
+    .nav-item.active { color:var(--sage);font-weight:650; }
+    .nav-icon { width:19px;height:19px;display:grid;place-items:center; }
+    .nav-icon svg { width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round; }
+    .day-nav { display:flex;align-items:center;justify-content:space-between;margin:17px 0 14px;padding:0 2px; }
+    .day-switch { border:0;background:transparent;color:#66695e;font-size:18px;padding:5px 8px; }
+    .day-date { text-align:center; }
+    .day-date strong { display:block;font-family:Georgia,serif;font-size:16px;font-weight:400; }
+    .day-date span { display:block;color:#929489;font-size:9px;margin-top:4px; }
+    .today-link { border:0;background:transparent;color:var(--sage);font-size:10px; }
+    .spend-summary { border-radius:17px;padding:15px 16px 14px;background:#e9eee4;display:flex;justify-content:space-between;align-items:end; }
+    .spend-summary .label { font-size:9px;color:#66735e;letter-spacing:.04em; }
+    .spend-amount { margin-top:5px;font-family:Georgia,serif;font-size:27px;letter-spacing:-.04em;color:#35412f; }
+    .spend-caption { color:#72806b;font-size:9px;padding-bottom:3px; }
+    .meals-heading { display:flex;justify-content:space-between;align-items:center;margin:20px 1px 9px; }
+    .meals-heading strong { font-size:11px;font-weight:650; }
+    .meals-heading span { font-size:9px;color:#999a90; }
+    .meal-list { display:flex;flex-direction:column;gap:8px; }
+    .meal-card { padding:11px 12px 10px;border:1px solid var(--line);border-radius:14px;background:var(--white); }
+    .meal-top { display:flex;justify-content:space-between;align-items:center; }
+    .meal-name { display:flex;align-items:center;gap:8px;font-size:10px;font-weight:650; }
+    .meal-dot { width:7px;height:7px;border-radius:50%;background:#c18b68; }
+    .meal-card:nth-child(2) .meal-dot { background:#81916c; }
+    .meal-card:nth-child(3) .meal-dot { background:#8b8294; }
+    .meal-cost { font-family:Georgia,serif;font-size:15px; }
+    .meal-description { margin:7px 0 0 15px;color:#77796f;font-size:9px;line-height:1.45; }
+    .meal-add { margin:8px 0 0 15px;padding:0;border:0;background:none;color:var(--sage);font-size:9px; }
+    .stats-panel { margin-top:17px;padding:13px 13px 11px;border-radius:15px;background:#f1efe8; }
+    .stats-top { display:flex;justify-content:space-between;align-items:center; }
+    .stats-top strong { font-size:10px;font-weight:650; }
+    .stats-total { margin-top:10px;font-family:Georgia,serif;font-size:22px;letter-spacing:-.03em; }
+    .stats-period { display:flex;gap:5px; }
+    .stats-period button { border:0;background:transparent;padding:4px 7px;border-radius:99px;color:#85877d;font-size:9px; }
+    .stats-period button.selected { color:white;background:var(--sage); }
+    .bars { height:47px;display:flex;align-items:end;gap:7px;margin:8px 1px 0; }
+    .bar-col { flex:1;height:100%;display:flex;flex-direction:column;justify-content:end;align-items:center;gap:4px;color:#999a90;font-size:7px; }
+    .bar { width:100%;max-width:18px;min-height:4px;border-radius:4px 4px 1px 1px;background:#bac4af; }
+    .bar-col.today .bar { background:var(--sage); }
+    .stats-breakdown { display:flex;justify-content:space-between;border-top:1px solid #e2e0d7;margin-top:9px;padding-top:8px;color:#7c7e73;font-size:8px; }
+    .stats-breakdown b { color:#4e5148;font-weight:600; }
+    .modal-backdrop { position:fixed;inset:0;background:rgba(31,34,28,.32);display:none;align-items:center;justify-content:center;padding:18px;z-index:20; }
+    .modal-backdrop.open { display:flex; }
+    .modal { width:min(100%,360px);padding:22px;border-radius:22px;background:var(--screen);box-shadow:0 20px 60px rgba(20,22,18,.2); }
+    .modal-head { display:flex;justify-content:space-between;align-items:center; }
+    .modal h2 { margin:0;font:24px Georgia,"Songti SC",serif; }
+    .close-modal { border:0;background:#eeede6;border-radius:50%;width:30px;height:30px;color:#686a60;font-size:17px; }
+    .modal-sub { margin:8px 0 18px;color:#84867c;font-size:11px; }
+    .field { margin:13px 0; }
+    .field label { display:block;margin-bottom:6px;color:#73766c;font-size:10px; }
+    .field input,.field textarea,.field select { width:100%;border:1px solid #e1e0d7;border-radius:11px;padding:12px;background:#fffefa;color:var(--ink);outline:none;font-size:13px; }
+    .field textarea { resize:vertical;min-height:72px; }
+    .field input:focus,.field textarea:focus,.field select:focus { border-color:#8c9a80;box-shadow:0 0 0 3px rgba(100,118,90,.1); }
+    .modal-actions { display:flex;gap:9px;margin-top:19px; }
+    .modal-actions button { flex:1;padding:12px;border-radius:99px;font-size:11px; }
+    .secondary-btn { background:transparent;border:1px solid #deddd4;color:#696b61; }
+    .save-btn { background:var(--sage);border:0;color:#fff; }
+    .toast { position:fixed;left:50%;bottom:22px;transform:translate(-50%,18px);opacity:0;pointer-events:none;padding:10px 15px;border-radius:99px;background:#30342c;color:#fff;font-size:11px;transition:.22s;z-index:30; }
+    .toast.show { opacity:1;transform:translate(-50%,0); }
+    @media (max-width: 900px) {
+      .studio { padding:24px 18px 32px; }
+      .board { gap:30px; }
+      .phone { height:800px; }
+    }
+    @media (max-width: 720px) {
+      .studio { padding:18px 14px 26px; }
+      .intro { margin:30px 0 21px;display:block; }
+      .intro-note { margin-top:10px;max-width:360px; }
+      .board { display:block; }
+      .screen-frame { display:none; }
+      .screen-frame.mobile-active { display:block;max-width:390px;margin:0 auto; }
+      .screen-label { margin-bottom:10px; }
+      .phone { margin:0 auto;height:min(78vh,790px);min-height:650px; }
+      .mobile-switch { display:flex !important; }
+    }
+    .mobile-switch { display:none;gap:6px;margin:0 0 18px; }
+    .mobile-switch button { border:1px solid #deddd4;background:rgba(255,254,250,.7);color:#77796f;padding:8px 12px;border-radius:99px;font-size:10px; }
+    .mobile-switch button.selected { background:var(--sage);color:#fff;border-color:var(--sage); }
+  </style>
+</head>
+<body>
+  <main class="studio">
+    <header class="topline">
+      <div class="brand">
+        <div class="brand-mark">d</div>
+        <div><div class="brand-name">DAY BY DAY</div><div class="brand-sub">身体 · 饮食 · 日常消费</div></div>
+      </div>
+      <div class="offline-pill"><i></i>本地记录 · 离线可用</div>
+    </header>
+    <section class="intro">
+      <div><div class="eyebrow">MOBILE APP · UI CONCEPT</div><h1>把日常，记录得更清楚。</h1></div>
+      <p class="intro-note">一眼看见身体的变化，也记下每一餐与花费。信息安静地留在自己的设备里。</p>
+    </section>
+    <div class="mobile-switch" aria-label="切换预览页面">
+      <button class="selected" data-show="body">01 身体数据</button>
+      <button data-show="food">02 饮食消费</button>
+    </div>
+    <section class="board">
+      <article class="screen-frame mobile-active" data-frame="body">
+        <div class="screen-label"><strong>01 / 身体数据</strong><span>首页 · 趋势与记录</span></div>
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="status"><span>9:41</span><span class="status-right"><span class="signal"></span><span>•••</span><span class="battery"></span></span></div>
+            <div class="app-content">
+              <div class="app-header"><div class="app-wordmark">日常</div><button class="date-chip">2026年9月30日　⌄</button></div>
+              <div class="section-kicker">身体记录 · 周三</div>
+              <h2 class="hero-title">慢一点，<br>也看得见变化。</h2>
+              <p class="hero-copy">持续记录，让身体的状态有迹可循。</p>
+              <div class="metric-row">
+                <div class="metric"><div class="metric-label">当前身高</div><div class="metric-value" id="heightValue">168.0<small>cm</small></div><div class="metric-foot">最近更新 · 8月12日</div></div>
+                <div class="metric weight"><div class="metric-label">最近体重</div><div class="metric-value"><span id="weightValue">62.4</span><small>kg</small></div><div class="metric-foot">较上周　−0.3 kg</div></div>
+              </div>
+              <section class="chart-panel">
+                <div class="chart-head">
+                  <div class="chart-title">身体趋势</div>
+                  <div class="segmented" role="group" aria-label="趋势类型">
+                    <button class="selected" data-metric="weight">体重</button><button data-metric="height">身高</button>
+                  </div>
+                </div>
+                <div class="chart-legend"><span class="chart-current" id="chartCurrent">62.4 kg</span><span class="chart-delta" id="chartDelta">近 7 天 · 稳定下降</span></div>
+                <svg class="line-chart" viewBox="0 0 320 112" role="img" aria-label="身体趋势折线图">
+                  <defs><linearGradient id="areaFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#819373" stop-opacity=".20"/><stop offset="1" stop-color="#819373" stop-opacity="0"/></linearGradient></defs>
+                  <path d="M8 23 H312 M8 57 H312 M8 91 H312" stroke="#eeede7" stroke-width="1" stroke-dasharray="2 5"/>
+                  <path id="chartArea" d="M8 69 C31 58 39 61 57 52 S91 59 109 48 S145 54 160 42 S195 48 211 38 S247 48 264 33 S293 39 312 24 L312 100 L8 100 Z" fill="url(#areaFill)"/>
+                  <path id="chartLine" d="M8 69 C31 58 39 61 57 52 S91 59 109 48 S145 54 160 42 S195 48 211 38 S247 48 264 33 S293 39 312 24" fill="none" stroke="#65785a" stroke-width="2.3" stroke-linecap="round"/>
+                  <circle id="chartDot" cx="312" cy="24" r="4.5" fill="#fbfaf6" stroke="#65785a" stroke-width="2.2"/>
+                </svg>
+                <div class="chart-labels"><span>9/24</span><span>9/25</span><span>9/26</span><span>9/27</span><span>9/28</span><span>9/29</span><span>9/30</span></div>
+              </section>
+              <div class="log-weight">
+                <div class="log-copy"><strong>今天称过体重了吗？</strong><span>留下一笔，更新身体趋势</span></div>
+                <button class="primary-btn" id="openWeight">记录体重</button>
+              </div>
+              <p class="footnote">身高在更新时记录历史；体重可按天补记或修改。</p>
+            </div>
+            <nav class="bottom-nav" aria-label="主导航">
+              <div class="nav-item active"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16M7 15l4-4 3 2 6-7"/></svg></span><span>身体</span></div>
+              <div class="nav-item"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h6"/></svg></span><span>饮食消费</span></div>
+            </nav>
+          </div>
+        </div>
+      </article>
+      <article class="screen-frame" data-frame="food">
+        <div class="screen-label"><strong>02 / 饮食消费</strong><span>日记 · 餐次与统计</span></div>
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="status"><span>9:41</span><span class="status-right"><span class="signal"></span><span>•••</span><span class="battery"></span></span></div>
+            <div class="app-content">
+              <div class="app-header"><div class="app-wordmark">日常</div><button class="date-chip">本地数据　⌄</button></div>
+              <div class="section-kicker">饮食日记 · 星期三</div>
+              <h2 class="hero-title">今天吃了什么？</h2>
+              <div class="day-nav">
+                <button class="day-switch" aria-label="前一天">‹</button>
+                <div class="day-date"><strong>9月30日</strong><span>星期三 · 今天</span></div>
+                <button class="day-switch" aria-label="后一天">›</button>
+                <button class="today-link">今天</button>
+              </div>
+              <div class="spend-summary">
+                <div><div class="label">今日饮食消费</div><div class="spend-amount" id="dailySpend">¥ 86.50</div></div>
+                <div class="spend-caption">3 餐 · 已记录</div>
+              </div>
+              <div class="meals-heading"><strong>三餐记录</strong><span>餐费按餐次汇总</span></div>
+              <div class="meal-list" id="mealList">
+                <article class="meal-card" data-meal="早餐" data-cost="18.5">
+                  <div class="meal-top"><div class="meal-name"><i class="meal-dot"></i>早餐</div><div class="meal-cost">¥18.50</div></div>
+                  <p class="meal-description">燕麦牛奶 · 香蕉 · 美式咖啡</p><button class="meal-add" data-edit="早餐">编辑早餐　↗</button>
+                </article>
+                <article class="meal-card" data-meal="午餐" data-cost="32">
+                  <div class="meal-top"><div class="meal-name"><i class="meal-dot"></i>午餐</div><div class="meal-cost">¥32.00</div></div>
+                  <p class="meal-description">番茄鸡蛋面 · 凉拌黄瓜</p><button class="meal-add" data-edit="午餐">编辑午餐　↗</button>
+                </article>
+                <article class="meal-card" data-meal="晚餐" data-cost="36">
+                  <div class="meal-top"><div class="meal-name"><i class="meal-dot"></i>晚餐</div><div class="meal-cost">¥36.00</div></div>
+                  <p class="meal-description">清蒸鱼 · 米饭 · 青菜</p><button class="meal-add" data-edit="晚餐">编辑晚餐　↗</button>
+                </article>
+              </div>
+              <section class="stats-panel">
+                <div class="stats-top"><strong>消费统计</strong><div class="stats-period"><button class="selected" data-period="day">日</button><button data-period="week">周</button><button data-period="month">月</button></div></div>
+                <div class="stats-total" id="periodTotal">¥ 86.50 <span style="font:9px Inter,sans-serif;color:#85877d">今日</span></div>
+                <div class="bars" id="bars">
+                  <div class="bar-col"><i class="bar" style="height:37%"></i><span>一</span></div>
+                  <div class="bar-col"><i class="bar" style="height:55%"></i><span>二</span></div>
+                  <div class="bar-col today"><i class="bar" style="height:79%"></i><span>三</span></div>
+                  <div class="bar-col"><i class="bar" style="height:28%"></i><span>四</span></div>
+                  <div class="bar-col"><i class="bar" style="height:68%"></i><span>五</span></div>
+                  <div class="bar-col"><i class="bar" style="height:44%"></i><span>六</span></div>
+                  <div class="bar-col"><i class="bar" style="height:58%"></i><span>日</span></div>
+                </div>
+                <div class="stats-breakdown"><span>早餐 <b>¥18.50</b></span><span>午餐 <b>¥32.00</b></span><span>晚餐 <b>¥36.00</b></span></div>
+              </section>
+            </div>
+            <nav class="bottom-nav" aria-label="主导航">
+              <div class="nav-item"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16M7 15l4-4 3 2 6-7"/></svg></span><span>身体</span></div>
+              <div class="nav-item active"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h6"/></svg></span><span>饮食消费</span></div>
+            </nav>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+  <div class="modal-backdrop" id="weightModal" role="dialog" aria-modal="true" aria-labelledby="weightTitle">
+    <form class="modal" id="weightForm">
+      <div class="modal-head"><h2 id="weightTitle">记录体重</h2><button type="button" class="close-modal" data-close>×</button></div>
+      <p class="modal-sub">记录今天的身体状态，之后也可以修改。</p>
+      <div class="field"><label for="weightInput">体重（kg）</label><input id="weightInput" type="number" min="20" max="300" step="0.1" value="62.4" required></div>
+      <div class="field"><label for="weightDate">记录日期</label><input id="weightDate" type="date" value="2026-09-30" required></div>
+      <div class="modal-actions"><button type="button" class="secondary-btn" data-close>取消</button><button class="save-btn" type="submit">保存记录</button></div>
+    </form>
+  </div>
+  <div class="modal-backdrop" id="mealModal" role="dialog" aria-modal="true" aria-labelledby="mealTitle">
+    <form class="modal" id="mealForm">
+      <div class="modal-head"><h2 id="mealTitle">记录一餐</h2><button type="button" class="close-modal" data-close>×</button></div>
+      <p class="modal-sub">记下餐食内容和这顿饭的花费。</p>
+      <div class="field"><label for="mealType">餐次</label><select id="mealType"><option>早餐</option><option>午餐</option><option>晚餐</option></select></div>
+      <div class="field"><label for="mealFood">吃了什么</label><textarea id="mealFood" placeholder="例如：米饭、青菜、番茄炒蛋"></textarea></div>
+      <div class="field"><label for="mealCost">消费金额（元）</label><input id="mealCost" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="modal-actions"><button type="button" class="secondary-btn" data-close>取消</button><button class="save-btn" type="submit">保存餐食</button></div>
+    </form>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <script>
+    const weightModal = document.getElementById('weightModal');
+    const mealModal = document.getElementById('mealModal');
+    const toast = document.getElementById('toast');
+    const closeModals = () => document.querySelectorAll('.modal-backdrop').forEach(el => el.classList.remove('open'));
+    const showToast = message => {
+      toast.textContent = message;
+      toast.classList.add('show');
+      window.setTimeout(() => toast.classList.remove('show'), 1800);
+    };
+    document.getElementById('openWeight').addEventListener('click', () => weightModal.classList.add('open'));
+    document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', closeModals));
+    document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.addEventListener('click', event => {
+      if (event.target === backdrop) closeModals();
+    }));
+    document.getElementById('weightForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const value = Number(document.getElementById('weightInput').value).toFixed(1);
+      document.getElementById('weightValue').textContent = value;
+      document.getElementById('chartCurrent').textContent = value + ' kg';
+      closeModals();
+      showToast('体重记录已保存');
+    });
+    document.querySelectorAll('[data-metric]').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-metric]').forEach(item => item.classList.toggle('selected', item === button));
+      const heightMode = button.dataset.metric === 'height';
+      document.getElementById('chartCurrent').textContent = heightMode ? '168.0 cm' : document.getElementById('weightValue').textContent + ' kg';
+      document.getElementById('chartDelta').textContent = heightMode ? '近 6 个月 · 身高记录' : '近 7 天 · 稳定下降';
+      document.getElementById('chartLine').setAttribute('d', heightMode
+        ? 'M8 68 C31 68 39 65 57 65 S91 62 109 62 S145 58 160 58 S195 48 211 48 S247 42 264 42 S293 27 312 27'
+        : 'M8 69 C31 58 39 61 57 52 S91 59 109 48 S145 54 160 42 S195 48 211 38 S247 48 264 33 S293 39 312 24');
+      document.getElementById('chartArea').setAttribute('d', (heightMode
+        ? 'M8 68 C31 68 39 65 57 65 S91 62 109 62 S145 58 160 58 S195 48 211 48 S247 42 264 42 S293 27 312 27'
+        : 'M8 69 C31 58 39 61 57 52 S91 59 109 48 S145 54 160 42 S195 48 211 38 S247 48 264 33 S293 39 312 24') + ' L312 100 L8 100 Z');
+      document.getElementById('chartDot').setAttribute('cy', heightMode ? '27' : '24');
+    }));
+    document.querySelectorAll('[data-edit]').forEach(button => button.addEventListener('click', () => {
+      document.getElementById('mealType').value = button.dataset.edit;
+      const card = button.closest('.meal-card');
+      document.getElementById('mealFood').value = card.querySelector('.meal-description').textContent;
+      document.getElementById('mealCost').value = Number(card.dataset.cost).toFixed(2);
+      mealModal.classList.add('open');
+    }));
+    document.getElementById('mealForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const type = document.getElementById('mealType').value;
+      const food = document.getElementById('mealFood').value.trim() || '未填写餐食';
+      const cost = Number(document.getElementById('mealCost').value || 0);
+      const card = [...document.querySelectorAll('.meal-card')].find(item => item.dataset.meal === type);
+      card.dataset.cost = String(cost);
+      card.querySelector('.meal-description').textContent = food;
+      card.querySelector('.meal-cost').textContent = '¥' + cost.toFixed(2);
+      document.getElementById('dailySpend').textContent = '¥ ' + [...document.querySelectorAll('.meal-card')].reduce((sum, item) => sum + Number(item.dataset.cost), 0).toFixed(2);
+      document.getElementById('periodTotal').innerHTML = document.getElementById('dailySpend').textContent + ' <span style="font:9px Inter,sans-serif;color:#85877d">今日</span>';
+      closeModals();
+      showToast(type + '已更新');
+    });
+    const periodData = {
+      day: { total: '¥ 86.50', label: '今日', bars: [37,55,79,28,68,44,58] },
+      week: { total: '¥ 426.80', label: '本周', bars: [45,63,50,83,38,69,29] },
+      month: { total: '¥ 1,286.50', label: '本月', bars: [38,62,48,81,55,72,45] }
+    };
+    document.querySelectorAll('[data-period]').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-period]').forEach(item => item.classList.toggle('selected', item === button));
+      const data = periodData[button.dataset.period];
+      document.getElementById('periodTotal').innerHTML = data.total + ' <span style="font:9px Inter,sans-serif;color:#85877d">' + data.label + '</span>';
+      document.querySelectorAll('#bars .bar').forEach((bar, index) => bar.style.height = data.bars[index] + '%');
+    }));
+    document.querySelectorAll('.mobile-switch button').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('.mobile-switch button').forEach(item => item.classList.toggle('selected', item === button));
+      document.querySelectorAll('.screen-frame').forEach(frame => frame.classList.toggle('mobile-active', frame.dataset.frame === button.dataset.show));
+    }));
+  </script>
+</body>
+</html>
