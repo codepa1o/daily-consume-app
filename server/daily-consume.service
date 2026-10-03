@@ -1,0 +1,20 @@
+[Unit]
+Description=Daily Consume API
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+User=daily-consume
+Group=daily-consume
+WorkingDirectory=/opt/daily-consume
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/daily-consume/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8091 --workers 2 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>日常 · 蕾姆 Logo 预览</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f6f5ef; color: #292c25; font-family: system-ui,"Microsoft YaHei",sans-serif; }
+  main { max-width: 980px; margin: auto; padding: 50px 24px; }
+  .eyebrow { color: #64765a; font-size: 12px; letter-spacing: .2em; }
+  h1 { margin: 12px 0; font-size: clamp(30px,5vw,46px); font-weight: 600; }
+  p { color: #85877d; line-height: 1.8; }
+  .grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; margin-top: 34px; }
+  article { border: 1px solid #e8e7df; background: #fffefa; border-radius: 24px; padding: 30px; text-align: center; }
+  .icon { background: #64765a; width: 172px; height: 172px; margin: 8px auto 24px; position: relative; overflow: hidden; }
+  .circle { border-radius: 50%; }
+  .square { border-radius: 26%; }
+  .icon img { position: absolute; inset: 16%; width: 68%; height: 68%; object-fit: contain; }
+  h2 { font-size: 17px; font-weight: 600; }
+  .small { display: flex; align-items: center; justify-content: center; gap: 18px; height: 172px; margin: 8px auto 24px; }
+  .small .icon { margin: 0; }
+  .small .s48 { width: 48px; height: 48px; }
+  .small .s32 { width: 32px; height: 32px; }
+  .header { display: flex; align-items: center; gap: 10px; height: 172px; justify-content: center; margin: 8px auto 24px; text-align: left; }
+  .badge { display: block; background: #64765a; width: 33px; height: 33px; border-radius: 50%; overflow: hidden; }
+  .badge img { width: 100%; height: 100%; object-fit: contain; }
+  .brand { font-size: 10px; font-weight: 700; letter-spacing: 1.8px; }
+  .sub { margin-top: 3px; color: #85877d; font-size: 9px; }
+  @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } main { padding-top: 30px; } }
+</style>
+<main>
+  <div class="eyebrow">DAY BY DAY</div>
+  <h1>日常 · 蕾姆 Logo</h1>
+  <p>蓝色短发与女仆发饰，搭配鼠尾草绿背景。以下使用同一张透明头像预览不同图标形状。</p>
+  <div class="grid">
+    <article><div class="icon circle"><img src="../assets/branding/rem_logo.png" alt="蕾姆圆形桌面图标"></div><h2>圆形桌面图标</h2></article>
+    <article><div class="icon square"><img src="../assets/branding/rem_logo.png" alt="蕾姆圆角方形桌面图标"></div><h2>圆角方形桌面图标</h2></article>
+    <article><div class="small"><div class="icon circle s48"><img src="../assets/branding/rem_logo.png" alt="48px 图标"></div><div class="icon square s48"><img src="../assets/branding/rem_logo.png" alt="48px 图标"></div><div class="icon circle s32"><img src="../assets/branding/rem_logo.png" alt="32px 图标"></div></div><h2>48px / 32px 小尺寸预览</h2></article>
+    <article><div class="header"><span class="badge"><img src="../assets/branding/rem_logo.png" alt="蕾姆 Logo"></span><div><div class="brand">DAY BY DAY</div><div class="sub">身体 · 饮食 · 健身</div></div></div><h2>页面左上角 Logo</h2></article>
+  </div>
+</main>
+</html>

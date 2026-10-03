@@ -3,6 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'data/app_database.dart';
+import 'data/api_client.dart';
+import 'account_pages.dart';
+import 'update/app_updates.dart';
+import 'workout_page.dart';
+import 'widgets/app_logo.dart';
 
 const paper = Color(0xfff6f5ef);
 const surface = Color(0xfffffefa);
@@ -15,7 +20,6 @@ const mealTypes = ['早餐', '午餐', '晚餐'];
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AppDatabase.instance.database;
   runApp(const DailyConsumeApp());
 }
 
@@ -32,7 +36,8 @@ class DailyConsumeApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: sage, surface: paper),
           fontFamily: 'sans-serif',
         ),
-        home: const AppShell(),
+        home: UpdateHost(
+            child: AuthGate(homeBuilder: (key) => AppShell(key: key))),
       );
 }
 
@@ -48,15 +53,23 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: IndexedStack(index: selected, children: const [BodyPage(), DiaryPage()]),
+        body: IndexedStack(
+            index: selected,
+            children: const [BodyPage(), DiaryPage(), WorkoutPage(), MyPage()]),
         bottomNavigationBar: NavigationBar(
           selectedIndex: selected,
           onDestinationSelected: (index) => setState(() => selected = index),
           backgroundColor: surface,
           indicatorColor: sageSoft,
           destinations: const [
-            NavigationDestination(icon: Icon(Icons.show_chart_rounded), label: '身体'),
-            NavigationDestination(icon: Icon(Icons.restaurant_menu_rounded), label: '饮食消费'),
+            NavigationDestination(
+                icon: Icon(Icons.show_chart_rounded), label: '身体'),
+            NavigationDestination(
+                icon: Icon(Icons.restaurant_menu_rounded), label: '饮食消费'),
+            NavigationDestination(
+                icon: Icon(Icons.fitness_center_rounded), label: '健身'),
+            NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded), label: '我的'),
           ],
         ),
       );
@@ -74,7 +87,8 @@ class _BodyPageState extends State<BodyPage> {
   List<BodyEntry> weights = [];
   List<BodyEntry> heights = [];
   bool loading = true;
-  bool showingWeight = true;
+  String? loadError;
+  int _loadVersion = 0;
 
   @override
   void initState() {
@@ -83,28 +97,43 @@ class _BodyPageState extends State<BodyPage> {
   }
 
   Future<void> reload() async {
-    final newWeights = await db.getWeights();
-    final newHeights = await db.getHeights();
-    if (!mounted) return;
+    final version = ++_loadVersion;
     setState(() {
-      weights = newWeights;
-      heights = newHeights;
-      loading = false;
+      loading = true;
+      loadError = null;
     });
+    try {
+      final data = await Future.wait([db.getWeights(), db.getHeights()]);
+      if (!mounted || version != _loadVersion) return;
+      setState(() {
+        weights = data[0];
+        heights = data[1];
+        loading = false;
+      });
+    } catch (error) {
+      if (!mounted || version != _loadVersion) return;
+      setState(() {
+        loading = false;
+        loadError = error is ApiException ? error.message : '加载失败，请重试';
+      });
+    }
   }
 
   Future<void> editValue({required bool weight}) async {
     final entries = weight ? weights : heights;
     final latest = entries.isEmpty ? null : entries.last;
-    final input = TextEditingController(text: latest?.value.toStringAsFixed(1) ?? '');
+    final input =
+        TextEditingController(text: latest?.value.toStringAsFixed(1) ?? '');
     final formKey = GlobalKey<FormState>();
     var date = DateTime.now();
+    var saving = false;
 
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
-          title: Text(weight ? '记录体重' : '记录身高', style: const TextStyle(fontFamily: 'serif', fontSize: 24)),
+          title: Text(weight ? '记录体重' : '记录身高',
+              style: const TextStyle(fontFamily: 'serif', fontSize: 24)),
           content: Form(
             key: formKey,
             child: Column(
@@ -113,18 +142,24 @@ class _BodyPageState extends State<BodyPage> {
                 TextFormField(
                   controller: input,
                   autofocus: true,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     labelText: weight ? '体重（kg）' : '身高（cm）',
                     filled: true,
                     fillColor: paper,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none),
                   ),
                   validator: (raw) {
                     final value = double.tryParse(raw ?? '');
-                    if (value == null || value <= 0) return '请输入有效数值';
-                    if (weight && (value < 20 || value > 300)) return '体重范围为 20–300 kg';
-                    if (!weight && (value < 80 || value > 250)) return '身高范围为 80–250 cm';
+                    if (value == null || !value.isFinite || value <= 0)
+                      return '请输入有效数值';
+                    if (weight && (value < 20 || value > 300))
+                      return '体重范围为 20–300 kg';
+                    if (!weight && (value < 80 || value > 250))
+                      return '身高范围为 80–250 cm';
                     return null;
                   },
                 ),
@@ -146,26 +181,39 @@ class _BodyPageState extends State<BodyPage> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
+            TextButton(
+                onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                child: const Text('取消')),
             FilledButton(
-              onPressed: () async {
-                if (!formKey.currentState!.validate()) return;
-                final value = double.parse(input.text);
-                if (weight) {
-                  await db.saveWeight(date, value);
-                } else {
-                  await db.saveHeight(date, value);
-                }
-                if (!dialogContext.mounted) return;
-                Navigator.pop(dialogContext);
-                await reload();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(weight ? '体重记录已保存' : '身高记录已保存')),
-                  );
-                }
-              },
-              child: const Text('保存'),
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      final value = double.parse(input.text);
+                      setDialogState(() => saving = true);
+                      final success =
+                          await serverAction(dialogContext, () async {
+                        if (weight) {
+                          await db.saveWeight(date, value);
+                        } else {
+                          await db.saveHeight(date, value);
+                        }
+                      });
+                      if (!dialogContext.mounted) return;
+                      if (!success) {
+                        setDialogState(() => saving = false);
+                        return;
+                      }
+                      Navigator.pop(dialogContext);
+                      await reload();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text(weight ? '体重记录已保存' : '身高记录已保存')),
+                        );
+                      }
+                    },
+              child: Text(saving ? '保存中…' : '保存'),
             ),
           ],
         ),
@@ -178,10 +226,14 @@ class _BodyPageState extends State<BodyPage> {
   Widget build(BuildContext context) {
     final latestWeight = weights.isEmpty ? null : weights.last;
     final latestHeight = heights.isEmpty ? null : heights.last;
-    final series = showingWeight ? weights : heights;
-    final unit = showingWeight ? 'kg' : 'cm';
+    final series = weights;
+    const unit = 'kg';
 
-    if (loading) return const SafeArea(child: Center(child: CircularProgressIndicator(color: sage)));
+    if (loading)
+      return const SafeArea(
+          child: Center(child: CircularProgressIndicator(color: sage)));
+    if (loadError != null)
+      return NetworkFailure(message: loadError!, onRetry: reload);
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
@@ -192,10 +244,16 @@ class _BodyPageState extends State<BodyPage> {
           const SizedBox(height: 7),
           const Text(
             '慢一点，\n也看得见变化。',
-            style: TextStyle(color: ink, fontFamily: 'serif', fontSize: 32, height: 1.12, letterSpacing: -1.1),
+            style: TextStyle(
+                color: ink,
+                fontFamily: 'serif',
+                fontSize: 32,
+                height: 1.12,
+                letterSpacing: -1.1),
           ),
           const SizedBox(height: 7),
-          const Text('持续记录，让身体的状态有迹可循。', style: TextStyle(color: muted, fontSize: 13)),
+          const Text('持续记录，让身体的状态有迹可循。',
+              style: TextStyle(color: muted, fontSize: 13)),
           const SizedBox(height: 22),
           Row(
             children: [
@@ -204,7 +262,9 @@ class _BodyPageState extends State<BodyPage> {
                   label: '当前身高',
                   value: latestHeight?.value.toStringAsFixed(1) ?? '—',
                   unit: 'cm',
-                  caption: latestHeight == null ? '添加一次身高记录' : '最近更新 · ' + formatDate(latestHeight.date),
+                  caption: latestHeight == null
+                      ? '添加一次身高记录'
+                      : '最近更新 · ' + formatDate(latestHeight.date),
                 ),
               ),
               const SizedBox(width: 11),
@@ -213,7 +273,9 @@ class _BodyPageState extends State<BodyPage> {
                   label: '最近体重',
                   value: latestWeight?.value.toStringAsFixed(1) ?? '—',
                   unit: 'kg',
-                  caption: latestWeight == null ? '记录今天的体重' : '最近记录 · ' + formatDate(latestWeight.date),
+                  caption: latestWeight == null
+                      ? '记录今天的体重'
+                      : '最近记录 · ' + formatDate(latestWeight.date),
                   emphasized: true,
                 ),
               ),
@@ -224,27 +286,25 @@ class _BodyPageState extends State<BodyPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Expanded(child: Text('身体趋势', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-                    _MetricSelector(
-                      showingWeight: showingWeight,
-                      onChanged: (value) => setState(() => showingWeight = value),
-                    ),
-                  ],
-                ),
+                const Text('体重趋势',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 14),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      series.isEmpty ? '—' : series.last.value.toStringAsFixed(1) + ' ' + unit,
-                      style: const TextStyle(fontFamily: 'serif', fontSize: 25, color: ink),
+                      series.isEmpty
+                          ? '—'
+                          : series.last.value.toStringAsFixed(1) + ' ' + unit,
+                      style: const TextStyle(
+                          fontFamily: 'serif', fontSize: 25, color: ink),
                     ),
                     const SizedBox(width: 8),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(series.length.toString() + ' 条记录', style: const TextStyle(color: muted, fontSize: 10)),
+                      child: Text(series.length.toString() + ' 条记录',
+                          style: const TextStyle(color: muted, fontSize: 10)),
                     ),
                   ],
                 ),
@@ -255,7 +315,9 @@ class _BodyPageState extends State<BodyPage> {
                   SizedBox(
                     height: 150,
                     child: CustomPaint(
-                      painter: _TrendPainter(values: series.map((entry) => entry.value).toList(), color: sage),
+                      painter: _TrendPainter(
+                          values: series.map((entry) => entry.value).toList(),
+                          color: sage),
                       child: const SizedBox.expand(),
                     ),
                   ),
@@ -263,8 +325,10 @@ class _BodyPageState extends State<BodyPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(formatDate(series.first.date), style: const TextStyle(color: muted, fontSize: 9)),
-                      Text(formatDate(series.last.date), style: const TextStyle(color: muted, fontSize: 9)),
+                      Text(formatDate(series.first.date),
+                          style: const TextStyle(color: muted, fontSize: 9)),
+                      Text(formatDate(series.last.date),
+                          style: const TextStyle(color: muted, fontSize: 9)),
                     ],
                   ),
               ],
@@ -286,7 +350,8 @@ class _BodyPageState extends State<BodyPage> {
               foregroundColor: sage,
               side: const BorderSide(color: Color(0xffd9ded3)),
               padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
             ),
           ),
         ],
@@ -311,10 +376,13 @@ class _DiaryPageState extends State<DiaryPage> {
   List<MealEntry> dayMeals = [];
   List<MealEntry> periodMeals = [];
   bool loading = true;
+  String? loadError;
+  int _loadVersion = 0;
 
   DateTime get rangeStart {
     if (period == _Period.day) return selectedDate;
-    if (period == _Period.week) return selectedDate.subtract(Duration(days: selectedDate.weekday - 1));
+    if (period == _Period.week)
+      return selectedDate.subtract(Duration(days: selectedDate.weekday - 1));
     return DateTime(selectedDate.year, selectedDate.month, 1);
   }
 
@@ -331,14 +399,28 @@ class _DiaryPageState extends State<DiaryPage> {
   }
 
   Future<void> reload() async {
-    final currentMeals = await db.getMealsForDate(selectedDate);
-    final summaryMeals = await db.getMealsBetween(rangeStart, rangeEnd);
-    if (!mounted) return;
+    final version = ++_loadVersion;
+    final date = selectedDate, start = rangeStart, end = rangeEnd;
     setState(() {
-      dayMeals = currentMeals;
-      periodMeals = summaryMeals;
-      loading = false;
+      loading = true;
+      loadError = null;
     });
+    try {
+      final data = await Future.wait(
+          [db.getMealsForDate(date), db.getMealsBetween(start, end)]);
+      if (!mounted || version != _loadVersion) return;
+      setState(() {
+        dayMeals = data[0];
+        periodMeals = data[1];
+        loading = false;
+      });
+    } catch (error) {
+      if (!mounted || version != _loadVersion) return;
+      setState(() {
+        loading = false;
+        loadError = error is ApiException ? error.message : '加载失败，请重试';
+      });
+    }
   }
 
   Future<void> setDate(DateTime date) async {
@@ -371,74 +453,106 @@ class _DiaryPageState extends State<DiaryPage> {
   Future<void> editMeal(String type, {MealEntry? existing}) async {
     final foods = TextEditingController(text: existing?.foods ?? '');
     final amount = TextEditingController(
-      text: existing == null ? '' : (existing.expenseCents / 100).toStringAsFixed(2),
+      text: existing == null
+          ? ''
+          : (existing.expenseCents / 100).toStringAsFixed(2),
     );
     final formKey = GlobalKey<FormState>();
+    var saving = false;
 
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(existing == null ? '记录$type' : '编辑$type', style: const TextStyle(fontFamily: 'serif', fontSize: 24)),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: foods,
-                autofocus: true,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: '吃了什么',
-                  hintText: '例如：米饭、青菜、番茄炒蛋',
-                  filled: true,
-                  fillColor: paper,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(existing == null ? '记录$type' : '编辑$type',
+              style: const TextStyle(fontFamily: 'serif', fontSize: 24)),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: foods,
+                  autofocus: true,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: '吃了什么',
+                    hintText: '例如：米饭、青菜、番茄炒蛋',
+                    filled: true,
+                    fillColor: paper,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none),
+                  ),
+                  validator: (value) =>
+                      value == null || value.trim().isEmpty ? '请填写餐食内容' : null,
                 ),
-                validator: (value) => value == null || value.trim().isEmpty ? '请填写餐食内容' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: amount,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: '这顿饭花了多少（元）',
-                  prefixText: '¥ ',
-                  filled: true,
-                  fillColor: paper,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: amount,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: '这顿饭花了多少（元）',
+                    prefixText: '¥ ',
+                    filled: true,
+                    fillColor: paper,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none),
+                  ),
+                  validator: (value) {
+                    final parsed = double.tryParse(value ?? '');
+                    return parsed == null || !parsed.isFinite || parsed < 0
+                        ? '请输入有效金额'
+                        : null;
+                  },
                 ),
-                validator: (value) {
-                  final parsed = double.tryParse(value ?? '');
-                  return parsed == null || parsed < 0 ? '请输入有效金额' : null;
-                },
-              ),
-              const SizedBox(height: 5),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text('记录日期：' + formatDate(selectedDate, year: true), style: const TextStyle(color: muted, fontSize: 11)),
-              ),
-            ],
+                const SizedBox(height: 5),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('记录日期：' + formatDate(selectedDate, year: true),
+                      style: const TextStyle(color: muted, fontSize: 11)),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+                onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                child: const Text('取消')),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      final cents = (double.parse(amount.text) * 100).round();
+                      setDialogState(() => saving = true);
+                      final success = await serverAction(
+                          dialogContext,
+                          () => db.saveMeal(
+                                MealEntry(
+                                    date: selectedDate,
+                                    mealType: type,
+                                    foods: foods.text.trim(),
+                                    expenseCents: cents),
+                              ));
+                      if (!dialogContext.mounted) return;
+                      if (!success) {
+                        setDialogState(() => saving = false);
+                        return;
+                      }
+                      Navigator.pop(dialogContext);
+                      setState(() => loading = true);
+                      await reload();
+                      if (mounted)
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(SnackBar(content: Text('$type已保存')));
+                    },
+              child: Text(saving ? '保存中…' : '保存'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
-          FilledButton(
-            onPressed: () async {
-              if (!formKey.currentState!.validate()) return;
-              final cents = (double.parse(amount.text) * 100).round();
-              await db.saveMeal(
-                MealEntry(date: selectedDate, mealType: type, foods: foods.text.trim(), expenseCents: cents),
-              );
-              if (!dialogContext.mounted) return;
-              Navigator.pop(dialogContext);
-              setState(() => loading = true);
-              await reload();
-              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$type已保存')));
-            },
-            child: const Text('保存'),
-          ),
-        ],
       ),
     );
     foods.dispose();
@@ -450,21 +564,27 @@ class _DiaryPageState extends State<DiaryPage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('删除$type记录？'),
-        content: const Text('这条餐食和消费记录会从本机移除。'),
+        content: const Text('这条餐食和消费记录会从当前账号的服务器数据中删除。'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('删除')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('删除')),
         ],
       ),
     );
     if (confirmed != true) return;
-    await db.deleteMeal(selectedDate, type);
+    if (!await serverAction(context, () => db.deleteMeal(selectedDate, type)) ||
+        !mounted) return;
     setState(() => loading = true);
     await reload();
   }
 
   int get dayTotal => dayMeals.fold(0, (sum, item) => sum + item.expenseCents);
-  int get periodTotal => periodMeals.fold(0, (sum, item) => sum + item.expenseCents);
+  int get periodTotal =>
+      periodMeals.fold(0, (sum, item) => sum + item.expenseCents);
 
   int mealTotal(String type) => periodMeals
       .where((meal) => meal.mealType == type)
@@ -475,7 +595,9 @@ class _DiaryPageState extends State<DiaryPage> {
       return mealTypes
           .map((type) => _ChartValue(
                 type.substring(0, 1),
-                dayMeals.where((meal) => meal.mealType == type).fold(0, (sum, meal) => sum + meal.expenseCents),
+                dayMeals
+                    .where((meal) => meal.mealType == type)
+                    .fold(0, (sum, meal) => sum + meal.expenseCents),
               ))
           .toList();
     }
@@ -495,7 +617,8 @@ class _DiaryPageState extends State<DiaryPage> {
       final firstDay = index * 7 + 1;
       final lastDay = math.min(firstDay + 6, days).toInt();
       final cents = periodMeals
-          .where((meal) => meal.date.day >= firstDay && meal.date.day <= lastDay)
+          .where(
+              (meal) => meal.date.day >= firstDay && meal.date.day <= lastDay)
           .fold(0, (sum, meal) => sum + meal.expenseCents);
       return _ChartValue((index + 1).toString() + '周', cents);
     });
@@ -503,7 +626,11 @@ class _DiaryPageState extends State<DiaryPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return const SafeArea(child: Center(child: CircularProgressIndicator(color: sage)));
+    if (loading)
+      return const SafeArea(
+          child: Center(child: CircularProgressIndicator(color: sage)));
+    if (loadError != null)
+      return NetworkFailure(message: loadError!, onRetry: reload);
     final mealByType = {for (final meal in dayMeals) meal.mealType: meal};
     final isToday = dateKey(selectedDate) == dateKey(DateTime.now());
 
@@ -515,12 +642,18 @@ class _DiaryPageState extends State<DiaryPage> {
           const SizedBox(height: 22),
           const _Kicker('饮食日记'),
           const SizedBox(height: 7),
-          const Text('今天吃了什么？', style: TextStyle(color: ink, fontFamily: 'serif', fontSize: 31, letterSpacing: -1)),
+          const Text('今天吃了什么？',
+              style: TextStyle(
+                  color: ink,
+                  fontFamily: 'serif',
+                  fontSize: 31,
+                  letterSpacing: -1)),
           const SizedBox(height: 10),
           Row(
             children: [
               IconButton(
-                onPressed: () => setDate(selectedDate.subtract(const Duration(days: 1))),
+                onPressed: () =>
+                    setDate(selectedDate.subtract(const Duration(days: 1))),
                 icon: const Icon(Icons.chevron_left_rounded),
                 visualDensity: VisualDensity.compact,
               ),
@@ -532,10 +665,14 @@ class _DiaryPageState extends State<DiaryPage> {
                     padding: const EdgeInsets.symmetric(vertical: 7),
                     child: Column(
                       children: [
-                        Text(formatDate(selectedDate, year: true), style: const TextStyle(fontFamily: 'serif', fontSize: 17)),
+                        Text(formatDate(selectedDate, year: true),
+                            style: const TextStyle(
+                                fontFamily: 'serif', fontSize: 17)),
                         const SizedBox(height: 3),
                         Text(
-                          weekdayName(selectedDate.weekday) + ' · ' + (isToday ? '今天' : '历史记录'),
+                          weekdayName(selectedDate.weekday) +
+                              ' · ' +
+                              (isToday ? '今天' : '历史记录'),
                           style: const TextStyle(color: muted, fontSize: 10),
                         ),
                       ],
@@ -544,7 +681,9 @@ class _DiaryPageState extends State<DiaryPage> {
                 ),
               ),
               IconButton(
-                onPressed: isToday ? null : () => setDate(selectedDate.add(const Duration(days: 1))),
+                onPressed: isToday
+                    ? null
+                    : () => setDate(selectedDate.add(const Duration(days: 1))),
                 icon: const Icon(Icons.chevron_right_rounded),
                 visualDensity: VisualDensity.compact,
               ),
@@ -560,7 +699,8 @@ class _DiaryPageState extends State<DiaryPage> {
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('三餐记录', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              Text('三餐记录',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
               Text('餐费按餐次汇总', style: TextStyle(fontSize: 10, color: muted)),
             ],
           ),
@@ -599,26 +739,25 @@ class _TopLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
         children: [
-          Container(
-            width: 33,
-            height: 33,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(color: sage, shape: BoxShape.circle),
-            child: const Text('d', style: TextStyle(color: Colors.white, fontFamily: 'serif', fontSize: 20, fontStyle: FontStyle.italic)),
-          ),
+          const AppLogo(),
           const SizedBox(width: 10),
           const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('DAY BY DAY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.8)),
+              Text('DAY BY DAY',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.8)),
               SizedBox(height: 2),
-              Text('身体 · 饮食 · 日常消费', style: TextStyle(fontSize: 9, color: muted)),
+              Text('身体 · 饮食 · 日常消费',
+                  style: TextStyle(fontSize: 9, color: muted)),
             ],
           ),
           const Spacer(),
-          const Icon(Icons.offline_bolt_outlined, color: sage, size: 16),
+          const Icon(Icons.cloud_done_outlined, color: sage, size: 16),
           const SizedBox(width: 4),
-          const Text('本地保存', style: TextStyle(fontSize: 10, color: sage)),
+          const Text('账号记录', style: TextStyle(fontSize: 10, color: sage)),
         ],
       );
 }
@@ -630,7 +769,11 @@ class _Kicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
         text,
-        style: const TextStyle(color: sage, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.8),
+        style: const TextStyle(
+            color: sage,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.8),
       );
 }
 
@@ -664,17 +807,24 @@ class _MetricCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Flexible(
-                  child: Text(value, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'serif', fontSize: 27, height: 1)),
+                  child: Text(value,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontFamily: 'serif', fontSize: 27, height: 1)),
                 ),
                 const SizedBox(width: 4),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 2),
-                  child: Text(unit, style: const TextStyle(color: muted, fontSize: 10)),
+                  child: Text(unit,
+                      style: const TextStyle(color: muted, fontSize: 10)),
                 ),
               ],
             ),
             const SizedBox(height: 6),
-            Text(caption, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: muted, fontSize: 9)),
+            Text(caption,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: muted, fontSize: 9)),
           ],
         ),
       );
@@ -696,47 +846,6 @@ class _SectionCard extends StatelessWidget {
       );
 }
 
-class _MetricSelector extends StatelessWidget {
-  const _MetricSelector({required this.showingWeight, required this.onChanged});
-  final bool showingWeight;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(color: const Color(0xfff1f0e9), borderRadius: BorderRadius.circular(99)),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _SelectPill(label: '体重', selected: showingWeight, onTap: () => onChanged(true)),
-            _SelectPill(label: '身高', selected: !showingWeight, onTap: () => onChanged(false)),
-          ],
-        ),
-      );
-}
-
-class _SelectPill extends StatelessWidget {
-  const _SelectPill({required this.label, required this.selected, required this.onTap});
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => InkWell(
-        borderRadius: BorderRadius.circular(99),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: selected ? surface : Colors.transparent,
-            borderRadius: BorderRadius.circular(99),
-            boxShadow: selected ? const [BoxShadow(color: Color(0x10000000), blurRadius: 3)] : null,
-          ),
-          child: Text(label, style: TextStyle(fontSize: 10, color: selected ? ink : muted)),
-        ),
-      );
-}
-
 class _EmptyChart extends StatelessWidget {
   const _EmptyChart();
 
@@ -749,7 +858,8 @@ class _EmptyChart extends StatelessWidget {
           children: [
             Icon(Icons.show_chart_rounded, color: Color(0xffbdc5b6), size: 30),
             SizedBox(height: 6),
-            Text('记录几次数据后，这里会出现趋势', style: TextStyle(color: muted, fontSize: 11)),
+            Text('记录几次数据后，这里会出现趋势',
+                style: TextStyle(color: muted, fontSize: 11)),
           ],
         ),
       );
@@ -766,8 +876,11 @@ class _TrendPainter extends CustomPainter {
     const right = 3.0;
     const top = 12.0;
     const bottom = 11.0;
-    final chart = Rect.fromLTRB(left, top, size.width - right, size.height - bottom);
-    final grid = Paint()..color = line..strokeWidth = 1;
+    final chart =
+        Rect.fromLTRB(left, top, size.width - right, size.height - bottom);
+    final grid = Paint()
+      ..color = line
+      ..strokeWidth = 1;
     for (var row = 0; row < 3; row++) {
       final y = chart.top + chart.height * row / 2;
       canvas.drawLine(Offset(chart.left, y), Offset(chart.right, y), grid);
@@ -779,8 +892,11 @@ class _TrendPainter extends CustomPainter {
     final low = minValue - spread * .22;
     final high = maxValue + spread * .22;
     final points = List.generate(values.length, (index) {
-      final x = values.length == 1 ? chart.center.dx : chart.left + chart.width * index / (values.length - 1);
-      final y = chart.bottom - (values[index] - low) / (high - low) * chart.height;
+      final x = values.length == 1
+          ? chart.center.dx
+          : chart.left + chart.width * index / (values.length - 1);
+      final y =
+          chart.bottom - (values[index] - low) / (high - low) * chart.height;
       return Offset(x, y);
     });
     final path = Path()..moveTo(points.first.dx, points.first.dy);
@@ -797,7 +913,7 @@ class _TrendPainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [color.withOpacity(.18), color.withOpacity(0)],
+          colors: [color.withValues(alpha: .18), color.withValues(alpha: 0)],
         ).createShader(chart),
     );
     canvas.drawPath(
@@ -848,16 +964,21 @@ class _ActionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.fromLTRB(14, 13, 13, 13),
-        decoration: BoxDecoration(color: const Color(0xffebece4), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(
+            color: const Color(0xffebece4),
+            borderRadius: BorderRadius.circular(16)),
         child: Row(
           children: [
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: const TextStyle(fontSize: 10, color: muted)),
+                  Text(subtitle,
+                      style: const TextStyle(fontSize: 10, color: muted)),
                 ],
               ),
             ),
@@ -867,8 +988,10 @@ class _ActionPanel extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: sage,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-                textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                textStyle:
+                    const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
               ),
               child: Text(buttonLabel),
             ),
@@ -885,7 +1008,8 @@ class _DailySpendCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-        decoration: BoxDecoration(color: sageSoft, borderRadius: BorderRadius.circular(17)),
+        decoration: BoxDecoration(
+            color: sageSoft, borderRadius: BorderRadius.circular(17)),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -893,15 +1017,21 @@ class _DailySpendCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('今日饮食消费', style: TextStyle(color: sage, fontSize: 10)),
+                  const Text('今日饮食消费',
+                      style: TextStyle(color: sage, fontSize: 10)),
                   const SizedBox(height: 5),
-                  Text(formatMoney(totalCents), style: const TextStyle(color: Color(0xff35412f), fontFamily: 'serif', fontSize: 28)),
+                  Text(formatMoney(totalCents),
+                      style: const TextStyle(
+                          color: Color(0xff35412f),
+                          fontFamily: 'serif',
+                          fontSize: 28)),
                 ],
               ),
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Text('$mealCount 餐 · 已记录', style: const TextStyle(color: sage, fontSize: 10)),
+              child: Text('$mealCount 餐 · 已记录',
+                  style: const TextStyle(color: sage, fontSize: 10)),
             ),
           ],
         ),
@@ -929,23 +1059,34 @@ class _MealCard extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.fromLTRB(13, 12, 10, 9),
-      decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(15), border: Border.all(color: line)),
+      decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: line)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(width: 8, height: 8, decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle)),
+              Container(
+                  width: 8,
+                  height: 8,
+                  decoration:
+                      BoxDecoration(color: dotColor, shape: BoxShape.circle)),
               const SizedBox(width: 8),
-              Text(mealType, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              Text(mealType,
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600)),
               const Spacer(),
-              Text(meal == null ? '—' : formatMoney(meal!.expenseCents), style: const TextStyle(fontFamily: 'serif', fontSize: 16)),
+              Text(meal == null ? '—' : formatMoney(meal!.expenseCents),
+                  style: const TextStyle(fontFamily: 'serif', fontSize: 16)),
               if (onDelete != null)
                 IconButton(
                   onPressed: onDelete,
                   tooltip: '删除餐食',
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.delete_outline_rounded, size: 17, color: muted),
+                  icon: const Icon(Icons.delete_outline_rounded,
+                      size: 17, color: muted),
                 ),
             ],
           ),
@@ -953,14 +1094,18 @@ class _MealCard extends StatelessWidget {
             padding: const EdgeInsets.only(left: 16, top: 2),
             child: Text(
               meal?.foods ?? '还没有记录这顿饭',
-              style: TextStyle(color: meal == null ? muted : const Color(0xff65685e), fontSize: 11, height: 1.45),
+              style: TextStyle(
+                  color: meal == null ? muted : const Color(0xff65685e),
+                  fontSize: 11,
+                  height: 1.45),
             ),
           ),
           Padding(
             padding: const EdgeInsets.only(left: 12, top: 2),
             child: TextButton.icon(
               onPressed: onEdit,
-              icon: Icon(meal == null ? Icons.add : Icons.edit_outlined, size: 14),
+              icon: Icon(meal == null ? Icons.add : Icons.edit_outlined,
+                  size: 14),
               label: Text(meal == null ? '添加$mealType' : '编辑$mealType'),
               style: TextButton.styleFrom(
                 foregroundColor: sage,
@@ -1007,16 +1152,22 @@ class _StatisticsCard extends StatelessWidget {
       _Period.week => '本周',
       _Period.month => '本月',
     };
-    final maximum = chartValues.fold<int>(0, (current, point) => math.max(current, point.cents).toInt());
+    final maximum = chartValues.fold<int>(
+        0, (current, point) => math.max(current, point.cents).toInt());
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
-      decoration: BoxDecoration(color: const Color(0xfff0efe8), borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+          color: const Color(0xfff0efe8),
+          borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Expanded(child: Text('消费统计', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+              const Expanded(
+                  child: Text('消费统计',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600))),
               _PeriodSelector(period: period, onChanged: onPeriodChanged),
             ],
           ),
@@ -1024,11 +1175,13 @@ class _StatisticsCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(formatMoney(totalCents), style: const TextStyle(fontFamily: 'serif', fontSize: 23)),
+              Text(formatMoney(totalCents),
+                  style: const TextStyle(fontFamily: 'serif', fontSize: 23)),
               const SizedBox(width: 7),
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
-                child: Text(label, style: const TextStyle(color: muted, fontSize: 9)),
+                child: Text(label,
+                    style: const TextStyle(color: muted, fontSize: 9)),
               ),
             ],
           ),
@@ -1053,14 +1206,18 @@ class _StatisticsCard extends StatelessWidget {
                               width: 18,
                               height: 6 + 46 * ratio,
                               decoration: BoxDecoration(
-                                color: point.cents == maximum && maximum > 0 ? sage : const Color(0xffbdc7b4),
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+                                color: point.cents == maximum && maximum > 0
+                                    ? sage
+                                    : const Color(0xffbdc7b4),
+                                borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(5)),
                               ),
                             ),
                           ),
                         ),
                         const SizedBox(height: 5),
-                        Text(point.label, style: const TextStyle(color: muted, fontSize: 8)),
+                        Text(point.label,
+                            style: const TextStyle(color: muted, fontSize: 8)),
                       ],
                     ),
                   ),
@@ -1098,7 +1255,9 @@ class _Breakdown extends StatelessWidget {
         children: [
           Text(label, style: const TextStyle(color: muted, fontSize: 9)),
           const SizedBox(height: 3),
-          Text(formatMoney(cents), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+          Text(formatMoney(cents),
+              style:
+                  const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
         ],
       );
 }
@@ -1111,7 +1270,9 @@ class _PeriodSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(color: const Color(0xffe7e6de), borderRadius: BorderRadius.circular(99)),
+        decoration: BoxDecoration(
+            color: const Color(0xffe7e6de),
+            borderRadius: BorderRadius.circular(99)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: _Period.values.map((value) {
@@ -1125,12 +1286,15 @@ class _PeriodSelector extends StatelessWidget {
               borderRadius: BorderRadius.circular(99),
               onTap: () => onChanged(value),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: selected ? sage : Colors.transparent,
                   borderRadius: BorderRadius.circular(99),
                 ),
-                child: Text(label, style: TextStyle(color: selected ? Colors.white : muted, fontSize: 9)),
+                child: Text(label,
+                    style: TextStyle(
+                        color: selected ? Colors.white : muted, fontSize: 9)),
               ),
             );
           }).toList(),
@@ -1143,7 +1307,10 @@ String formatMoney(int cents) => '¥ ' + (cents / 100).toStringAsFixed(2);
 String formatDate(DateTime date, {bool year = false}) {
   final month = date.month.toString().padLeft(2, '0');
   final day = date.day.toString().padLeft(2, '0');
-  return year ? date.year.toString() + '年' + month + '月' + day + '日' : month + '月' + day + '日';
+  return year
+      ? date.year.toString() + '年' + month + '月' + day + '日'
+      : month + '月' + day + '日';
 }
 
-String weekdayName(int weekday) => const ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'][weekday - 1];
+String weekdayName(int weekday) =>
+    const ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'][weekday - 1];

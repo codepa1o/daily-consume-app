@@ -1,0 +1,12 @@
+{
+  "updateManifestUrl": "https://github.com/codepa1o/daily-consume-app/releases/latest/download/latest.json",
+  "versionName": "1.2.0",
+  "versionCode": 5,
+  "releaseNotes": [
+    "新增用户名和密码注册登录，必须登录后使用，支持退出登录和切换账号。",
+    "身体、饮食消费、健身记录和训练计划改为存放在服务器，不同账号使用各自的数据。",
+    "新增“我的”页面，展示个人信息，并将更新日志入口统一迁移到“我的”。",
+    "登录后可确认旧记录归属并导入当前账号，服务器核对完整后才清理本机数据库；失败或冲突保留旧数据。",
+    "使用 HTTPS 安全连接，登录状态安全保存；新增网络错误提示和重试。"
+  ]
+}

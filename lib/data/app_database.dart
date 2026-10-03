@@ -1,4 +1,6 @@
-import 'package:sqflite/sqflite.dart';
+import 'dart:convert';
+
+import 'api_client.dart';
 
 String dateKey(DateTime date) {
   final local = DateTime(date.year, date.month, date.day);
@@ -39,124 +41,166 @@ class MealEntry {
       );
 }
 
+class WorkoutMuscle {
+  const WorkoutMuscle(
+      {required this.name, required this.colorValue, this.builtIn = false});
+
+  final String name;
+  final int colorValue;
+  final bool builtIn;
+
+  factory WorkoutMuscle.fromMap(Map<String, Object?> row) => WorkoutMuscle(
+        name: row['name']! as String,
+        colorValue: row['color_value']! as int,
+        builtIn: (row['built_in']! as int) == 1,
+      );
+}
+
+class WorkoutLog {
+  const WorkoutLog({required this.date, required this.muscles});
+
+  final DateTime date;
+  final List<WorkoutMuscle> muscles;
+
+  factory WorkoutLog.fromMap(Map<String, Object?> row) => WorkoutLog(
+        date: dateFromKey(row['date']! as String),
+        muscles: (row['muscles'] is String
+                ? jsonDecode(row['muscles']! as String) as List<dynamic>
+                : row['muscles'] as List<dynamic>)
+            .map((item) => WorkoutMuscle(
+                  name: item['name'] as String,
+                  colorValue: item['color'] as int,
+                ))
+            .toList(),
+      );
+}
+
+class WorkoutDayPlan {
+  const WorkoutDayPlan({required this.muscles, this.isRest = false});
+
+  final List<String> muscles;
+  final bool isRest;
+
+  factory WorkoutDayPlan.fromMap(Map<String, Object?> row) => WorkoutDayPlan(
+        muscles: (row['muscles'] is String
+                ? jsonDecode(row['muscles']! as String) as List<dynamic>
+                : row['muscles'] as List<dynamic>)
+            .cast<String>(),
+        isRest: (row['is_rest']! as int) == 1,
+      );
+}
+
+// Keep the existing page-facing API; all business storage now lives on the server.
 class AppDatabase {
   AppDatabase._();
+  static final instance = AppDatabase._();
+  final _api = ApiClient.instance;
 
-  static final AppDatabase instance = AppDatabase._();
-  Database? _database;
+  Future<List<Map<String, Object?>>> _rows(String path,
+          {Map<String, String>? query}) async =>
+      (await _api.request('GET', path, query: query) as List)
+          .map((row) => Map<String, Object?>.from(row as Map))
+          .toList();
 
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    final directory = await getDatabasesPath();
-    _database = await openDatabase(
-      '$directory/daily_consume.db',
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE weight_entries (
-            date TEXT PRIMARY KEY,
-            grams INTEGER NOT NULL
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE height_entries (
-            date TEXT PRIMARY KEY,
-            millimeters INTEGER NOT NULL
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE meal_entries (
-            date TEXT NOT NULL,
-            meal_type TEXT NOT NULL,
-            foods TEXT NOT NULL,
-            expense_cents INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY (date, meal_type)
-          )
-        ''');
-      },
-    );
-    return _database!;
-  }
-
-  Future<List<BodyEntry>> getWeights() async {
-    final rows = await (await database).query(
-      'weight_entries',
-      orderBy: 'date ASC',
-    );
-    return rows
-        .map((row) => BodyEntry(
-              date: dateFromKey(row['date']! as String),
-              value: (row['grams']! as int) / 1000,
-            ))
-        .toList();
-  }
-
-  Future<List<BodyEntry>> getHeights() async {
-    final rows = await (await database).query(
-      'height_entries',
-      orderBy: 'date ASC',
-    );
-    return rows
-        .map((row) => BodyEntry(
-              date: dateFromKey(row['date']! as String),
-              value: (row['millimeters']! as int) / 10,
-            ))
-        .toList();
-  }
-
+  Future<List<BodyEntry>> getWeights() async => (await _rows('weights'))
+      .map((row) => BodyEntry(
+          date: dateFromKey(row['date'] as String),
+          value: (row['grams'] as int) / 1000))
+      .toList();
+  Future<List<BodyEntry>> getHeights() async => (await _rows('heights'))
+      .map((row) => BodyEntry(
+          date: dateFromKey(row['date'] as String),
+          value: (row['millimeters'] as int) / 10))
+      .toList();
   Future<void> saveWeight(DateTime date, double kilograms) async {
-    await (await database).insert(
-      'weight_entries',
-      {'date': dateKey(date), 'grams': (kilograms * 1000).round()},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _api.request('PUT', 'weights',
+        body: {'date': dateKey(date), 'grams': (kilograms * 1000).round()});
   }
 
   Future<void> saveHeight(DateTime date, double centimeters) async {
-    await (await database).insert(
-      'height_entries',
-      {'date': dateKey(date), 'millimeters': (centimeters * 10).round()},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _api.request('PUT', 'heights', body: {
+      'date': dateKey(date),
+      'millimeters': (centimeters * 10).round()
+    });
   }
 
-  Future<List<MealEntry>> getMealsForDate(DateTime date) async {
-    final rows = await (await database).query(
-      'meal_entries',
-      where: 'date = ?',
-      whereArgs: [dateKey(date)],
-    );
-    return rows.map(MealEntry.fromMap).toList();
-  }
-
-  Future<List<MealEntry>> getMealsBetween(DateTime start, DateTime end) async {
-    final rows = await (await database).query(
-      'meal_entries',
-      where: 'date >= ? AND date <= ?',
-      whereArgs: [dateKey(start), dateKey(end)],
-      orderBy: 'date ASC',
-    );
-    return rows.map(MealEntry.fromMap).toList();
-  }
-
+  Future<List<MealEntry>> getMealsForDate(DateTime date) =>
+      getMealsBetween(date, date);
+  Future<List<MealEntry>> getMealsBetween(DateTime start, DateTime end) async =>
+      (await _rows('meals',
+              query: {'start': dateKey(start), 'end': dateKey(end)}))
+          .map(MealEntry.fromMap)
+          .toList();
   Future<void> saveMeal(MealEntry meal) async {
-    await (await database).insert(
-      'meal_entries',
-      {
-        'date': dateKey(meal.date),
-        'meal_type': meal.mealType,
-        'foods': meal.foods,
-        'expense_cents': meal.expenseCents,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _api.request('PUT', 'meals', body: {
+      'date': dateKey(meal.date),
+      'meal_type': meal.mealType,
+      'foods': meal.foods,
+      'expense_cents': meal.expenseCents,
+    });
   }
 
   Future<void> deleteMeal(DateTime date, String mealType) async {
-    await (await database).delete(
-      'meal_entries',
-      where: 'date = ? AND meal_type = ?',
-      whereArgs: [dateKey(date), mealType],
-    );
+    await _api.request('DELETE', 'meals',
+        query: {'date': dateKey(date), 'meal_type': mealType});
+  }
+
+  Future<List<WorkoutMuscle>> getWorkoutMuscles() async =>
+      (await _rows('workout/muscles')).map(WorkoutMuscle.fromMap).toList();
+  Future<void> addWorkoutMuscle(String name, int colorValue) async {
+    await _api.request('POST', 'workout/muscles',
+        body: {'name': name, 'color_value': colorValue});
+  }
+
+  Future<void> setWorkoutMuscleColor(String name, int colorValue) async {
+    await _api.request('PUT', 'workout/muscles',
+        body: {'name': name, 'color_value': colorValue});
+  }
+
+  Future<void> deleteWorkoutMuscle(String name) async {
+    await _api.request('DELETE', 'workout/muscles', query: {'name': name});
+  }
+
+  Future<int> getWorkoutGoal() async =>
+      (await _api.request('GET', 'workout/settings'))['weekly_goal'] as int;
+  Future<Map<int, WorkoutDayPlan>> getWorkoutPlans() async => {
+        for (final row in await _rows('workout/plans'))
+          row['weekday'] as int: WorkoutDayPlan.fromMap(row),
+      };
+  Future<void> saveWorkoutSchedule(
+      int goal, Map<int, WorkoutDayPlan> plans) async {
+    await _api.request('PUT', 'workout/schedule', body: {
+      'weekly_goal': goal,
+      'plans': [
+        for (final entry in plans.entries)
+          {
+            'weekday': entry.key,
+            'muscles': entry.value.isRest ? <String>[] : entry.value.muscles,
+            'is_rest': entry.value.isRest ? 1 : 0
+          },
+      ]
+    });
+  }
+
+  Future<List<WorkoutLog>> getWorkoutLogsBetween(
+          DateTime start, DateTime end) async =>
+      (await _rows('workout/logs',
+              query: {'start': dateKey(start), 'end': dateKey(end)}))
+          .map(WorkoutLog.fromMap)
+          .toList();
+  Future<void> saveWorkoutLog(
+      DateTime date, List<WorkoutMuscle> muscles) async {
+    await _api.request('POST', 'workout/logs', body: {
+      'date': dateKey(date),
+      'muscles': [
+        for (final muscle in muscles)
+          {'name': muscle.name, 'color': muscle.colorValue},
+      ]
+    });
+  }
+
+  Future<void> deleteWorkoutLog(DateTime date) async {
+    await _api
+        .request('DELETE', 'workout/logs', query: {'date': dateKey(date)});
   }
 }

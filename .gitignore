@@ -11,3 +11,12 @@ android/local.properties
 android/key.properties
 *.jks
 *.keystore
+scripts/.venv/
+scripts/__pycache__/
+server/__pycache__/
+server/.venv/
+.env
+*.iml
+hs_err_pid*.log
+replay_pid*.log
+*.hprof
