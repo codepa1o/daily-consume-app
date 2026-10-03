@@ -21,15 +21,19 @@ class Account {
       {required this.id,
       required this.username,
       required this.nickname,
+      this.gender = 'unset',
       required this.createdAt});
   final int id;
   final String username;
   final String nickname;
+  final String gender;
+  bool get isFemale => gender == 'female';
   final DateTime createdAt;
   factory Account.fromJson(Map<String, dynamic> json) => Account(
         id: json['id'] as int,
         username: json['username'] as String,
         nickname: json['nickname'] as String,
+        gender: json['gender'] as String? ?? 'unset',
         createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       );
 }
@@ -162,6 +166,13 @@ class ApiClient extends ChangeNotifier {
 
   void dataImported() {
     dataRevision++;
+    notifyListeners();
+  }
+
+  Future<void> saveProfile(String nickname, String gender) async {
+    final updated = await request('PUT', 'me',
+        body: {'nickname': nickname.trim(), 'gender': gender});
+    account = Account.fromJson(updated as Map<String, dynamic>);
     notifyListeners();
   }
 

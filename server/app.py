@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 DSN = os.environ.get('DATABASE_URL', 'dbname=daily_consume user=daily_consume host=/var/run/postgresql')
 password_hasher = PasswordHasher()
@@ -40,7 +40,7 @@ async def lifespan(_):
     yield
 
 
-app = FastAPI(title='日常 API', version='1.2.0', lifespan=lifespan,
+app = FastAPI(title='日常 API', version='1.2.1', lifespan=lifespan,
               docs_url=None, redoc_url=None, openapi_url=None)
 
 
@@ -90,7 +90,7 @@ def current_user(credentials: Annotated[HTTPAuthorizationCredentials | None, Dep
         raise HTTPException(401, '请先登录')
     token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
     with connect() as db:
-        user = db.execute('''SELECT u.id, u.username, u.nickname, u.created_at, s.token_hash
+        user = db.execute('''SELECT u.id, u.username, u.nickname, u.gender, u.created_at, s.token_hash
             FROM user_sessions s JOIN users u ON u.id=s.user_id
             WHERE s.token_hash=%s AND s.expires_at>now() AND u.active''', (token_hash,)).fetchone()
     if not user:
@@ -102,7 +102,7 @@ User = Annotated[dict, Depends(current_user)]
 
 
 def public_user(user):
-    return {key: user[key] for key in ('id', 'username', 'nickname', 'created_at')}
+    return {key: user[key] for key in ('id', 'username', 'nickname', 'gender', 'created_at')}
 
 
 @app.get('/health')
@@ -118,7 +118,7 @@ def register(body: Registration):
     try:
         with connect() as db:
             user = db.execute('''INSERT INTO users(username, username_key, password_hash, nickname)
-                VALUES (%s,%s,%s,%s) RETURNING id,username,nickname,created_at''',
+                VALUES (%s,%s,%s,%s) RETURNING id,username,nickname,gender,created_at''',
                 (body.username, body.username.casefold(), hashed, body.nickname.strip() or body.username)).fetchone()
             for name, color in DEFAULT_MUSCLES.items():
                 db.execute('INSERT INTO workout_muscles VALUES (%s,%s,%s,1)', (user['id'], name, color))
@@ -155,6 +155,27 @@ def me(user: User):
     return public_user(user)
 
 
+class Profile(Input):
+    nickname: str = Field(min_length=1, max_length=32)
+    gender: Literal['unset', 'male', 'female']
+
+    @field_validator('nickname')
+    @classmethod
+    def nonempty_nickname(cls, value):
+        if not value.strip():
+            raise ValueError('昵称不能为空')
+        return value.strip()
+
+
+@app.put('/me')
+def save_profile(body: Profile, user: User):
+    with connect() as db:
+        updated = db.execute('''UPDATE users SET nickname=%s,gender=%s WHERE id=%s
+            RETURNING id,username,nickname,gender,created_at''',
+            (body.nickname, body.gender, user['id'])).fetchone()
+    return public_user(updated)
+
+
 @app.post('/auth/logout')
 def logout(user: User):
     with connect() as db:
@@ -171,6 +192,147 @@ class DatedInput(Input):
         if value < date(2000, 1, 1) or value > datetime.now(ZoneInfo('Asia/Shanghai')).date():
             raise ValueError('日期超出范围')
         return value
+
+
+class HealthSettings(Input):
+    cycle_length: int | None = Field(default=None, ge=1, le=365, strict=True)
+    period_length: int | None = Field(default=None, ge=1, le=90, strict=True)
+    paused: bool = Field(default=False, strict=True)
+
+
+class PeriodInput(Input):
+    id: int | None = Field(default=None, ge=1, strict=True)
+    start_date: date
+    end_date: date | None = None
+    bleeding_dates: list[date] = Field(min_length=1, max_length=366)
+
+    @model_validator(mode='after')
+    def valid_period(self):
+        DatedInput.valid_date(self.start_date)
+        for day in self.bleeding_dates:
+            DatedInput.valid_date(day)
+        if len(set(self.bleeding_dates)) != len(self.bleeding_dates):
+            raise ValueError('出血日期不能重复')
+        self.bleeding_dates.sort()
+        if self.bleeding_dates[0] != self.start_date:
+            raise ValueError('经期首日必须是最早的实际出血日')
+        if self.end_date is not None and self.end_date != self.bleeding_dates[-1]:
+            raise ValueError('结束日期必须是最后一个实际出血日')
+        if (self.bleeding_dates[-1] - self.start_date).days > 365:
+            raise ValueError('一次记录的日期跨度不能超过一年')
+        return self
+
+
+class HealthDay(DatedInput):
+    flow: Literal['none', 'light', 'medium', 'heavy'] = 'none'
+    pain: int = Field(default=0, ge=0, le=3, strict=True)
+    symptoms: list[Literal['腹胀', '头痛', '腰酸', '疲劳', '乳房胀痛', '恶心', '失眠']] = Field(default_factory=list, max_length=7)
+    mood: Literal['', '平静', '开心', '低落', '烦躁', '焦虑'] = ''
+    spotting: bool = Field(default=False, strict=True)
+    notes: str = Field(default='', max_length=2000)
+
+    @field_validator('symptoms')
+    @classmethod
+    def unique_symptoms(cls, values):
+        if len(values) != len(set(values)):
+            raise ValueError('症状不能重复')
+        return values
+
+
+def lock_health_owner(db, user):
+    # Serialize overlapping period edits and profile changes for this account.
+    row = db.execute('SELECT gender FROM users WHERE id=%s FOR UPDATE', (user['id'],)).fetchone()
+    if row['gender'] != 'female':
+        raise HTTPException(403, '请先在个人资料中选择女生')
+
+
+@app.get('/female-health')
+def female_health(user: User):
+    with connect() as db:
+        lock_health_owner(db, user)
+        settings = db.execute('SELECT cycle_length,period_length,paused FROM female_health_settings WHERE user_id=%s',
+                              (user['id'],)).fetchone()
+        periods = db.execute('''SELECT id,start_date,end_date,bleeding_dates FROM menstrual_periods
+            WHERE user_id=%s ORDER BY start_date''', (user['id'],)).fetchall()
+        days = db.execute('''SELECT date,flow,pain,symptoms,mood,spotting,notes FROM female_health_days
+            WHERE user_id=%s ORDER BY date''', (user['id'],)).fetchall()
+    return {'settings': settings or HealthSettings().model_dump(), 'periods': periods, 'days': days}
+
+
+@app.put('/female-health/settings')
+def save_health_settings(body: HealthSettings, user: User):
+    with connect() as db:
+        lock_health_owner(db, user)
+        db.execute('''INSERT INTO female_health_settings(user_id,cycle_length,period_length,paused)
+            VALUES (%s,%s,%s,%s) ON CONFLICT(user_id) DO UPDATE SET
+            cycle_length=EXCLUDED.cycle_length,period_length=EXCLUDED.period_length,paused=EXCLUDED.paused''',
+            (user['id'], body.cycle_length, body.period_length, body.paused))
+    return {'ok': True}
+
+
+@app.put('/female-health/periods')
+def save_period(body: PeriodInput, user: User):
+    dates = [day.isoformat() for day in body.bleeding_dates]
+    with connect() as db:
+        lock_health_owner(db, user)
+        existing = db.execute('''SELECT id,start_date,end_date,bleeding_dates FROM menstrual_periods
+            WHERE user_id=%s ORDER BY start_date''', (user['id'],)).fetchall()
+        if body.id is not None and not any(row['id'] == body.id for row in existing):
+            raise HTTPException(404, '经期记录不存在')
+        for row in existing:
+            if row['id'] == body.id:
+                continue
+            # An identical retry is safe even when the first response was lost.
+            if body.id is None and row['start_date'] == body.start_date and row['end_date'] == body.end_date and row['bleeding_dates'] == dates:
+                return {'id': row['id']}
+            old_end = row['end_date'] or date.max
+            new_end = body.end_date or date.max
+            if body.start_date <= old_end and row['start_date'] <= new_end:
+                raise HTTPException(409, '经期日期重叠，请先结束进行中的经期或修改日期')
+        if body.id is None:
+            result = db.execute('''INSERT INTO menstrual_periods(user_id,start_date,end_date,bleeding_dates)
+                VALUES (%s,%s,%s,%s) RETURNING id''',
+                (user['id'], body.start_date, body.end_date, Jsonb(dates))).fetchone()
+        else:
+            result = db.execute('''UPDATE menstrual_periods SET start_date=%s,end_date=%s,bleeding_dates=%s
+                WHERE user_id=%s AND id=%s RETURNING id''',
+                (body.start_date, body.end_date, Jsonb(dates), user['id'], body.id)).fetchone()
+    return result
+
+
+@app.delete('/female-health/periods')
+def delete_period(user: User, id: Annotated[int, Query(ge=1)]):
+    with connect() as db:
+        lock_health_owner(db, user)
+        db.execute('DELETE FROM menstrual_periods WHERE user_id=%s AND id=%s', (user['id'], id))
+    return {'ok': True}
+
+
+@app.put('/female-health/days')
+def save_health_day(body: HealthDay, user: User):
+    with connect() as db:
+        lock_health_owner(db, user)
+        upsert(db, 'female_health_days', user['id'], body.model_dump(), ['date'])
+    return {'ok': True}
+
+
+@app.delete('/female-health/days')
+def delete_health_day(user: User, date: date):
+    with connect() as db:
+        lock_health_owner(db, user)
+        db.execute('DELETE FROM female_health_days WHERE user_id=%s AND date=%s', (user['id'], date))
+    return {'ok': True}
+
+
+@app.delete('/female-health')
+def clear_health(user: User, reset_settings: bool = False):
+    with connect() as db:
+        lock_health_owner(db, user)
+        db.execute('DELETE FROM menstrual_periods WHERE user_id=%s', (user['id'],))
+        db.execute('DELETE FROM female_health_days WHERE user_id=%s', (user['id'],))
+        if reset_settings:
+            db.execute('DELETE FROM female_health_settings WHERE user_id=%s', (user['id'],))
+    return {'ok': True}
 
 
 class Weight(DatedInput):

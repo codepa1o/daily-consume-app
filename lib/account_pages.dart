@@ -409,6 +409,110 @@ class MyPage extends StatefulWidget {
 
 class _MyPageState extends State<MyPage> {
   bool _busy = false;
+  @override
+  void initState() {
+    super.initState();
+    ApiClient.instance.addListener(_changed);
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    ApiClient.instance.removeListener(_changed);
+    super.dispose();
+  }
+
+  Future<void> _editProfile() async {
+    final account = ApiClient.instance.account!;
+    final nickname = TextEditingController(text: account.nickname);
+    final form = GlobalKey<FormState>();
+    var gender = account.gender;
+    var saving = false;
+    String? error;
+    final route = DialogRoute<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => PopScope(
+          canPop: !saving,
+          child: AlertDialog(
+            title: const Text('个人资料'),
+            content: SingleChildScrollView(
+                child: Form(
+              key: form,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextFormField(
+                  controller: nickname,
+                  enabled: !saving,
+                  maxLength: 32,
+                  decoration: const InputDecoration(labelText: '昵称'),
+                  validator: (value) =>
+                      (value?.trim().isEmpty ?? true) ? '请输入昵称' : null,
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: gender,
+                  decoration: const InputDecoration(labelText: '性别'),
+                  items: const [
+                    DropdownMenuItem(value: 'unset', child: Text('未设置')),
+                    DropdownMenuItem(value: 'male', child: Text('男生')),
+                    DropdownMenuItem(value: 'female', child: Text('女生')),
+                  ],
+                  onChanged:
+                      saving ? null : (value) => update(() => gender = value!),
+                ),
+                const SizedBox(height: 14),
+                const Text('选择女生后显示女性健康栏。更改性别只隐藏入口，历史记录会保留。',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                if (error != null)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(error!,
+                          style: TextStyle(
+                              color: Theme.of(context).colorScheme.error))),
+              ]),
+            )),
+            actions: [
+              TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('取消')),
+              FilledButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          if (!form.currentState!.validate()) return;
+                          update(() {
+                            saving = true;
+                            error = null;
+                          });
+                          try {
+                            await ApiClient.instance
+                                .saveProfile(nickname.text, gender);
+                            if (dialogContext.mounted)
+                              Navigator.pop(dialogContext);
+                          } catch (failure) {
+                            if (dialogContext.mounted)
+                              update(() {
+                                saving = false;
+                                error = failure is ApiException
+                                    ? failure.message
+                                    : '保存失败，请重试';
+                              });
+                          }
+                        },
+                  child: Text(saving ? '保存中…' : '保存')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await Navigator.of(context, rootNavigator: true).push(route);
+    await route.completed;
+    nickname.dispose();
+  }
+
   Future<void> _logout() async {
     setState(() => _busy = true);
     await serverAction(context, ApiClient.instance.signOut);
@@ -440,7 +544,8 @@ class _MyPageState extends State<MyPage> {
 
   @override
   Widget build(BuildContext context) {
-    final account = ApiClient.instance.account!;
+    final account = ApiClient.instance.account;
+    if (account == null) return const SizedBox.shrink();
     final registered =
         '${account.createdAt.year}-${account.createdAt.month.toString().padLeft(2, '0')}-${account.createdAt.day.toString().padLeft(2, '0')}';
     return SafeArea(
@@ -465,9 +570,24 @@ class _MyPageState extends State<MyPage> {
                         const SizedBox(height: 14),
                         Text('用户名　${account.username}'),
                         const SizedBox(height: 10),
+                        Text('性别　${switch (account.gender) {
+                          'female' => '女生',
+                          'male' => '男生',
+                          _ => '未设置'
+                        }}'),
+                        const SizedBox(height: 10),
                         Text('注册时间　$registered'),
                       ]))),
           const SizedBox(height: 14),
+          Card(
+              child: ListTile(
+            leading: const Icon(Icons.manage_accounts_outlined),
+            title: const Text('个人资料'),
+            subtitle: const Text('昵称、性别'),
+            trailing: const Icon(Icons.chevron_right),
+            enabled: !_busy,
+            onTap: _editProfile,
+          )),
           if (LegacyMigration.instance.pending != null)
             Card(
                 child: ListTile(
