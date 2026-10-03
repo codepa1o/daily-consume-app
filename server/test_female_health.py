@@ -9,7 +9,10 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import psycopg
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
+from psycopg.conninfo import make_conninfo
 
 import app as api
 
@@ -23,19 +26,16 @@ class HealthApiTests(unittest.TestCase):
         cls.original_dsn = api.DSN
         with psycopg.connect(cls.base_dsn) as db:
             db.execute(f'CREATE SCHEMA {cls.schema}')
-        api.DSN = cls.base_dsn + f' options=-csearch_path={cls.schema}'
-        # Exercise an upgrade from the previous users schema with a real row.
+        api.DSN = make_conninfo(cls.base_dsn, options=f'-csearch_path={cls.schema}')
+        config = Config(str(Path(__file__).with_name('alembic.ini')))
+        config.attributes['database_url'] = api.DSN
+        command.upgrade(config, 'head')
         with api.connect() as db:
-            db.execute('''CREATE TABLE users (id BIGSERIAL PRIMARY KEY, username VARCHAR(32) NOT NULL,
-                username_key VARCHAR(32) NOT NULL UNIQUE, password_hash TEXT NOT NULL,
-                nickname VARCHAR(32) NOT NULL, active BOOLEAN NOT NULL DEFAULT TRUE,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT now())''')
             db.execute("INSERT INTO users(username,username_key,password_hash,nickname) VALUES ('old','old','unused','旧账号')")
+        # Re-running Alembic is safe and does not reset data.
+        command.upgrade(config, 'head')
         cls.client = TestClient(api.app)
         cls.client.__enter__()
-        # Re-running startup migration is safe and does not reset data.
-        with api.connect() as db:
-            db.execute(Path(api.__file__).with_name('schema.sql').read_text(encoding='utf-8'))
 
     @classmethod
     def tearDownClass(cls):
@@ -72,7 +72,7 @@ class HealthApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         return response.json()
 
-    def test_migration_preserves_old_account_and_defaults_unset(self):
+    def test_migration_preserves_account_and_defaults_unset(self):
         with api.connect() as db:
             row = db.execute("SELECT nickname,gender FROM users WHERE username='old'").fetchone()
         self.assertEqual(row, {'nickname': '旧账号', 'gender': 'unset'})

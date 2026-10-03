@@ -599,6 +599,19 @@ class _MyPageState extends State<MyPage> {
                     onTap: _import)),
           Card(
               child: ListTile(
+                  leading: const Icon(Icons.system_update_outlined),
+                  title: const Text('检查更新'),
+                  subtitle: Text(UpdateScope.maybeOf(context)
+                              ?.currentVersion
+                              .isNotEmpty ==
+                          true
+                      ? '当前版本 ${UpdateScope.maybeOf(context)!.currentVersion}'
+                      : '点击检测新版本'),
+                  trailing: const Icon(Icons.chevron_right),
+                  enabled: !_busy,
+                  onTap: () => checkForAppUpdates(context))),
+          Card(
+              child: ListTile(
                   leading: const Icon(Icons.history_outlined),
                   title: const Text('更新日志'),
                   trailing: const Icon(Icons.chevron_right),
