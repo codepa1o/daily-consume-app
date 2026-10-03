@@ -7,6 +7,7 @@ import 'data/api_client.dart';
 import 'account_pages.dart';
 import 'update/app_updates.dart';
 import 'workout_page.dart';
+import 'female_health_page.dart';
 import 'widgets/app_logo.dart';
 
 const paper = Color(0xfff6f5ef);
@@ -49,30 +50,45 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int selected = 0;
+  String selected = 'body';
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: IndexedStack(
-            index: selected,
-            children: const [BodyPage(), DiaryPage(), WorkoutPage(), MyPage()]),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: selected,
-          onDestinationSelected: (index) => setState(() => selected = index),
-          backgroundColor: surface,
-          indicatorColor: sageSoft,
-          destinations: const [
-            NavigationDestination(
-                icon: Icon(Icons.show_chart_rounded), label: '身体'),
-            NavigationDestination(
-                icon: Icon(Icons.restaurant_menu_rounded), label: '饮食消费'),
-            NavigationDestination(
-                icon: Icon(Icons.fitness_center_rounded), label: '健身'),
-            NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded), label: '我的'),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) => ListenableBuilder(
+      listenable: ApiClient.instance,
+      builder: (context, _) {
+        final female = ApiClient.instance.account?.isFemale == true;
+        final tabs = ['body', 'diary', 'workout', if (female) 'female', 'my'];
+        if (!tabs.contains(selected)) selected = 'my';
+        return Scaffold(
+          body: IndexedStack(index: tabs.indexOf(selected), children: [
+            const BodyPage(key: ValueKey('body')),
+            const DiaryPage(key: ValueKey('diary')),
+            const WorkoutPage(key: ValueKey('workout')),
+            if (female) const FemaleHealthPage(key: ValueKey('female')),
+            const MyPage(key: ValueKey('my')),
+          ]),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: tabs.indexOf(selected),
+            onDestinationSelected: (index) =>
+                setState(() => selected = tabs[index]),
+            backgroundColor: surface,
+            indicatorColor: sageSoft,
+            destinations: [
+              const NavigationDestination(
+                  icon: Icon(Icons.show_chart_rounded), label: '身体'),
+              const NavigationDestination(
+                  icon: Icon(Icons.restaurant_menu_rounded), label: '饮食消费'),
+              const NavigationDestination(
+                  icon: Icon(Icons.fitness_center_rounded), label: '健身'),
+              if (female)
+                const NavigationDestination(
+                    icon: Icon(Icons.local_florist_outlined), label: '女性健康'),
+              const NavigationDestination(
+                  icon: Icon(Icons.person_outline_rounded), label: '我的'),
+            ],
+          ),
+        );
+      });
 }
 
 class BodyPage extends StatefulWidget {
