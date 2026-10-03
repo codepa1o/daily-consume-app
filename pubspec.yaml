@@ -1,7 +1,7 @@
 name: daily_consume
-description: Offline-first Android app for body, meal, and food spending records.
+description: Account-based Android app for server-stored body, meal, spending and workout records.
 publish_to: none
-version: 1.0.0+1
+version: 1.2.0+5
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
@@ -10,6 +10,17 @@ dependencies:
   flutter:
     sdk: flutter
   sqflite: ^2.4.4
+  crypto: ^3.0.7
+  flutter_secure_storage: ^11.2.0
+
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.4
+  flutter_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/release_notes.json
+    - assets/server_ca.pem
+    - assets/branding/rem_logo.png

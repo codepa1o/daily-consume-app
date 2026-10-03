@@ -1,0 +1,8 @@
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/branding/rem_logo.png
+  min_sdk_android: 24
+  adaptive_icon_background: '#64765A'
+  adaptive_icon_foreground: assets/branding/rem_logo.png
+  adaptive_icon_foreground_inset: 16

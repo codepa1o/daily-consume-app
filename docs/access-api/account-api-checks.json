@@ -1,0 +1,22 @@
+{
+  "passed": 11,
+  "checks": [
+    "TLS certificate and database health",
+    "All business endpoints require authentication",
+    "Registration, login, duplicate usernames and invalid credentials",
+    "Account isolation for reads, writes and deletes",
+    "Server-side numeric, date and payload validation",
+    "Workout isolation, unique check-ins, rest days and historical colors",
+    "All seven legacy tables imported and receipt retries detect later changes",
+    "Legacy import receipts, idempotency and account ownership",
+    "Import conflicts roll back the entire transaction",
+    "Logout revocation and data retained after signing in again",
+    "Expired sessions cannot read identity or business records"
+  ],
+  "base_url": "https://47.99.142.117/api/v1/",
+  "test_accounts": [
+    "api_check_2ec031b726_a",
+    "api_check_2ec031b726_b",
+    "api_check_2ec031b726_c"
+  ]
+}
