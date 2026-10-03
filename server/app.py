@@ -1,12 +1,9 @@
 """Daily Consume HTTPS API. Every business query is scoped to its session owner."""
 import hashlib
 import json
-import os
 import re
 import secrets
-from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
@@ -21,7 +18,8 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
-DSN = os.environ.get('DATABASE_URL', 'dbname=daily_consume user=daily_consume host=/var/run/postgresql')
+from database import DSN
+
 password_hasher = PasswordHasher()
 dummy_password_hash = password_hasher.hash(secrets.token_urlsafe(32))
 security = HTTPBearer(auto_error=False)
@@ -33,14 +31,7 @@ def connect():
     return psycopg.connect(DSN, row_factory=dict_row)
 
 
-@asynccontextmanager
-async def lifespan(_):
-    with connect() as db:
-        db.execute(Path(__file__).with_name('schema.sql').read_text(encoding='utf-8'))
-    yield
-
-
-app = FastAPI(title='日常 API', version='1.2.1', lifespan=lifespan,
+app = FastAPI(title='日常 API', version='1.2.1',
               docs_url=None, redoc_url=None, openapi_url=None)
 
 

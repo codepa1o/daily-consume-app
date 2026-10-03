@@ -25,7 +25,7 @@ Android 图标由 `flutter_launcher_icons.yaml` 生成，适配多种分辨率�
 
 ## 运行
 
-女性健康接口与数据库变更需要与客户端一起部署；服务启动时自动执行可重复的数据库迁移，旧账号性别为“未设置”。实现与验证见 `docs/access-api/female-health.md`。
+女性健康接口与数据库变更需要与客户端一起部署；数据库结构统一由 Alembic 管理，部署脚本在重启服务前执行 `alembic upgrade head`，应用启动不再改表。迁移开发、已有数据库接管和回退说明见 [数据库迁移指南](docs/database-migrations.md)。
 
 本机 Flutter SDK：E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter
 
@@ -46,7 +46,7 @@ APK 默认输出到 build/app/outputs/flutter-apk/app-release.apk。
 
 ## 更新与发布
 
-目前版本为 `1.2.1+6`。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧 SQLite，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
+目前版本为 `1.2.2+7`。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧 SQLite，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
 
 本次新增女性健康与个人资料编辑，需要同步部署本版后端接口；客户端发版不会自动更新业务服务器。完整的构建、发布与网页操作教程见 [GitHub Release 发布教程](docs/github-release-guide.md)。
 

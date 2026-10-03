@@ -4,15 +4,15 @@
 
 ## 本次版本
 
-- 应用显示版本：1.2.1。
-- 内部版本编号：6，即 `pubspec.yaml` 中的 `1.2.1+6`。
-- Release 标签：`v1.2.1+6`。
-- 更新日志原稿：`docs/release-notes/1.2.1.txt`，每行一条。
-- 女性健康需要同步部署本版 `server/app.py` 和 `server/schema.sql`；GitHub 发布 APK 不会自动部署后端。
+- 应用显示版本：1.2.2。
+- 内部版本编号：7，即 `pubspec.yaml` 中的 `1.2.2+7`。
+- Release 标签：`v1.2.2+7`。
+- 更新日志原稿：`docs/release-notes/1.2.2.txt`，每行一条。
+- 1.2.2 客户端的更新界面与已上线 1.2.1 业务 API 兼容。后端源码新增 Alembic 迁移管理，部署该后端源码时需上传完整迁移目录并执行 `upgrade head`；GitHub 发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
 
 ## 以后发布新版的推荐步骤
 
-以下以 **下一版 1.2.2+7** 为例。不要再次用这个步骤创建已发布的 1.2.1+6。
+以下以 **下一版 1.2.3+8** 为例。不要再次用这个步骤创建已发布的 1.2.2+7。
 
 ### 1. 验证代码
 
@@ -28,13 +28,13 @@ Set-Location E:\my_project\daily-consume
 
 ### 2. 写日志并构建
 
-新建 UTF-8 文件 `docs/release-notes/1.2.2.txt`，每行一条给用户看的更新内容，然后执行：
+新建 UTF-8 文件 `docs/release-notes/1.2.3.txt`，每行一条给用户看的更新内容，然后执行：
 
 ```powershell
 .\scripts\build_release.ps1 `
-  -VersionName '1.2.2' `
-  -VersionCode 7 `
-  -NotesFile '.\docs\release-notes\1.2.2.txt' `
+  -VersionName '1.2.3' `
+  -VersionCode 8 `
+  -NotesFile '.\docs\release-notes\1.2.3.txt' `
   -Flutter 'E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter\bin\flutter.bat'
 ```
 
@@ -78,14 +78,14 @@ python scripts/publish_github_release.py
 
 成功后终端会显示 Release、Manifest 和 APK 地址。网络中断后可重试相同发布命令；相同附件会复用，不同内容不会被覆盖。一次只运行一个发布进程；正式发布后还要修改 APK 时，应增加 `VersionCode`，不要覆盖旧附件。
 
-生成的清单位于 `build/github-release/<VersionCode>/latest.json`，本次为 `build/github-release/6/latest.json`，无需手工编写。
+生成的清单位于 `build/github-release/<VersionCode>/latest.json`，本次为 `build/github-release/7/latest.json`，无需手工编写。
 
 ## 网页手动发布
 
 脚本更适合本项目，因为自动更新还需要版本清单。网页流程是：
 
 1. 打开仓库的 [Releases](https://github.com/codepa1o/daily-consume-app/releases)，点击 **Draft a new release**。
-2. 选择本版标签（如 `v1.2.1+6`）；创建新标签时 Target 选择已合并本版代码的 `main`。
+2. 选择本版标签（如 `v1.2.2+7`）；创建新标签时 Target 选择已合并本版代码的 `main`。
 3. 填写标题和更新日志，保持为草稿。
 4. 在附件区域上传本版 `app-release.apk` 和经校验生成的 `latest.json`。清单内 APK 地址必须对应本版标签，大小、SHA256 和签名信息必须对应本版 APK。
 5. 两个文件上传完成后，取消 Pre-release，勾选 **Set as latest release** 并发布。
