@@ -32,6 +32,43 @@ class CoupleSpace {
   final DateTime since;
   final List<CoupleMember> members;
   int get daysTogether => journalToday().difference(since).inDays + 1;
+  String get timeTogether {
+    final today = journalToday();
+    var years = today.year - since.year;
+    DateTime yearDate(int value) {
+      final lastDay = DateTime(value, since.month + 1, 0).day;
+      final day = since.day > lastDay ? lastDay : since.day;
+      return DateTime(value, since.month, day);
+    }
+
+    var cursor = yearDate(since.year + years);
+    if (cursor.isAfter(today)) {
+      years--;
+      cursor = yearDate(since.year + years);
+    }
+
+    var months = (today.year - cursor.year) * 12 + today.month - cursor.month;
+    DateTime monthDate(int offset) {
+      final first = DateTime(cursor.year, cursor.month + offset, 1);
+      final lastDay = DateTime(first.year, first.month + 1, 0).day;
+      final day = cursor.day > lastDay ? lastDay : cursor.day;
+      return DateTime(first.year, first.month, day);
+    }
+
+    var monthCursor = monthDate(months);
+    if (monthCursor.isAfter(today)) {
+      months--;
+      monthCursor = monthDate(months);
+    }
+    final days = today.difference(monthCursor).inDays;
+    final duration = [
+      if (years > 0) '$years 年',
+      if (months > 0) '$months 个月',
+      if (days > 0) '$days 天',
+    ].join();
+    return duration.isEmpty ? '今天开始' : duration;
+  }
+
   factory CoupleSpace.fromJson(Map<String, dynamic> value) => CoupleSpace(
       id: value['id'] as int,
       title: value['title'] as String,
@@ -52,11 +89,14 @@ class CoupleMemory {
       required this.title,
       required this.content,
       required this.mood,
-      required this.hasPhoto});
+      required this.photoCount,
+      required this.displayMode});
   final int id, authorId;
   final String author, title, content, mood;
   final DateTime date, publishedDate;
-  final bool hasPhoto;
+  final int photoCount;
+  final String displayMode;
+  bool get hasPhoto => photoCount > 0;
   factory CoupleMemory.fromJson(Map<String, dynamic> value) => CoupleMemory(
       id: value['id'] as int,
       authorId: value['author_id'] as int,
@@ -67,7 +107,8 @@ class CoupleMemory {
       title: value['title'] as String,
       content: value['content'] as String,
       mood: value['mood'] as String,
-      hasPhoto: value['has_photo'] as bool);
+      photoCount: value['photo_count'] as int,
+      displayMode: value['display_mode'] as String);
 }
 
 class CoupleTimelineDay {
@@ -120,6 +161,11 @@ class CoupleApi {
         body: {'title': title.trim(), 'since_date': dateKey(since)});
   }
 
+  Future<void> updateAnniversary(DateTime since) async {
+    await _request('PUT', 'couple/space/anniversary',
+        binary: false, body: {'since_date': dateKey(since)});
+  }
+
   Future<Map<String, dynamic>> invite() async => Map<String, dynamic>.from(
       await _request('POST', 'couple/invite', binary: false) as Map);
   Future<Map<String, dynamic>> preview(String code) async =>
@@ -144,23 +190,38 @@ class CoupleApi {
   Future<Map<String, dynamic>> detail(int id) async =>
       Map<String, dynamic>.from(
           await _request('GET', 'couple/memories/$id', binary: false) as Map);
-  Future<Uint8List> photo(int id, {bool thumbnail = true}) async =>
-      await _request('GET', 'couple/memories/$id/photo',
+  Future<Uint8List> photo(int id,
+          {int position = 0, bool thumbnail = true}) async =>
+      await _request('GET', 'couple/memories/$id/photos/$position',
           binary: true, query: {'thumbnail': '$thumbnail'}) as Uint8List;
+  Future<Uint8List> coverPhoto(int id) async =>
+      await _request('GET', 'couple/memories/$id/photo',
+          binary: true, query: {'thumbnail': 'true'}) as Uint8List;
+  Future<List<Uint8List>> thumbnails(int id) async {
+    final result =
+        await _request('GET', 'couple/memories/$id/photos', binary: false);
+    return (result['items'] as List)
+        .map(
+            (item) => base64Decode((item as Map)['thumbnail_base64'] as String))
+        .toList();
+  }
+
   Future<void> save(
       {required String requestId,
       required DateTime date,
       required String title,
       required String content,
       required String mood,
-      Uint8List? photo}) async {
+      required List<Uint8List> photos,
+      required String displayMode}) async {
     await _request('POST', 'couple/memories', binary: false, body: {
       'client_request_id': requestId,
       'memory_date': dateKey(date),
       'title': title.trim(),
       'content': content.trim(),
       'mood': mood,
-      if (photo != null) 'photo_base64': base64Encode(photo),
+      'display_mode': displayMode,
+      if (photos.isNotEmpty) 'photos_base64': photos.map(base64Encode).toList(),
     });
   }
 

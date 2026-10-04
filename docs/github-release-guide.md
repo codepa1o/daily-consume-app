@@ -4,15 +4,15 @@
 
 ## 本次版本
 
-- 应用显示版本：1.3.3。
-- 内部版本编号：10，即 `pubspec.yaml` 中的 `1.3.3+10`。
-- Release 标签：`v1.3.3+10`。
-- 更新日志原稿：`docs/release-notes/1.3.3.txt`，每行一条。
-- 番茄钟依赖后端 migration `0005_pomodoro`；本版已先部署后端并升级数据库，再公开客户端 APK。GitHub 发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
+- 应用显示版本：1.3.4。
+- 内部版本编号：11，即 `pubspec.yaml` 中的 `1.3.4+11`。
+- Release 标签：`v1.3.4+11`。
+- 更新日志原稿：`docs/release-notes/1.3.4.txt`，每行一条。
+- 情侣相册依赖后端 migration `0006_memory_albums`；本版先部署后端并升级数据库，再公开客户端 APK。GitHub 发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
 
 ## 以后发布新版的推荐步骤
 
-以下以 **下一版 1.3.4+11** 为例。不要再次用这个步骤创建已发布的 1.3.3+10。
+以下以 **下一版 1.3.5+12** 为例。不要再次用这个步骤创建已发布的 1.3.4+11。
 
 ### 1. 验证代码
 
@@ -28,13 +28,13 @@ Set-Location E:\my_project\daily-consume
 
 ### 2. 写日志并构建
 
-新建 UTF-8 文件 `docs/release-notes/1.3.4.txt`，每行一条给用户看的更新内容，然后执行：
+新建 UTF-8 文件 `docs/release-notes/1.3.5.txt`，每行一条给用户看的更新内容，然后执行：
 
 ```powershell
 .\scripts\build_release.ps1 `
-  -VersionName '1.3.4' `
-  -VersionCode 11 `
-  -NotesFile '.\docs\release-notes\1.3.4.txt' `
+  -VersionName '1.3.5' `
+  -VersionCode 12 `
+  -NotesFile '.\docs\release-notes\1.3.5.txt' `
   -Flutter 'E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter\bin\flutter.bat'
 ```
 

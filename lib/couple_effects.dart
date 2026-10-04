@@ -15,10 +15,14 @@ class CouplePhoto extends StatefulWidget {
       {super.key,
       required this.memory,
       this.api,
+      this.position = 0,
+      this.cover = true,
       this.thumbnail = true,
       this.height = 220});
   final CoupleMemory memory;
   final CoupleApi? api;
+  final int position;
+  final bool cover;
   final bool thumbnail;
   final double height;
   @override
@@ -35,8 +39,10 @@ class _CouplePhotoState extends State<CouplePhoto> {
 
   void _load() {
     photo = widget.memory.hasPhoto
-        ? (widget.api ?? CoupleApi.instance)
-            .photo(widget.memory.id, thumbnail: widget.thumbnail)
+        ? widget.thumbnail && widget.cover
+            ? (widget.api ?? CoupleApi.instance).coverPhoto(widget.memory.id)
+            : (widget.api ?? CoupleApi.instance).photo(widget.memory.id,
+                position: widget.position, thumbnail: widget.thumbnail)
         : Future.value(Uint8List(0));
   }
 
@@ -46,6 +52,8 @@ class _CouplePhotoState extends State<CouplePhoto> {
     if (oldWidget.memory.id != widget.memory.id ||
         oldWidget.thumbnail != widget.thumbnail ||
         oldWidget.api != widget.api ||
+        oldWidget.position != widget.position ||
+        oldWidget.cover != widget.cover ||
         oldWidget.memory.hasPhoto != widget.memory.hasPhoto) _load();
   }
 
@@ -93,6 +101,238 @@ class _CouplePhotoState extends State<CouplePhoto> {
                               color: coupleInk, fontSize: 18, height: 1.7))))));
 }
 
+class CoupleAlbumViewer extends StatefulWidget {
+  const CoupleAlbumViewer(
+      {super.key, required this.memory, this.api, this.compact = false});
+  final CoupleMemory memory;
+  final CoupleApi? api;
+  final bool compact;
+  @override
+  State<CoupleAlbumViewer> createState() => _CoupleAlbumViewerState();
+}
+
+class _CoupleAlbumViewerState extends State<CoupleAlbumViewer> {
+  late Future<List<Uint8List>> previews;
+  late final PageController pageController = PageController();
+  int current = 0;
+
+  CoupleApi get api => widget.api ?? CoupleApi.instance;
+  @override
+  void initState() {
+    super.initState();
+    previews = widget.compact || widget.memory.photoCount <= 1
+        ? Future.value(const <Uint8List>[])
+        : api.thumbnails(widget.memory.id);
+  }
+
+  @override
+  void didUpdateWidget(CoupleAlbumViewer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.memory.id != widget.memory.id ||
+        oldWidget.memory.photoCount != widget.memory.photoCount ||
+        oldWidget.memory.displayMode != widget.memory.displayMode ||
+        oldWidget.api != widget.api ||
+        oldWidget.compact != widget.compact) {
+      previews = widget.compact || widget.memory.photoCount <= 1
+          ? Future.value(const <Uint8List>[])
+          : api.thumbnails(widget.memory.id);
+      current = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    pageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> openPhoto(int initialIndex) => Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => _CouplePhotoGallery(
+            memory: widget.memory,
+            api: api,
+            initialIndex: initialIndex,
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.memory.hasPhoto)
+      return CouplePhoto(memory: widget.memory, api: api);
+    if (widget.memory.photoCount == 1) {
+      return CouplePhoto(
+          memory: widget.memory,
+          api: api,
+          thumbnail: widget.compact,
+          height: widget.compact ? 220 : 286);
+    }
+    if (widget.compact) return _cover();
+    return FutureBuilder<List<Uint8List>>(
+      future: previews,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return SizedBox(
+              height: widget.compact ? 220 : 286,
+              child: Center(
+                  child: TextButton.icon(
+                      onPressed: () => setState(
+                          () => previews = api.thumbnails(widget.memory.id)),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('重试照片'))));
+        }
+        if (!snapshot.hasData) {
+          return SizedBox(
+              height: widget.compact ? 220 : 286,
+              child: const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        final images = snapshot.data!;
+        if (widget.memory.displayMode == 'grid') {
+          final columns = images.length == 2 || images.length == 4 ? 2 : 3;
+          return GridView.builder(
+            shrinkWrap: true,
+            primary: false,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: images.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
+            ),
+            itemBuilder: (context, index) => Semantics(
+              label: '查看第 ${index + 1} 张照片，共 ${images.length} 张',
+              button: true,
+              child: InkWell(
+                onTap: () => openPhoto(index),
+                child: ClipRRect(
+                    borderRadius: BorderRadius.circular(5),
+                    child: Image.memory(images[index], fit: BoxFit.cover)),
+              ),
+            ),
+          );
+        }
+        return SizedBox(
+          height: 286,
+          child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                for (var layer = 2; layer >= 1; layer--)
+                  if (images.length > layer)
+                    Positioned(
+                        left: 8.0 * layer,
+                        right: 8.0 * layer,
+                        top: 5.0 * layer,
+                        bottom: 5.0 * layer,
+                        child: Transform.rotate(
+                            angle: layer * .018,
+                            child: Container(
+                                color: couplePaper,
+                                padding: const EdgeInsets.all(5),
+                                child: Image.memory(
+                                    images[(current + layer) % images.length],
+                                    fit: BoxFit.cover)))),
+                PageView.builder(
+                  controller: pageController,
+                  itemCount: images.length,
+                  onPageChanged: (value) => setState(() => current = value),
+                  itemBuilder: (_, index) => Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
+                    child: CouplePhoto(
+                        memory: widget.memory,
+                        api: api,
+                        position: index,
+                        cover: false,
+                        thumbnail: false,
+                        height: 264),
+                  ),
+                ),
+                Positioned(
+                    right: 20,
+                    bottom: 24,
+                    child: DecoratedBox(
+                        decoration: BoxDecoration(
+                            color: const Color(0xcc292621),
+                            borderRadius: BorderRadius.circular(20)),
+                        child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 5),
+                            child: Text('${current + 1} / ${images.length}',
+                                style: const TextStyle(
+                                    color: couplePaper, fontSize: 12))))),
+              ]),
+        );
+      },
+    );
+  }
+
+  Widget _cover() => SizedBox(
+        height: 220,
+        child: Stack(fit: StackFit.expand, children: [
+          CouplePhoto(memory: widget.memory, api: api, height: 220),
+          Positioned(
+              right: 9,
+              bottom: 9,
+              child: DecoratedBox(
+                  decoration: BoxDecoration(
+                      color: const Color(0xcc292621),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      child: Text(
+                          '${widget.memory.photoCount} 张 · ${widget.memory.displayMode == 'grid' ? '九宫格' : '滑动'}',
+                          style: const TextStyle(
+                              color: couplePaper, fontSize: 12))))),
+        ]),
+      );
+}
+
+class _CouplePhotoGallery extends StatefulWidget {
+  const _CouplePhotoGallery(
+      {required this.memory, required this.api, required this.initialIndex});
+  final CoupleMemory memory;
+  final CoupleApi api;
+  final int initialIndex;
+  @override
+  State<_CouplePhotoGallery> createState() => _CouplePhotoGalleryState();
+}
+
+class _CouplePhotoGalleryState extends State<_CouplePhotoGallery> {
+  late final PageController controller =
+      PageController(initialPage: widget.initialIndex);
+  late int current = widget.initialIndex;
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: const Color(0xff201f20),
+        appBar: AppBar(
+            backgroundColor: const Color(0xff201f20),
+            foregroundColor: couplePaper,
+            title: Text('${current + 1} / ${widget.memory.photoCount}')),
+        body: PageView.builder(
+          controller: controller,
+          itemCount: widget.memory.photoCount,
+          onPageChanged: (index) => setState(() => current = index),
+          itemBuilder: (_, index) => Center(
+              child: CouplePhoto(
+                  memory: widget.memory,
+                  api: widget.api,
+                  position: index,
+                  cover: false,
+                  thumbnail: false,
+                  height: MediaQuery.sizeOf(context).height * .78)),
+        ),
+      );
+}
+
 class CouplePolaroid extends StatelessWidget {
   const CouplePolaroid(
       {super.key, required this.memory, this.full = false, this.api});
@@ -110,7 +350,7 @@ class CouplePolaroid extends StatelessWidget {
                 color: Color(0x18473522), blurRadius: 18, offset: Offset(0, 7))
           ]),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        CouplePhoto(memory: memory, thumbnail: !full, api: api),
+        CoupleAlbumViewer(memory: memory, api: api, compact: !full),
         const SizedBox(height: 14),
         Text(memory.title,
             textAlign: TextAlign.center,

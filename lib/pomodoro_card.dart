@@ -1,9 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'data/api_client.dart';
 import 'data/app_database.dart';
+
+const _pomodoroAlerts = MethodChannel('daily_consume/pomodoro');
 
 class PomodoroTimerInfo {
   const PomodoroTimerInfo({
@@ -135,14 +138,134 @@ class _PomodoroCardState extends State<PomodoroCard>
     if (state == AppLifecycleState.resumed) _updateTimer();
   }
 
-  void _startFocus() {
+  Future<bool> _ensureReminderPermissions() async {
+    try {
+      var allowed = await _pomodoroAlerts
+              .invokeMethod<bool>('hasNotificationPermission') ??
+          false;
+      if (!allowed) {
+        final explain = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('开启后台提醒'),
+            content: const Text('允许通知后，番茄钟才能在后台和锁屏时响铃、振动。'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('暂不')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('继续')),
+            ],
+          ),
+        );
+        if (explain != true || !mounted) return false;
+        allowed = await _pomodoroAlerts
+                .invokeMethod<bool>('requestNotificationPermission') ??
+            false;
+        if (!allowed) {
+          final openSettings = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('通知权限未开启'),
+              content: const Text('请在系统设置中允许“日常”发送通知，再开始番茄钟。'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('取消')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('打开设置')),
+              ],
+            ),
+          );
+          if (openSettings == true) {
+            await _pomodoroAlerts
+                .invokeMethod<void>('openNotificationSettings');
+          }
+          return false;
+        }
+      }
+
+      final exactAlarmAllowed =
+          await _pomodoroAlerts.invokeMethod<bool>('canScheduleExactAlarms') ??
+              false;
+      if (!exactAlarmAllowed) {
+        final openSettings = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('允许准时提醒'),
+            content: const Text('请允许“日常”使用闹钟和提醒，确保锁屏时能按时提示。'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('暂不')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('打开设置')),
+            ],
+          ),
+        );
+        if (openSettings == true) {
+          await _pomodoroAlerts.invokeMethod<void>('openExactAlarmSettings');
+          if (mounted) _showMessage('允许后返回，再点一次开始。');
+        }
+        return false;
+      }
+      return true;
+    } on MissingPluginException catch (_) {
+      _showMessage('当前版本不支持后台提醒，请更新应用后重试。');
+      return false;
+    } on PlatformException catch (error) {
+      _showMessage(error.message ?? '无法开启后台提醒，请重试。');
+      return false;
+    }
+  }
+
+  Future<void> _scheduleBackgroundReminder(
+      DateTime deadline, _PomodoroStep phase) async {
+    final name = switch (phase) {
+      _PomodoroStep.focus => 'focus',
+      _PomodoroStep.shortBreak => 'shortBreak',
+      _PomodoroStep.longBreak => 'longBreak',
+      _ => throw StateError('Only timer phases can schedule reminders'),
+    };
+    await _pomodoroAlerts.invokeMethod<void>('scheduleReminder', {
+      'triggerAtMillis': deadline.millisecondsSinceEpoch,
+      'phase': name,
+    });
+  }
+
+  Future<void> _cancelBackgroundReminder() async {
+    try {
+      await _pomodoroAlerts.invokeMethod<void>('cancelReminder');
+    } on MissingPluginException catch (_) {
+      // No native reminder is installed in widget-only contexts.
+    } on PlatformException catch (_) {
+      // The active timer still updates in the foreground.
+    }
+  }
+
+  Future<void> _startFocus() async {
     final task = _taskById(_selectedTaskId);
     if (task == null) {
       _showMessage('请先添加并选择一项专注事项');
       return;
     }
+    if (!await _ensureReminderPermissions() || !mounted) return;
     final now = DateTime.now();
     final duration = Duration(minutes: _settings.focusMinutes);
+    final deadline = now.add(duration);
+    try {
+      await _scheduleBackgroundReminder(deadline, _PomodoroStep.focus);
+    } on PlatformException catch (error) {
+      _showMessage(error.message ?? '无法设置后台提醒，请检查系统设置。');
+      return;
+    }
+    if (!mounted) {
+      await _cancelBackgroundReminder();
+      return;
+    }
     setState(() {
       _step = _PomodoroStep.focus;
       _focusTask = task;
@@ -151,20 +274,33 @@ class _PomodoroCardState extends State<PomodoroCard>
       _focusRequestId =
           now.microsecondsSinceEpoch.toRadixString(16).padLeft(32, '0');
       _remaining = duration;
-      _deadline = now.add(duration);
+      _deadline = deadline;
       _actionError = null;
     });
     _startTicker();
     _syncTimerStatus();
   }
 
-  void _startBreak() {
+  Future<void> _startBreak() async {
+    if (!await _ensureReminderPermissions() || !mounted) return;
     final duration = Duration(minutes: _nextBreakMinutes);
+    final phase =
+        _nextLongBreak ? _PomodoroStep.longBreak : _PomodoroStep.shortBreak;
+    final deadline = DateTime.now().add(duration);
+    try {
+      await _scheduleBackgroundReminder(deadline, phase);
+    } on PlatformException catch (error) {
+      _showMessage(error.message ?? '无法设置后台提醒，请检查系统设置。');
+      return;
+    }
+    if (!mounted) {
+      await _cancelBackgroundReminder();
+      return;
+    }
     setState(() {
-      _step =
-          _nextLongBreak ? _PomodoroStep.longBreak : _PomodoroStep.shortBreak;
+      _step = phase;
       _remaining = duration;
-      _deadline = DateTime.now().add(duration);
+      _deadline = deadline;
       _actionError = null;
     });
     _startTicker();
@@ -202,9 +338,11 @@ class _PomodoroCardState extends State<PomodoroCard>
     }
   }
 
-  void _togglePause() {
+  Future<void> _togglePause() async {
     if (_deadline != null) {
       final seconds = _deadline!.difference(DateTime.now()).inSeconds;
+      await _cancelBackgroundReminder();
+      if (!mounted) return;
       _ticker?.cancel();
       _ticker = null;
       setState(() {
@@ -214,8 +352,20 @@ class _PomodoroCardState extends State<PomodoroCard>
       _syncTimerStatus();
       return;
     }
+    if (!await _ensureReminderPermissions() || !mounted) return;
     final duration = _remaining;
-    setState(() => _deadline = DateTime.now().add(duration));
+    final deadline = DateTime.now().add(duration);
+    try {
+      await _scheduleBackgroundReminder(deadline, _step);
+    } on PlatformException catch (error) {
+      _showMessage(error.message ?? '无法设置后台提醒，请检查系统设置。');
+      return;
+    }
+    if (!mounted) {
+      await _cancelBackgroundReminder();
+      return;
+    }
+    setState(() => _deadline = deadline);
     _startTicker();
     _syncTimerStatus();
   }
@@ -292,6 +442,8 @@ class _PomodoroCardState extends State<PomodoroCard>
       ),
     );
     if (confirmed != true || !mounted) return;
+    await _cancelBackgroundReminder();
+    if (!mounted) return;
     _ticker?.cancel();
     setState(() {
       _step = _PomodoroStep.idle;
@@ -305,7 +457,9 @@ class _PomodoroCardState extends State<PomodoroCard>
     widget.timerController?.clear();
   }
 
-  void _endBreak() {
+  Future<void> _endBreak() async {
+    await _cancelBackgroundReminder();
+    if (!mounted) return;
     _ticker?.cancel();
     setState(() {
       _step = _PomodoroStep.breakComplete;
@@ -615,6 +769,14 @@ class _PomodoroCardState extends State<PomodoroCard>
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _openReminderSettings() async {
+    try {
+      await _pomodoroAlerts.invokeMethod<void>('openNotificationSettings');
+    } on PlatformException catch (error) {
+      _showMessage(error.message ?? '无法打开系统提醒设置。');
+    }
+  }
+
   String _errorMessage(Object error) =>
       error is ApiException ? error.message : '操作失败，请重试';
 
@@ -646,6 +808,11 @@ class _PomodoroCardState extends State<PomodoroCard>
               child: Text('番茄钟',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: colors.onSurface, fontWeight: FontWeight.w600)),
+            ),
+            IconButton(
+              tooltip: '系统提醒设置',
+              onPressed: _loading ? null : _openReminderSettings,
+              icon: const Icon(Icons.notifications_active_outlined),
             ),
             IconButton(
               tooltip: '计时设置',

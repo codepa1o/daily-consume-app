@@ -10,10 +10,10 @@ from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import Response
 from PIL import Image, ImageOps, UnidentifiedImageError
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def today():
@@ -48,6 +48,17 @@ class SpaceInput(Input):
         return value
 
 
+class AnniversaryInput(Input):
+    since_date: date
+
+    @field_validator('since_date')
+    @classmethod
+    def calendar_date(cls, value):
+        if not date(2000, 1, 1) <= value <= today():
+            raise ValueError('日期超出范围')
+        return value
+
+
 class InviteInput(Input):
     code: str = Field(pattern=r'^[A-Z0-9]{12}$')
 
@@ -62,10 +73,23 @@ class MemoryInput(Input):
     title: str = Field(min_length=1, max_length=100)
     content: str = Field(default='', max_length=5000)
     mood: Literal['', '开心', '平静', '想你', '疲惫', '难过'] = ''
+    display_mode: Literal['grid', 'swipe'] = 'grid'
+    photos_base64: list[str] | None = Field(default=None, max_length=9)
     photo_base64: str | None = Field(default=None, max_length=11184812)
     client_request_id: str = Field(pattern=r'^[a-f0-9]{32}$')
 
     _valid_date = field_validator('memory_date')(SpaceInput.calendar_date.__func__)
+
+    @model_validator(mode='after')
+    def valid_photo_set(self):
+        if self.photos_base64 is not None and self.photo_base64 is not None:
+            raise ValueError('请在一条回忆中使用同一种照片格式')
+        photos = self.photos_base64 if self.photos_base64 is not None else [self.photo_base64] if self.photo_base64 else []
+        if any(len(photo) > 11184812 for photo in photos):
+            raise ValueError('单张照片不能超过 8 MB')
+        if sum(map(len, photos)) > 16777216:
+            raise ValueError('照片压缩后的合计大小不能超过 12 MB')
+        return self
 
 
 class CommentInput(Input):
@@ -103,9 +127,29 @@ def prepare_photo(encoded):
         raise HTTPException(422, '请选择 8 MB 以内的静态 JPG、PNG 或 WebP 照片（最多 2400 万像素）')
 
 
+def make_grid_cover(thumbnails):
+    if len(thumbnails) == 1:
+        return thumbnails[0]
+    size, gap = 400, 4
+    columns = 2 if len(thumbnails) in (2, 4) else 3
+    cell = (size - gap * (columns - 1)) // columns
+    canvas = Image.new('RGB', (size, size), 'white')
+    for position, thumbnail in enumerate(thumbnails):
+        with Image.open(io.BytesIO(thumbnail)) as source:
+            tile = ImageOps.fit(source.convert('RGB'), (cell, cell), method=Image.Resampling.LANCZOS)
+            x = (position % columns) * (cell + gap)
+            y = (position // columns) * (cell + gap)
+            canvas.paste(tile, (x, y))
+    output = io.BytesIO()
+    canvas.save(output, 'JPEG', quality=82)
+    return output.getvalue()
+
+
 MEMORY_COLUMNS = '''m.id,m.author_id,u.nickname AS author_name,m.memory_date,
     (m.created_at AT TIME ZONE 'Asia/Shanghai')::date AS published_date,
-    m.title,m.content,m.mood,(m.photo IS NOT NULL) AS has_photo,m.created_at'''
+    m.title,m.content,m.mood,m.display_mode,m.created_at,
+    (SELECT count(*)::integer FROM couple_memory_photos p WHERE p.memory_id=m.id) AS photo_count,
+    (m.photo IS NOT NULL OR EXISTS(SELECT 1 FROM couple_memory_photos p WHERE p.memory_id=m.id)) AS has_photo'''
 
 
 def create_couple_router(connect, current_user):
@@ -136,6 +180,13 @@ def create_couple_router(connect, current_user):
                 row['members'] = db.execute('''SELECT u.id,u.nickname FROM couple_members m
                     JOIN users u ON u.id=m.user_id WHERE m.space_id=%s ORDER BY m.slot''', (row['id'],)).fetchall()
         return row
+
+    @router.put('/space/anniversary')
+    def update_anniversary(body: AnniversaryInput, user: User):
+        with connect() as db:
+            space = space_for(db, user)
+            return db.execute('''UPDATE couple_spaces SET since_date=%s
+                WHERE id=%s RETURNING since_date''', (body.since_date, space['id'])).fetchone()
 
     @router.post('/space', status_code=201)
     def create_space(body: SpaceInput, user: User):
@@ -209,21 +260,70 @@ def create_couple_router(connect, current_user):
     def create_memory(body: MemoryInput, user: User):
         with connect() as db:
             space = space_for(db, user)
-        fingerprint = hashlib.sha256(body.model_dump_json().encode()).hexdigest()
-        photo, thumbnail = prepare_photo(body.photo_base64)
+        # Keep legacy single-photo retries byte-for-byte compatible with 1.3.0 clients.
+        fingerprint_body = {
+            'memory_date': body.memory_date.isoformat(), 'title': body.title,
+            'content': body.content, 'mood': body.mood,
+            'photo_base64': body.photo_base64, 'client_request_id': body.client_request_id,
+        }
+        if body.photos_base64 is not None:
+            fingerprint_body['photos_base64'] = body.photos_base64
+            fingerprint_body['display_mode'] = body.display_mode
+        elif body.display_mode != 'grid':
+            fingerprint_body['display_mode'] = body.display_mode
+        fingerprint = hashlib.sha256(json.dumps(fingerprint_body, ensure_ascii=False,
+            separators=(',', ':')).encode()).hexdigest()
+        encoded_photos = body.photos_base64 if body.photos_base64 is not None else [body.photo_base64] if body.photo_base64 else []
+        if sum(map(len, encoded_photos)) > 16777216:
+            raise HTTPException(422, '一条回忆的照片压缩后总大小不能超过 12 MB')
+        prepared_photos = [prepare_photo(encoded) for encoded in encoded_photos]
+        thumbnails = [thumb for _, thumb in prepared_photos]
+        thumbnail = make_grid_cover(thumbnails) if body.display_mode == 'grid' and thumbnails else (
+            thumbnails[0] if thumbnails else None)
+        first_photo = prepared_photos[0][0] if prepared_photos else None
         # ponytail: small private albums store bounded JPEGs in PostgreSQL; use object storage at larger scale.
         with connect() as db:
             ident = db.execute('''INSERT INTO couple_memories
-                (space_id,author_id,memory_date,title,content,mood,photo,thumbnail,client_request_id,request_hash)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(author_id,client_request_id) DO NOTHING RETURNING id''',
+                (space_id,author_id,memory_date,title,content,mood,display_mode,photo,thumbnail,client_request_id,request_hash)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(author_id,client_request_id) DO NOTHING RETURNING id''',
                 (space['id'], user['id'], body.memory_date, body.title, body.content, body.mood,
-                 photo, thumbnail, body.client_request_id, fingerprint)).fetchone()
+                 body.display_mode, first_photo, thumbnail, body.client_request_id, fingerprint)).fetchone()
             if not ident:
                 ident = db.execute('''SELECT id,request_hash FROM couple_memories
                     WHERE author_id=%s AND client_request_id=%s''', (user['id'], body.client_request_id)).fetchone()
                 if not ident or ident['request_hash'] != fingerprint:
                     raise HTTPException(409, '该保存请求已使用，请刷新后确认回忆是否已保存')
+            else:
+                for position, (photo, thumb) in enumerate(prepared_photos):
+                    db.execute('''INSERT INTO couple_memory_photos(memory_id,position,photo,thumbnail)
+                        VALUES (%s,%s,%s,%s)''', (ident['id'], position, photo, thumb))
             return memory_for(db, ident['id'], user)
+
+    def photo_response(ident, user, position, thumbnail):
+        with connect() as db:
+            memory_for(db, ident, user)
+            column = 'thumbnail' if thumbnail else 'photo'
+            row = db.execute(f'''SELECT {column} AS data FROM couple_memory_photos
+                WHERE memory_id=%s AND position=%s''', (ident, position)).fetchone()
+        if not row:
+            raise HTTPException(404, '这张照片不存在或无权访问')
+        return Response(bytes(row['data']), media_type='image/jpeg', headers={'X-Content-Type-Options': 'nosniff'})
+
+    @router.get('/memories/{ident}/photos')
+    def get_thumbnails(ident: int, user: User):
+        with connect() as db:
+            memory_for(db, ident, user)
+            rows = db.execute('''SELECT position,thumbnail FROM couple_memory_photos
+                WHERE memory_id=%s ORDER BY position''', (ident,)).fetchall()
+        if not rows:
+            raise HTTPException(404, '这条回忆没有照片')
+        return {'items': [{'position': row['position'],
+            'thumbnail_base64': base64.b64encode(bytes(row['thumbnail'])).decode('ascii')} for row in rows]}
+
+    @router.get('/memories/{ident}/photos/{position}')
+    def get_photo_at(ident: int, user: User, position: Annotated[int, Path(ge=0, le=8)],
+                     thumbnail: bool = True):
+        return photo_response(ident, user, position, thumbnail)
 
     @router.get('/pair')
     def pair(user: User, memory_date: date = Query(alias='date')):
@@ -238,7 +338,7 @@ def create_couple_router(connect, current_user):
                 WHERE m.space_id=%s
                   AND m.created_at >= (%s::date::timestamp AT TIME ZONE 'Asia/Shanghai')
                   AND m.created_at < ((%s::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')
-                  AND m.photo IS NOT NULL
+                  AND (m.photo IS NOT NULL OR EXISTS(SELECT 1 FROM couple_memory_photos p WHERE p.memory_id=m.id))
                 ORDER BY m.author_id,m.created_at DESC,m.id DESC''',
                 (space['id'], memory_date, memory_date)).fetchall()
         return {'items': rows}
