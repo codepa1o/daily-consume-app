@@ -22,7 +22,8 @@ CoupleMemory memory(int id, int author,
         title: '回忆$id',
         content: '',
         mood: '',
-        hasPhoto: photo);
+        photoCount: photo ? 1 : 0,
+        displayMode: 'grid');
 
 void main() {
   setUpAll(() async {
@@ -97,7 +98,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final api =
         CoupleApi(request: (method, path, {body, query, binary = false}) async {
-      if (path.endsWith('/photo'))
+      if (path.endsWith('/photo') || path.contains('/photos/'))
         return File('assets/branding/rem_logo.png').readAsBytesSync();
       if (path == 'couple/pair')
         return {
@@ -178,7 +179,7 @@ void main() {
           'items': [testRow(1, 1)],
           'has_more': false
         };
-      if (path.endsWith('/photo'))
+      if (path.endsWith('/photo') || path.contains('/photos/'))
         return File('assets/branding/rem_logo.png').readAsBytesSync();
       return {...testRow(1, 1), 'comments': [], 'reactions': []};
     });
@@ -323,5 +324,6 @@ Map<String, dynamic> testRow(int id, int author) => {
       'title': '一起散步回家',
       'content': '一起散步回家。',
       'mood': '开心',
-      'has_photo': true,
+      'photo_count': 1,
+      'display_mode': 'grid',
     };

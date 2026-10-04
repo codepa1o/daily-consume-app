@@ -159,8 +159,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets(
-      'Navigation is hidden by default and keeps My page selected through gender changes',
+  testWidgets('My page drawer and female navigation follow account gender',
       (tester) async {
     final api = ApiClient.instance;
     Account account(String gender) => Account(
@@ -174,23 +173,27 @@ void main() {
     await tester.pumpAndSettle();
     NavigationBar bar() =>
         tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(bar().destinations.length, 4);
-    await tester.tap(find.text('我的').last);
-    await tester.pump();
+    expect(bar().destinations.length, 3);
+    await tester.tap(find.byTooltip('打开我的'));
+    await tester.pumpAndSettle();
+    expect(find.text('个人资料'), findsOneWidget);
     api.account = account('female');
     api.dataImported();
     await tester.pumpAndSettle();
-    expect(bar().destinations.length, 5);
-    expect(bar().selectedIndex, 4);
+    expect(bar().destinations.length, 4);
+    expect(bar().selectedIndex, 0);
     expect(find.text('个人资料'), findsOneWidget);
+    final screenWidth =
+        tester.view.physicalSize.width / tester.view.devicePixelRatio;
+    await tester.tapAt(Offset(screenWidth - 1, 20));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('女性健康').last);
     await tester.pump();
     api.account = account('male');
     api.dataImported();
     await tester.pumpAndSettle();
-    expect(bar().destinations.length, 4);
-    expect(bar().selectedIndex, 3);
-    expect(find.text('个人资料'), findsOneWidget);
+    expect(bar().destinations.length, 3);
+    expect(bar().selectedIndex, 0);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     api.account = null;

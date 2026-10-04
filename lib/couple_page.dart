@@ -8,12 +8,12 @@ import 'data/app_database.dart' show dateKey;
 import 'data/couple.dart';
 import 'data/journal.dart' show journalToday;
 
-XFile? recoveredCouplePhoto;
+List<XFile>? recoveredCouplePhotos;
 
 Future<void> recoverCouplePhoto() async {
   try {
     final lost = await ImagePicker().retrieveLostData();
-    recoveredCouplePhoto = lost.files?.firstOrNull;
+    recoveredCouplePhotos = lost.files?.take(9).toList();
   } on PlatformException {
     // A cancelled/failed picker never blocks account restoration.
   }
@@ -161,10 +161,36 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
   Future<void> continuePhoto() async {
     final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(
         builder: (_) =>
-            CoupleEditor(recoveredPhoto: recoveredCouplePhoto, api: api)));
+            CoupleEditor(recoveredPhotos: recoveredCouplePhotos, api: api)));
     if (saved == true && mounted) {
-      recoveredCouplePhoto = null;
+      recoveredCouplePhotos = null;
       await reload();
+    }
+  }
+
+  Future<void> changeAnniversary() async {
+    final current = space!;
+    final value = await showDatePicker(
+      context: context,
+      initialDate: current.since,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      helpText: '选择恋爱纪念日',
+      cancelText: '取消',
+      confirmText: '保存日期',
+    );
+    if (value == null || !mounted) return;
+    setState(() => busy = true);
+    try {
+      await api.updateAnniversary(value);
+      final updated = await api.space();
+      if (!mounted) return;
+      setState(() => space = updated);
+      _message('恋爱纪念日已更新');
+    } catch (failure) {
+      if (mounted) _message(coupleError(failure));
+    } finally {
+      if (mounted) setState(() => busy = false);
     }
   }
 
@@ -218,11 +244,45 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
                                     color: coupleInk,
                                     fontSize: 29,
                                     fontFamily: 'serif')),
-                            const SizedBox(height: 8),
-                            Text('在一起的第 ${space!.daysTogether} 天',
-                                style: const TextStyle(
-                                    color: coupleRose, fontSize: 16)),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 14),
+                            Material(
+                                color: const Color(0xfffff3e9),
+                                borderRadius: BorderRadius.circular(18),
+                                child: InkWell(
+                                    borderRadius: BorderRadius.circular(18),
+                                    onTap: busy ? null : changeAnniversary,
+                                    child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 18, vertical: 16),
+                                        child: Row(children: [
+                                          const Icon(Icons.favorite,
+                                              color: coupleRose, size: 22),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                              child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                Text(
+                                                    space!.timeTogether ==
+                                                            '今天开始'
+                                                        ? '从今天开始'
+                                                        : '相恋 ${space!.timeTogether}',
+                                                    style: const TextStyle(
+                                                        color: coupleInk,
+                                                        fontFamily: 'serif',
+                                                        fontSize: 24)),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                    '在一起的第 ${space!.daysTogether} 天 · ${dateKey(space!.since)}',
+                                                    style: const TextStyle(
+                                                        color: coupleRose,
+                                                        fontSize: 13)),
+                                              ])),
+                                          const Icon(Icons.calendar_month,
+                                              color: coupleRose, size: 20),
+                                        ])))),
+                            const SizedBox(height: 12),
                             Text(
                                 space!.members.map((m) => m.name).join('  &  '),
                                 style: const TextStyle(color: coupleInk)),
@@ -241,7 +301,7 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
                                           trailing:
                                               const Icon(Icons.chevron_right),
                                           onTap: busy ? null : invite))),
-                            if (recoveredCouplePhoto != null)
+                            if (recoveredCouplePhotos?.isNotEmpty == true)
                               Card(
                                   color: couplePaper,
                                   child: Padding(
@@ -250,7 +310,8 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            const Text('发现上次选择的未发布照片'),
+                                            Text(
+                                                '发现上次选择的 ${recoveredCouplePhotos!.length} 张未发布照片'),
                                             const Text('确认后可以继续编辑，不会自动上传。',
                                                 style: TextStyle(fontSize: 12)),
                                             Wrap(spacing: 8, children: [
@@ -258,10 +319,9 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
                                                   onPressed: continuePhoto,
                                                   child: const Text('继续使用')),
                                               TextButton(
-                                                  onPressed: () => setState(
-                                                      () =>
-                                                          recoveredCouplePhoto =
-                                                              null),
+                                                  onPressed: () => setState(() =>
+                                                      recoveredCouplePhotos =
+                                                          null),
                                                   child: const Text('忽略'))
                                             ]),
                                           ]))),
@@ -501,8 +561,8 @@ class _CoupleSetupState extends State<_CoupleSetup> {
 }
 
 class CoupleEditor extends StatefulWidget {
-  const CoupleEditor({super.key, this.recoveredPhoto, this.api});
-  final XFile? recoveredPhoto;
+  const CoupleEditor({super.key, this.recoveredPhotos, this.api});
+  final List<XFile>? recoveredPhotos;
   final CoupleApi? api;
   @override
   State<CoupleEditor> createState() => _CoupleEditorState();
@@ -512,9 +572,11 @@ class _CoupleEditorState extends State<CoupleEditor> {
   final title = TextEditingController(), content = TextEditingController();
   final requestId = CoupleApi.requestId();
   final form = GlobalKey<FormState>();
-  Uint8List? photo;
+  final photos = <Uint8List>[];
+  final photoPageController = PageController();
   DateTime date = journalToday();
-  String mood = '';
+  String mood = '', displayMode = 'grid';
+  int currentPhoto = 0;
   bool busy = false, saved = false, dirty = false;
   String? error;
   @override
@@ -522,49 +584,82 @@ class _CoupleEditorState extends State<CoupleEditor> {
     super.initState();
     title.addListener(_changed);
     content.addListener(_changed);
-    if (widget.recoveredPhoto != null) _read(widget.recoveredPhoto!);
+    final recovered = widget.recoveredPhotos;
+    if (recovered != null && recovered.isNotEmpty) {
+      busy = true;
+      _read(recovered.take(9).toList()).whenComplete(() {
+        if (mounted) setState(() => busy = false);
+      });
+    }
   }
 
   void _changed() {
     if (!dirty && mounted) setState(() => dirty = true);
   }
 
+  void showCurrentPhoto() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && photoPageController.hasClients && photos.isNotEmpty) {
+        photoPageController.jumpToPage(currentPhoto);
+      }
+    });
+  }
+
   @override
   void dispose() {
     title.dispose();
     content.dispose();
+    photoPageController.dispose();
     super.dispose();
   }
 
-  Future<void> _read(XFile file) async {
+  Future<void> _read(List<XFile> files) async {
     try {
-      if (await file.length() > 8 * 1024 * 1024)
-        throw const ApiException('请选择 8 MB 以内的照片');
-      final bytes = await file.readAsBytes();
+      if (photos.length + files.length > 9)
+        throw const ApiException('一段回忆最多添加 9 张照片');
+      var totalBytes = photos.fold<int>(0, (sum, photo) => sum + photo.length);
+      final selected = <Uint8List>[];
+      for (final file in files) {
+        final length = await file.length();
+        if (length > 8 * 1024 * 1024) throw const ApiException('单张照片不能超过 8 MB');
+        if (totalBytes + length > 12 * 1024 * 1024)
+          throw const ApiException('一段回忆的照片总大小不能超过 12 MB');
+        final bytes = await file.readAsBytes();
+        totalBytes += bytes.length;
+        selected.add(bytes);
+      }
+      if (selected.isEmpty) return;
       if (mounted)
         setState(() {
-          photo = bytes;
+          photos.addAll(selected);
+          currentPhoto = photos.length - 1;
           dirty = true;
           error = null;
         });
+      showCurrentPhoto();
     } catch (failure) {
       if (mounted) setState(() => error = coupleError(failure));
     }
   }
 
   Future<void> pick() async {
+    final remaining = 9 - photos.length;
+    if (remaining <= 0) {
+      setState(() => error = '一段回忆最多添加 9 张照片');
+      return;
+    }
     setState(() {
       busy = true;
       error = null;
     });
     try {
-      final file = await ImagePicker().pickImage(
-          source: ImageSource.gallery,
+      final files = await ImagePicker().pickMultiImage(
+          limit: remaining,
           maxWidth: 1600,
           maxHeight: 1600,
           imageQuality: 85,
           requestFullMetadata: false);
-      if (file != null) await _read(file);
+      if (files.isNotEmpty) await _read(files);
     } catch (failure) {
       if (mounted) setState(() => error = '照片选择失败，请重试');
     } finally {
@@ -585,7 +680,8 @@ class _CoupleEditorState extends State<CoupleEditor> {
           title: title.text,
           content: content.text,
           mood: mood,
-          photo: photo);
+          photos: photos,
+          displayMode: displayMode);
       if (!mounted) return;
       setState(() {
         saved = true;
@@ -595,12 +691,110 @@ class _CoupleEditorState extends State<CoupleEditor> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (failure) {
-      if (mounted)
+      if (mounted) {
+        final message = coupleError(failure);
         setState(() {
           busy = false;
-          error = coupleError(failure);
+          error = message;
         });
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
+      }
     }
+  }
+
+  void removePhoto(int index) {
+    setState(() {
+      photos.removeAt(index);
+      if (index < currentPhoto) currentPhoto--;
+      if (currentPhoto >= photos.length) currentPhoto = photos.length - 1;
+      if (currentPhoto < 0) currentPhoto = 0;
+      dirty = true;
+    });
+    showCurrentPhoto();
+  }
+
+  Widget photoPreview() {
+    if (photos.isEmpty) return const SizedBox.shrink();
+    Widget image(int index) => Image.memory(photos[index],
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const ColoredBox(
+            color: Color(0xffeee4d8), child: Center(child: Text('当前照片无法预览'))));
+    if (displayMode == 'grid') {
+      return GridView.builder(
+        shrinkWrap: true,
+        primary: false,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: photos.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
+        itemBuilder: (context, index) => ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Stack(fit: StackFit.expand, children: [
+              image(index),
+              Positioned(
+                  top: 2,
+                  right: 2,
+                  child: IconButton.filledTonal(
+                      tooltip: '移除第 ${index + 1} 张照片',
+                      visualDensity: VisualDensity.compact,
+                      style: IconButton.styleFrom(
+                          backgroundColor: const Color(0xccfffaf2),
+                          foregroundColor: coupleInk),
+                      onPressed: busy ? null : () => removePhoto(index),
+                      icon: const Icon(Icons.close, size: 18)))
+            ])),
+      );
+    }
+    return SizedBox(
+        height: 226,
+        child: Stack(alignment: Alignment.center, children: [
+          for (var layer = 2; layer >= 1; layer--)
+            if (photos.length > currentPhoto + layer)
+              Positioned(
+                  left: 8.0 * layer,
+                  right: 8.0 * layer,
+                  top: 5.0 * layer,
+                  bottom: 5.0 * layer,
+                  child: Transform.rotate(
+                      angle: layer * .018,
+                      child: Container(
+                          decoration: BoxDecoration(
+                              color: couplePaper,
+                              border:
+                                  Border.all(color: const Color(0xffeadfd0))),
+                          padding: const EdgeInsets.all(5),
+                          child: image(currentPhoto + layer)))),
+          PageView.builder(
+              controller: photoPageController,
+              itemCount: photos.length,
+              onPageChanged: (index) => setState(() => currentPhoto = index),
+              itemBuilder: (_, index) => Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 2, 12, 12),
+                  child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: image(index)))),
+          Positioned(
+              top: 6,
+              right: 16,
+              child: IconButton.filledTonal(
+                  tooltip: '移除当前照片',
+                  onPressed: busy ? null : () => removePhoto(currentPhoto),
+                  icon: const Icon(Icons.close))),
+          Positioned(
+              right: 22,
+              bottom: 20,
+              child: DecoratedBox(
+                  decoration: BoxDecoration(
+                      color: const Color(0xcc292621),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      child: Text('${currentPhoto + 1} / ${photos.length}',
+                          style: const TextStyle(
+                              color: couplePaper, fontSize: 12)))))
+        ]));
   }
 
   Future<void> discard() async {
@@ -642,29 +836,50 @@ class _CoupleEditorState extends State<CoupleEditor> {
           body: Form(
               key: form,
               child: ListView(padding: const EdgeInsets.all(20), children: [
-                if (photo != null)
-                  ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.memory(photo!,
-                          height: 220,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox(
-                              height: 100,
-                              child: Center(child: Text('当前照片无法预览，请重新选择'))))),
+                Row(children: [
+                  const Text('照片展示方式'),
+                  const Spacer(),
+                  Text('${photos.length} / 9 张',
+                      style: const TextStyle(color: Color(0xff877267))),
+                ]),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, children: [
+                  ChoiceChip(
+                      label: const Text('九宫格'),
+                      avatar: const Icon(Icons.grid_view, size: 18),
+                      selected: displayMode == 'grid',
+                      onSelected: busy
+                          ? null
+                          : (_) {
+                              setState(() {
+                                displayMode = 'grid';
+                                dirty = true;
+                              });
+                              showCurrentPhoto();
+                            }),
+                  ChoiceChip(
+                      label: const Text('滑动相册'),
+                      avatar:
+                          const Icon(Icons.view_carousel_outlined, size: 18),
+                      selected: displayMode == 'swipe',
+                      onSelected: busy
+                          ? null
+                          : (_) {
+                              setState(() {
+                                displayMode = 'swipe';
+                                dirty = true;
+                              });
+                              showCurrentPhoto();
+                            }),
+                ]),
+                const SizedBox(height: 10),
+                photoPreview(),
+                if (photos.isNotEmpty) const SizedBox(height: 10),
                 Wrap(spacing: 8, children: [
                   OutlinedButton.icon(
-                      onPressed: busy ? null : pick,
+                      onPressed: busy || photos.length >= 9 ? null : pick,
                       icon: const Icon(Icons.add_photo_alternate_outlined),
-                      label: Text(photo == null ? '添加照片' : '换一张照片')),
-                  if (photo != null)
-                    TextButton(
-                        onPressed: busy
-                            ? null
-                            : () => setState(() {
-                                  photo = null;
-                                  dirty = true;
-                                }),
-                        child: const Text('移除照片'))
+                      label: Text(photos.isEmpty ? '添加照片' : '继续添加')),
                 ]),
                 const SizedBox(height: 16),
                 TextFormField(

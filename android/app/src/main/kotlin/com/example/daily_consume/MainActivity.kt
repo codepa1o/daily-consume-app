@@ -1,9 +1,17 @@
 package com.example.daily_consume
 
+import android.Manifest
+import android.app.AlarmManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -15,8 +23,11 @@ import java.lang.ref.WeakReference
 
 class MainActivity : FlutterActivity() {
     private lateinit var retainedUpdateChannel: MethodChannel
+    private var pendingNotificationPermission: MethodChannel.Result? = null
+
     companion object {
         var updateChannel: WeakReference<MethodChannel>? = null
+        private const val notificationPermissionRequest = 1333
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -24,6 +35,7 @@ class MainActivity : FlutterActivity() {
         val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "daily_consume/updates")
         retainedUpdateChannel = channel
         updateChannel = WeakReference(channel)
+        createPomodoroNotificationChannels()
         channel.setMethodCallHandler { call, result ->
             val prefs = getSharedPreferences("updates", MODE_PRIVATE)
             when (call.method) {
@@ -75,6 +87,166 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "daily_consume/pomodoro")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "hasNotificationPermission" -> result.success(hasNotificationPermission())
+                    "requestNotificationPermission" -> requestNotificationPermission(result)
+                    "openNotificationSettings" -> openNotificationSettings(result)
+                    "canScheduleExactAlarms" -> result.success(canScheduleExactAlarms())
+                    "openExactAlarmSettings" -> openExactAlarmSettings(result)
+                    "scheduleReminder" -> schedulePomodoroReminder(call, result)
+                    "cancelReminder" -> {
+                        cancelPomodoroReminder()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun createPomodoroNotificationChannels() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .build()
+        val channel = NotificationChannel(
+            PomodoroAlert.CHANNEL, "番茄钟提醒", NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "番茄钟阶段结束时响铃并振动"
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 350, 180, 350)
+            setSound(sound, audioAttributes)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setShowBadge(false)
+        }
+        manager.createNotificationChannel(channel)
+    }
+
+    private fun hasNotificationPermission(): Boolean {
+        val permissionGranted = Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        val notificationsEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.N ||
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .areNotificationsEnabled()
+        return permissionGranted && notificationsEnabled
+    }
+
+    private fun requestNotificationPermission(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            result.success(hasNotificationPermission())
+            return
+        }
+        if (pendingNotificationPermission != null) {
+            result.error("PERMISSION_PENDING", "通知权限请求正在处理中", null)
+            return
+        }
+        pendingNotificationPermission = result
+        requestPermissions(
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS), notificationPermissionRequest
+        )
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == notificationPermissionRequest) {
+            pendingNotificationPermission?.success(
+                grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED &&
+                    hasNotificationPermission()
+            )
+            pendingNotificationPermission = null
+        }
+    }
+
+    private fun canScheduleExactAlarms() =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            (getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
+
+    private fun openNotificationSettings(result: MethodChannel.Result) {
+        try {
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            } else {
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+            }
+            startActivity(intent)
+            result.success(null)
+        } catch (_: Exception) {
+            result.error("SETTINGS", "无法打开通知设置", null)
+        }
+    }
+
+    private fun openExactAlarmSettings(result: MethodChannel.Result) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !canScheduleExactAlarms()) {
+                startActivity(Intent(
+                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                    Uri.parse("package:$packageName")
+                ))
+            }
+            result.success(null)
+        } catch (_: Exception) {
+            result.error("SETTINGS", "无法打开闹钟和提醒设置", null)
+        }
+    }
+
+    private fun schedulePomodoroReminder(
+        call: io.flutter.plugin.common.MethodCall,
+        result: MethodChannel.Result
+    ) {
+        val triggerAt = call.argument<Number>("triggerAtMillis")?.toLong()
+        val phase = call.argument<String>("phase")
+        if (triggerAt == null || phase !in setOf("focus", "shortBreak", "longBreak")) {
+            result.error("INVALID_REMINDER", "番茄钟提醒参数无效", null)
+            return
+        }
+        if (!canScheduleExactAlarms()) {
+            result.error("EXACT_ALARM_PERMISSION", "需要允许闹钟和提醒权限", null)
+            return
+        }
+        try {
+            cancelPomodoroReminder()
+            val intent = Intent(this, PomodoroAlarmReceiver::class.java)
+                .setAction(PomodoroAlert.ACTION)
+                .putExtra("phase", phase)
+            val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            val pending = PendingIntent.getBroadcast(this, PomodoroAlert.REQUEST_CODE, intent, flags)
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+            } else {
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+            }
+            result.success(null)
+        } catch (_: SecurityException) {
+            result.error("EXACT_ALARM_PERMISSION", "需要允许闹钟和提醒权限", null)
+        } catch (_: Exception) {
+            result.error("SCHEDULE_FAILED", "无法设置番茄钟后台提醒", null)
+        }
+    }
+
+    private fun cancelPomodoroReminder() {
+        val intent = Intent(this, PomodoroAlarmReceiver::class.java).setAction(PomodoroAlert.ACTION)
+        val flags = PendingIntent.FLAG_NO_CREATE or
+            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        PendingIntent.getBroadcast(this, PomodoroAlert.REQUEST_CODE, intent, flags)?.let {
+            (getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(it)
+            it.cancel()
+        }
+        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .cancel(PomodoroAlert.NOTIFICATION_ID)
     }
 
     private fun canInstall() = Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()
