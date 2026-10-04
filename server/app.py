@@ -34,7 +34,7 @@ def connect():
     return psycopg.connect(DSN, row_factory=dict_row)
 
 
-app = FastAPI(title='日常 API', version='1.3.0',
+app = FastAPI(title='日常 API', version='1.3.1',
               docs_url=None, redoc_url=None, openapi_url=None)
 
 

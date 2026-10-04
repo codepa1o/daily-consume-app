@@ -48,9 +48,9 @@ APK 默认输出到 build/app/outputs/flutter-apk/app-release.apk。
 
 ## 更新与发布
 
-当前发布版本为 `1.3.0+8`，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.0%2B8)。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧 SQLite，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
+当前发布版本为 `1.3.1+9`，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.1%2B9)。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧 SQLite，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
 
-本次新增生活日历及情侣空间。现有服务器已升级至 `0003_couple`，日历和情侣接口均上线；两台手机需覆盖安装本次 APK。客户端发版不会自动更新业务服务器。接口、验证与部署清单见 [生活日历说明](docs/access-api/journal.md) 和 [情侣空间说明](docs/access-api/couple-space.md)。完整的构建、发布与网页操作教程见 [GitHub Release 发布教程](docs/github-release-guide.md)。
+生活日历与情侣空间已上线。服务器升级至 `0004_avatar`；两台手机安装 `1.3.1+9` 即可使用头像和按发布时间归日的回忆时间线。客户端发版不会自动更新业务服务器。接口、验证与部署清单见 [生活日历说明](docs/access-api/journal.md) 和 [情侣空间说明](docs/access-api/couple-space.md)。完整的构建、发布与网页操作教程见 [GitHub Release 发布教程](docs/github-release-guide.md)。
 
 默认更新地址：
 

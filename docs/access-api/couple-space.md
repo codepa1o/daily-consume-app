@@ -2,9 +2,7 @@
 
 2026-10-04：Flutter 客户端和 FastAPI/PostgreSQL 后端实现。入口：我的 → 情侣空间。
 
-状态：现有服务器已上线，Alembic `0003_couple` 为 head，服务 active；1.3.0+8 签名 APK 已构建并核对，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.0%2B8)。两台手机需更新到此版本。Android 真机相册选择尚未人工验收。
-
-按发布时间分组的时间线正在单独的开发分支实现；尚未部署到现有服务器，也未包含在 1.3.0+8 APK 中。
+状态：现有服务器已升级至 Alembic `0004_avatar`，服务 active；1.3.1+9 签名 APK 已发布，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.1%2B9)。两台手机需更新到此版本。Android 真机相册选择尚未人工验收。
 
 ## 使用流程
 
