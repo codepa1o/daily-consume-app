@@ -1,7 +1,7 @@
 name: daily_consume
 description: Account-based Android app for server-stored body, meal, spending and workout records.
 publish_to: none
-version: 1.3.1+9
+version: 1.3.3+10
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
@@ -24,5 +24,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/release_notes.json
+    - assets/release_history.json
     - assets/server_ca.pem
     - assets/branding/rem_logo.png

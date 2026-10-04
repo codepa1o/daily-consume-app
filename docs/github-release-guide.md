@@ -4,15 +4,15 @@
 
 ## 本次版本
 
-- 应用显示版本：1.2.2。
-- 内部版本编号：7，即 `pubspec.yaml` 中的 `1.2.2+7`。
-- Release 标签：`v1.2.2+7`。
-- 更新日志原稿：`docs/release-notes/1.2.2.txt`，每行一条。
-- 1.2.2 客户端的更新界面与已上线 1.2.1 业务 API 兼容。后端源码新增 Alembic 迁移管理，部署该后端源码时需上传完整迁移目录并执行 `upgrade head`；GitHub 发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
+- 应用显示版本：1.3.3。
+- 内部版本编号：10，即 `pubspec.yaml` 中的 `1.3.3+10`。
+- Release 标签：`v1.3.3+10`。
+- 更新日志原稿：`docs/release-notes/1.3.3.txt`，每行一条。
+- 番茄钟依赖后端 migration `0005_pomodoro`；先部署后端并升级数据库，再公开客户端 APK。GitHub 发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
 
 ## 以后发布新版的推荐步骤
 
-以下以 **下一版 1.2.3+8** 为例。不要再次用这个步骤创建已发布的 1.2.2+7。
+以下以 **下一版 1.3.4+11** 为例。不要再次用这个步骤创建已发布的 1.3.3+10。
 
 ### 1. 验证代码
 
@@ -28,13 +28,13 @@ Set-Location E:\my_project\daily-consume
 
 ### 2. 写日志并构建
 
-新建 UTF-8 文件 `docs/release-notes/1.2.3.txt`，每行一条给用户看的更新内容，然后执行：
+新建 UTF-8 文件 `docs/release-notes/1.3.4.txt`，每行一条给用户看的更新内容，然后执行：
 
 ```powershell
 .\scripts\build_release.ps1 `
-  -VersionName '1.2.3' `
-  -VersionCode 8 `
-  -NotesFile '.\docs\release-notes\1.2.3.txt' `
+  -VersionName '1.3.4' `
+  -VersionCode 11 `
+  -NotesFile '.\docs\release-notes\1.3.4.txt' `
   -Flutter 'E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter\bin\flutter.bat'
 ```
 

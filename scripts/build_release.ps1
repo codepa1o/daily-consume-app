@@ -27,8 +27,38 @@ if (!$notes.Count -or ($notes -join '').Length -gt 32000) {
 if (!(Test-Path -LiteralPath (Join-Path $projectRoot 'android/key.properties'))) {
     throw 'android/key.properties is required. Restore the original signing key before building an update.'
 }
-$pubspecText = [regex]::Replace($pubspecText, '(?m)^version:.*$', "version: $VersionName+$VersionCode")
+$historyFile = Join-Path $projectRoot 'assets/release_history.json'
 $utf8 = [System.Text.UTF8Encoding]::new($false)
+try {
+    $feed = Invoke-WebRequest -Uri "https://github.com/$Repository/releases.atom" `
+        -Headers @{ 'User-Agent' = 'daily-consume-app' } -TimeoutSec 20
+    [xml]$releaseFeed = $feed.Content
+    $history = @(
+        foreach ($entry in $releaseFeed.feed.entry) {
+            $match = [regex]::Match([string]$entry.title, '(?<name>\d+\.\d+\.\d+)\s*\((?<code>\d+)\)$')
+            if (!$match.Success) { continue }
+            $items = @([regex]::Matches([string]$entry.content.InnerText, '<li[^>]*>(.*?)</li>',
+                [System.Text.RegularExpressions.RegexOptions]::Singleline) | ForEach-Object {
+                $plain = [regex]::Replace($_.Groups[1].Value, '<[^>]+>', '')
+                [System.Net.WebUtility]::HtmlDecode($plain).Trim()
+            } | Where-Object { $_.Length -gt 0 })
+            [pscustomobject]@{
+                versionCode = [int]$match.Groups['code'].Value
+                versionName = $match.Groups['name'].Value
+                publishedAt = if ($entry.published) { [string]$entry.published } else { [string]$entry.updated }
+                releaseNotes = $items
+            }
+        }
+    )
+    if (!$history.Count) { throw 'The release feed did not contain published versions.' }
+    $history = @($history | Sort-Object { [datetimeoffset]::Parse($_.publishedAt) } -Descending)
+    $historyJson = @{ releases = $history } | ConvertTo-Json -Depth 6
+    [System.IO.File]::WriteAllText($historyFile, $historyJson, $utf8)
+} catch {
+    if (!(Test-Path -LiteralPath $historyFile)) { throw }
+    Write-Warning "Could not refresh release history; keeping the bundled timeline. $($_.Exception.Message)"
+}
+$pubspecText = [regex]::Replace($pubspecText, '(?m)^version:.*$', "version: $VersionName+$VersionCode")
 [System.IO.File]::WriteAllText($pubspecFile, $pubspecText, $utf8)
 $releaseNotes = @{ versionName = $VersionName; versionCode = $VersionCode; updateManifestUrl = $manifestUrl; releaseNotes = $notes } | ConvertTo-Json -Depth 4
 [System.IO.File]::WriteAllText((Join-Path $projectRoot 'assets/release_notes.json'), $releaseNotes, $utf8)

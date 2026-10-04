@@ -10,6 +10,7 @@ import 'workout_page.dart';
 import 'female_health_page.dart';
 import 'life_calendar.dart';
 import 'couple_page.dart' show recoverCouplePhoto;
+import 'pomodoro_card.dart';
 
 const paper = Color(0xfff6f5ef);
 const surface = Color(0xfffffefa);
@@ -53,6 +54,13 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   String selected = 'body';
+  final _pomodoroTimer = PomodoroTimerController();
+
+  @override
+  void dispose() {
+    _pomodoroTimer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -67,27 +75,81 @@ class _AppShellState extends State<AppShell> {
             child: MyPage(),
           ),
           body: IndexedStack(index: tabs.indexOf(selected), children: [
-            const BodyPage(key: ValueKey('body')),
+            BodyPage(
+                key: const ValueKey('body'), timerController: _pomodoroTimer),
             const DiaryPage(key: ValueKey('diary')),
             const WorkoutPage(key: ValueKey('workout')),
             if (female) const FemaleHealthPage(key: ValueKey('female')),
           ]),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: tabs.indexOf(selected),
-            onDestinationSelected: (index) =>
-                setState(() => selected = tabs[index]),
-            backgroundColor: surface,
-            indicatorColor: sageSoft,
-            destinations: [
-              const NavigationDestination(
-                  icon: Icon(Icons.show_chart_rounded), label: '身体'),
-              const NavigationDestination(
-                  icon: Icon(Icons.restaurant_menu_rounded), label: '饮食消费'),
-              const NavigationDestination(
-                  icon: Icon(Icons.fitness_center_rounded), label: '健身'),
-              if (female)
-                const NavigationDestination(
-                    icon: Icon(Icons.local_florist_outlined), label: '女性健康'),
+          bottomNavigationBar: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedBuilder(
+                animation: _pomodoroTimer,
+                builder: (context, _) {
+                  final info = _pomodoroTimer.info;
+                  if (info == null) return const SizedBox.shrink();
+                  return Material(
+                    color: surface,
+                    child: InkWell(
+                      onTap: () => setState(() => selected = 'body'),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 9),
+                        child: Row(children: [
+                          const Icon(Icons.timer_outlined, color: sage),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(info.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
+                                Text('返回番茄钟',
+                                    style:
+                                        TextStyle(color: muted, fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(info.remaining,
+                              style: const TextStyle(
+                                  color: sage,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                  fontWeight: FontWeight.w600)),
+                          if (info.paused) ...[
+                            const SizedBox(width: 8),
+                            const Text('已暂停',
+                                style: TextStyle(color: muted, fontSize: 11)),
+                          ],
+                        ]),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              NavigationBar(
+                selectedIndex: tabs.indexOf(selected),
+                onDestinationSelected: (index) =>
+                    setState(() => selected = tabs[index]),
+                backgroundColor: surface,
+                indicatorColor: sageSoft,
+                destinations: [
+                  const NavigationDestination(
+                      icon: Icon(Icons.show_chart_rounded), label: '身体'),
+                  const NavigationDestination(
+                      icon: Icon(Icons.restaurant_menu_rounded), label: '饮食消费'),
+                  const NavigationDestination(
+                      icon: Icon(Icons.fitness_center_rounded), label: '健身'),
+                  if (female)
+                    const NavigationDestination(
+                        icon: Icon(Icons.local_florist_outlined),
+                        label: '女性健康'),
+                ],
+              ),
             ],
           ),
         );
@@ -95,7 +157,9 @@ class _AppShellState extends State<AppShell> {
 }
 
 class BodyPage extends StatefulWidget {
-  const BodyPage({super.key});
+  const BodyPage({super.key, this.timerController});
+
+  final PomodoroTimerController? timerController;
 
   @override
   State<BodyPage> createState() => _BodyPageState();
@@ -377,6 +441,8 @@ class _BodyPageState extends State<BodyPage> {
             ),
           ],
           const LifeCalendar(),
+          const SizedBox(height: 16),
+          PomodoroCard(timerController: widget.timerController),
         ],
       ),
     );
