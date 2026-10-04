@@ -6,6 +6,7 @@ import json
 import secrets
 import socket
 import ssl
+import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
@@ -19,6 +20,8 @@ def main():
     parser.add_argument('--connect-host', help='Connect through a local tunnel while verifying the original IP certificate')
     parser.add_argument('--cleanup', action='store_true', help='Remove only the randomly generated test accounts using the local database')
     parser.add_argument('--report')
+    parser.add_argument('--pace-seconds', type=float, default=0,
+                        help='Pause between requests to respect production rate limits')
     args = parser.parse_args()
     origin = urlsplit(args.base_url)
     context = ssl.create_default_context(cafile=args.ca)
@@ -29,6 +32,8 @@ def main():
     tokens = {}
 
     def request(method, path, body=None, token=None, expected=200, query=None):
+        if args.pace_seconds > 0:
+            time.sleep(args.pace_seconds)
         connection = http.client.HTTPSConnection(origin.hostname, origin.port or 443, context=context, timeout=20)
         if args.connect_host:
             raw = socket.create_connection((args.connect_host, origin.port or 443), timeout=20)

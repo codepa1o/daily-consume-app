@@ -1,0 +1,10 @@
+{
+  "passed": 5,
+  "checks": [
+    "TLS, authenticated invitation confirmation, shared space and one-time code",
+    "Photo upload, safe retry, JPEG read, no-store and outsider denial",
+    "Two-author collage, partner comments, reactions and author-only deletion",
+    "Shared album does not expose account-private life calendar",
+    "Only this run's disposable accounts and spaces removed"
+  ]
+}

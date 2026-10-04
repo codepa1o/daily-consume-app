@@ -19,6 +19,8 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 from database import DSN
+from journal import create_journal_router
+from couple import create_couple_router
 
 password_hasher = PasswordHasher()
 dummy_password_hash = password_hasher.hash(secrets.token_urlsafe(32))
@@ -31,7 +33,7 @@ def connect():
     return psycopg.connect(DSN, row_factory=dict_row)
 
 
-app = FastAPI(title='日常 API', version='1.2.1',
+app = FastAPI(title='日常 API', version='1.3.0',
               docs_url=None, redoc_url=None, openapi_url=None)
 
 
@@ -90,6 +92,9 @@ def current_user(credentials: Annotated[HTTPAuthorizationCredentials | None, Dep
 
 
 User = Annotated[dict, Depends(current_user)]
+
+app.include_router(create_journal_router(connect, current_user))
+app.include_router(create_couple_router(connect, current_user))
 
 
 def public_user(user):

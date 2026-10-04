@@ -179,7 +179,8 @@ class ApiClient extends ChangeNotifier {
   Future<dynamic> request(String method, String path,
       {Object? body,
       Map<String, String>? query,
-      bool authenticated = true}) async {
+      bool authenticated = true,
+      bool binary = false}) async {
     await _prepare();
     final token = _token;
     if (authenticated && token == null)
@@ -203,12 +204,13 @@ class ApiClient extends ChangeNotifier {
       }
       final response =
           await outgoing.close().timeout(const Duration(seconds: 30));
-      final text = await utf8.decoder
-          .bind(response)
-          .join()
+      final bytes = await consolidateHttpClientResponseBytes(response)
           .timeout(const Duration(seconds: 30));
       if (authenticated && token != _token)
         throw const ApiException('账号已切换，请重新加载');
+      if (binary && response.statusCode >= 200 && response.statusCode < 300)
+        return bytes;
+      final text = utf8.decode(bytes, allowMalformed: true);
       dynamic decoded;
       try {
         decoded = text.isEmpty ? null : jsonDecode(text);

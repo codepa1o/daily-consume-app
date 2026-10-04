@@ -53,8 +53,8 @@ class MigrationTests(unittest.TestCase):
     def test_empty_database_and_repeat_upgrade(self):
         command.upgrade(self.config, 'head')
         command.upgrade(self.config, 'head')
-        self.assertEqual(self.execute('SELECT version_num FROM alembic_version'), [('0001_baseline',)])
-        self.assertEqual(self.execute("SELECT count(*) FROM pg_tables WHERE schemaname=current_schema()"), [(14,)])
+        self.assertEqual(self.execute('SELECT version_num FROM alembic_version'), [('0003_couple',)])
+        self.assertEqual(self.execute("SELECT count(*) FROM pg_tables WHERE schemaname=current_schema()"), [(20,)])
         self.assertEqual(self.execute("INSERT INTO users(username,username_key,password_hash,nickname) "
                                      "VALUES ('new','new','hash','新账号') RETURNING id,gender"), [(1, 'unset')])
 
@@ -102,7 +102,7 @@ class MigrationTests(unittest.TestCase):
                 if process.poll() is None:
                     process.kill()
                     process.communicate()
-        self.assertEqual(self.execute('SELECT version_num FROM alembic_version'), [('0001_baseline',)])
+        self.assertEqual(self.execute('SELECT version_num FROM alembic_version'), [('0003_couple',)])
 
     def test_partial_schema_is_rejected_without_changes(self):
         with psycopg.connect(self.dsn) as db:
@@ -137,7 +137,7 @@ class MigrationTests(unittest.TestCase):
         command.upgrade(self.config, 'head')
         with self.assertRaisesRegex(RuntimeError, 'baseline is irreversible'):
             command.downgrade(self.config, 'base')
-        self.assertEqual(self.execute('SELECT version_num FROM alembic_version'), [('0001_baseline',)])
+        self.assertEqual(self.execute('SELECT version_num FROM alembic_version'), [('0003_couple',)])
         self.assertEqual(self.execute('SELECT count(*) FROM users'), [(0,)])
 
     def test_incremental_upgrade_downgrade_and_failed_transaction(self):
@@ -157,14 +157,14 @@ class MigrationTests(unittest.TestCase):
             command.upgrade(self.config, 'head')
             self.assertEqual(self.execute('SELECT migration_note FROM users'), [])
             command.downgrade(self.config, '-1')
-            self.assertEqual(self.execute('SELECT version_num FROM alembic_version'), [('0001_baseline',)])
+            self.assertEqual(self.execute('SELECT version_num FROM alembic_version'), [('0003_couple',)])
             # A failure after DDL must roll back both the column and version update.
             Path(script.path).write_text(source.replace("op.add_column('users', sa.Column('migration_note', sa.Text()))",
                 "op.add_column('users', sa.Column('migration_note', sa.Text()))\n    raise RuntimeError('deliberate failure')"),
                 encoding='utf-8')
             with self.assertRaisesRegex(RuntimeError, 'deliberate failure'):
                 command.upgrade(self.config, 'head')
-            self.assertEqual(self.execute('SELECT version_num FROM alembic_version'), [('0001_baseline',)])
+            self.assertEqual(self.execute('SELECT version_num FROM alembic_version'), [('0003_couple',)])
             self.assertEqual(self.execute("SELECT count(*) FROM information_schema.columns "
                 "WHERE table_schema=current_schema() AND table_name='users' AND column_name='migration_note'"), [(0,)])
 
