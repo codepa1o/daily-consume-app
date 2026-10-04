@@ -8,7 +8,7 @@
 - 内部版本编号：10，即 `pubspec.yaml` 中的 `1.3.3+10`。
 - Release 标签：`v1.3.3+10`。
 - 更新日志原稿：`docs/release-notes/1.3.3.txt`，每行一条。
-- 番茄钟依赖后端 migration `0005_pomodoro`；先部署后端并升级数据库，再公开客户端 APK。GitHub 发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
+- 番茄钟依赖后端 migration `0005_pomodoro`；本版已先部署后端并升级数据库，再公开客户端 APK。GitHub 发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
 
 ## 以后发布新版的推荐步骤
 
