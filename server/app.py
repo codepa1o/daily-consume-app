@@ -34,7 +34,7 @@ def connect():
     return psycopg.connect(DSN, row_factory=dict_row)
 
 
-app = FastAPI(title='日常 API', version='1.3.1',
+app = FastAPI(title='日常 API', version='1.3.3',
               docs_url=None, redoc_url=None, openapi_url=None)
 
 
@@ -576,6 +576,145 @@ def check_in(body: WorkoutLogInput, user: User):
 def undo_check_in(user: User, date: date):
     with connect() as db:
         db.execute('DELETE FROM workout_logs WHERE user_id=%s AND date=%s', (user['id'], date))
+    return {'ok': True}
+
+
+class PomodoroTaskInput(Input):
+    title: str = Field(min_length=1, max_length=120)
+
+    @field_validator('title')
+    @classmethod
+    def nonempty_title(cls, value):
+        if not value.strip():
+            raise ValueError('专注事项不能为空')
+        return value.strip()
+
+
+class PomodoroSettingsInput(Input):
+    focus_minutes: int = Field(ge=1, le=120, strict=True)
+    short_break_minutes: int = Field(ge=1, le=60, strict=True)
+    long_break_minutes: int = Field(ge=1, le=120, strict=True)
+    rounds_per_long_break: int = Field(ge=2, le=12, strict=True)
+
+
+class PomodoroSessionInput(Input):
+    client_request_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+    task_id: int | None = Field(default=None, ge=1, strict=True)
+    task_title: str = Field(min_length=1, max_length=120)
+    duration_minutes: int = Field(ge=1, le=120, strict=True)
+    started_at: datetime
+    completed_at: datetime
+
+    @field_validator('task_title')
+    @classmethod
+    def nonempty_task_title(cls, value):
+        if not value.strip():
+            raise ValueError('专注事项不能为空')
+        return value.strip()
+
+    @model_validator(mode='after')
+    def valid_times(self):
+        now = datetime.now(timezone.utc)
+        for value in (self.started_at, self.completed_at):
+            if value.tzinfo is None or value.utcoffset() is None or value > now + timedelta(minutes=1):
+                raise ValueError('专注时间格式不正确')
+        if self.completed_at <= self.started_at:
+            raise ValueError('结束时间必须晚于开始时间')
+        return self
+
+
+@app.get('/pomodoro/settings')
+def pomodoro_settings(user: User):
+    with connect() as db:
+        db.execute('INSERT INTO pomodoro_settings(user_id) VALUES (%s) ON CONFLICT DO NOTHING',
+                   (user['id'],))
+        return db.execute('''SELECT focus_minutes,short_break_minutes,long_break_minutes,rounds_per_long_break
+            FROM pomodoro_settings WHERE user_id=%s''', (user['id'],)).fetchone()
+
+
+@app.put('/pomodoro/settings')
+def save_pomodoro_settings(body: PomodoroSettingsInput, user: User):
+    with connect() as db:
+        db.execute('''INSERT INTO pomodoro_settings
+            (user_id,focus_minutes,short_break_minutes,long_break_minutes,rounds_per_long_break)
+            VALUES (%s,%s,%s,%s,%s) ON CONFLICT(user_id) DO UPDATE SET
+            focus_minutes=EXCLUDED.focus_minutes,short_break_minutes=EXCLUDED.short_break_minutes,
+            long_break_minutes=EXCLUDED.long_break_minutes,
+            rounds_per_long_break=EXCLUDED.rounds_per_long_break''',
+            (user['id'], body.focus_minutes, body.short_break_minutes,
+             body.long_break_minutes, body.rounds_per_long_break))
+    return {'ok': True}
+
+
+@app.get('/pomodoro/tasks')
+def pomodoro_tasks(user: User):
+    with connect() as db:
+        return db.execute('''SELECT id,title,created_at FROM pomodoro_tasks
+            WHERE user_id=%s ORDER BY created_at DESC,id DESC''', (user['id'],)).fetchall()
+
+
+@app.post('/pomodoro/tasks', status_code=201)
+def add_pomodoro_task(body: PomodoroTaskInput, user: User):
+    try:
+        with connect() as db:
+            existing = db.execute('''SELECT id,title,created_at FROM pomodoro_tasks
+                WHERE user_id=%s AND lower(title)=lower(%s)''', (user['id'], body.title)).fetchone()
+            if existing:
+                return existing
+            return db.execute('''INSERT INTO pomodoro_tasks(user_id,title)
+                VALUES (%s,%s) RETURNING id,title,created_at''',
+                (user['id'], body.title)).fetchone()
+    except psycopg.errors.UniqueViolation:
+        with connect() as db:
+            return db.execute('''SELECT id,title,created_at FROM pomodoro_tasks
+                WHERE user_id=%s AND lower(title)=lower(%s)''', (user['id'], body.title)).fetchone()
+
+
+@app.delete('/pomodoro/tasks')
+def delete_pomodoro_task(user: User, id: Annotated[int, Query(ge=1)]):
+    with connect() as db:
+        removed = db.execute('DELETE FROM pomodoro_tasks WHERE user_id=%s AND id=%s',
+                             (user['id'], id)).rowcount
+        if not removed:
+            raise HTTPException(404, '专注事项不存在')
+    return {'ok': True}
+
+
+@app.get('/pomodoro/sessions')
+def pomodoro_sessions(user: User, start: date, end: date):
+    if start > end or start < date(2000, 1, 1) or end > datetime.now(ZoneInfo('Asia/Shanghai')).date():
+        raise HTTPException(422, '日期范围不正确')
+    with connect() as db:
+        return db.execute('''SELECT client_request_id,task_title,duration_minutes,started_at,completed_at
+            FROM pomodoro_sessions WHERE user_id=%s
+            AND (started_at AT TIME ZONE 'Asia/Shanghai')::date BETWEEN %s AND %s
+            ORDER BY started_at DESC,id DESC''', (user['id'], start, end)).fetchall()
+
+
+@app.post('/pomodoro/sessions', status_code=201)
+def save_pomodoro_session(body: PomodoroSessionInput, user: User):
+    try:
+        with connect() as db:
+            existing = db.execute('''SELECT client_request_id FROM pomodoro_sessions
+                WHERE user_id=%s AND client_request_id=%s''',
+                (user['id'], body.client_request_id)).fetchone()
+            if existing:
+                return {'ok': True}
+            if body.task_id is not None and not db.execute(
+                    'SELECT 1 FROM pomodoro_tasks WHERE user_id=%s AND id=%s',
+                    (user['id'], body.task_id)).fetchone():
+                raise HTTPException(422, '专注事项不存在')
+            db.execute('''INSERT INTO pomodoro_sessions
+                (user_id,task_id,client_request_id,task_title,duration_minutes,started_at,completed_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)''',
+                (user['id'], body.task_id, body.client_request_id, body.task_title,
+                 body.duration_minutes, body.started_at, body.completed_at))
+    except psycopg.errors.UniqueViolation:
+        with connect() as db:
+            if not db.execute('''SELECT 1 FROM pomodoro_sessions
+                WHERE user_id=%s AND client_request_id=%s''',
+                (user['id'], body.client_request_id)).fetchone():
+                raise
     return {'ok': True}
 
 

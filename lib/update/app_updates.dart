@@ -39,18 +39,173 @@ Future<void> _showNotes(
   await route.completed;
 }
 
+class _ReleaseHistoryEntry {
+  const _ReleaseHistoryEntry({
+    required this.versionCode,
+    required this.versionName,
+    required this.publishedAt,
+    required this.notes,
+    this.isCurrent = false,
+  });
+
+  final int versionCode;
+  final String versionName;
+  final String publishedAt;
+  final List<String> notes;
+  final bool isCurrent;
+
+  factory _ReleaseHistoryEntry.fromJson(Map<String, dynamic> json,
+          {bool isCurrent = false}) =>
+      _ReleaseHistoryEntry(
+        versionCode: json['versionCode'] as int,
+        versionName: json['versionName'] as String,
+        publishedAt: json['publishedAt'] as String? ?? '',
+        notes: List<String>.from(json['releaseNotes'] as List),
+        isCurrent: isCurrent,
+      );
+}
+
+Future<void> _showReleaseHistory(
+    BuildContext context, List<_ReleaseHistoryEntry> entries) async {
+  await showDialog<void>(
+    context: context,
+    builder: (context) {
+      final colors = Theme.of(context).colorScheme;
+      final size = MediaQuery.sizeOf(context);
+      final height = (size.height * .68).clamp(240.0, 560.0).toDouble();
+      final width = (size.width * .78).clamp(260.0, 440.0).toDouble();
+      return AlertDialog(
+        title: const Text('版本更新日志'),
+        content: SizedBox(
+          width: width,
+          height: height,
+          child: entries.isEmpty
+              ? const Center(child: Text('暂无更新记录'))
+              : ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: entries.length,
+                  itemBuilder: (context, index) {
+                    final entry = entries[index];
+                    final date =
+                        DateTime.tryParse(entry.publishedAt)?.toLocal();
+                    final dateLabel = date == null
+                        ? entry.isCurrent
+                            ? '当前版本'
+                            : '时间未记录'
+                        : '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+                    return IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            child: Column(children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                margin: const EdgeInsets.only(top: 5),
+                                decoration: BoxDecoration(
+                                    color: colors.primary,
+                                    shape: BoxShape.circle),
+                              ),
+                              if (index != entries.length - 1)
+                                Expanded(
+                                  child: Container(
+                                    width: 1,
+                                    color: colors.outlineVariant,
+                                  ),
+                                ),
+                            ]),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                  bottom: index == entries.length - 1 ? 0 : 22),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(children: [
+                                    Expanded(
+                                      child: Text('版本 ${entry.versionName}',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600)),
+                                    ),
+                                    if (entry.isCurrent)
+                                      Text('当前',
+                                          style: TextStyle(
+                                              color: colors.primary,
+                                              fontSize: 12)),
+                                  ]),
+                                  const SizedBox(height: 3),
+                                  Text(dateLabel,
+                                      style: TextStyle(
+                                          color: colors.onSurfaceVariant,
+                                          fontSize: 12)),
+                                  const SizedBox(height: 8),
+                                  for (final note in entry.notes)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 7),
+                                      child: Text('• $note'),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('关闭'))
+        ],
+      );
+    },
+  );
+}
+
 Future<void> showInstalledUpdateLog(BuildContext context) async {
-  final notes =
+  final history =
+      jsonDecode(await rootBundle.loadString('assets/release_history.json'))
+          as Map<String, dynamic>;
+  final releases = List<Map<String, dynamic>>.from((history['releases'] as List)
+      .map((entry) => Map<String, dynamic>.from(entry as Map)));
+  final installed =
       jsonDecode(await rootBundle.loadString('assets/release_notes.json'))
           as Map<String, dynamic>;
+  final currentCode = installed['versionCode'] as int;
+  final existing =
+      releases.where((entry) => entry['versionCode'] == currentCode).toList();
+  releases.removeWhere((entry) => entry['versionCode'] == currentCode);
+  releases.add({
+    'versionCode': currentCode,
+    'versionName': installed['versionName'] as String,
+    'publishedAt': existing.isEmpty
+        ? DateTime.now().toUtc().toIso8601String()
+        : existing.first['publishedAt'] as String? ?? '',
+    'releaseNotes': installed['releaseNotes'] as List,
+  });
+  final entries = releases
+      .map((entry) => _ReleaseHistoryEntry.fromJson(
+            entry,
+            isCurrent: entry['versionCode'] == currentCode,
+          ))
+      .toList()
+    ..sort((a, b) {
+      final aDate = DateTime.tryParse(a.publishedAt) ?? DateTime(1970);
+      final bDate = DateTime.tryParse(b.publishedAt) ?? DateTime(1970);
+      final byDate = bDate.compareTo(aDate);
+      return byDate != 0 ? byDate : b.versionCode.compareTo(a.versionCode);
+    });
   if (!context.mounted) return;
   final host = context.findAncestorStateOfType<_UpdateHostState>();
-  final version = notes['versionName'] as String;
-  final items = List<String>.from(notes['releaseNotes'] as List);
   if (host != null) {
-    await host._viewNotes(version, items);
+    await host._viewHistory(entries);
   } else {
-    await _showNotes(context, version, items);
+    await _showReleaseHistory(context, entries);
   }
 }
 
@@ -160,6 +315,16 @@ class _UpdateHostState extends State<UpdateHost> with WidgetsBindingObserver {
       {bool updated = false}) async {
     if (_dialog != null || _notes != null) return;
     _notes = _showNotes(context, version, notes, updated: updated);
+    try {
+      await _notes;
+    } finally {
+      _notes = null;
+    }
+  }
+
+  Future<void> _viewHistory(List<_ReleaseHistoryEntry> entries) async {
+    if (_dialog != null || _notes != null) return;
+    _notes = _showReleaseHistory(context, entries);
     try {
       await _notes;
     } finally {

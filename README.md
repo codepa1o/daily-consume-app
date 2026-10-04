@@ -48,9 +48,9 @@ APK 默认输出到 build/app/outputs/flutter-apk/app-release.apk。
 
 ## 更新与发布
 
-当前发布版本为 `1.3.1+9`，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.1%2B9)。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧 SQLite，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
+当前发布版本为 `1.3.3+10`，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.3%2B10)。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧 SQLite，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
 
-生活日历与情侣空间已上线。服务器升级至 `0004_avatar`；两台手机安装 `1.3.1+9` 即可使用头像和按发布时间归日的回忆时间线。客户端发版不会自动更新业务服务器。接口、验证与部署清单见 [生活日历说明](docs/access-api/journal.md) 和 [情侣空间说明](docs/access-api/couple-space.md)。完整的构建、发布与网页操作教程见 [GitHub Release 发布教程](docs/github-release-guide.md)。
+生活日历、情侣空间和番茄钟数据均按账号保存在服务器；两台手机安装 `1.3.3+10` 并将业务服务器升级至 `0005_pomodoro` 后，可使用头像、回忆时间线和同步的番茄钟任务及记录。客户端发版不会自动更新业务服务器。接口、验证与部署清单见 [生活日历说明](docs/access-api/journal.md) 和 [情侣空间说明](docs/access-api/couple-space.md)。完整的构建、发布与网页操作教程见 [GitHub Release 发布教程](docs/github-release-guide.md)。
 
 默认更新地址：
 
@@ -74,7 +74,7 @@ Android 首次更新可能要求允许本应用“安装未知应用”；点击
 -Flutter 'E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter\bin\flutter.bat'
 ```
 
-脚本同步更新 `pubspec.yaml` 与 `assets/release_notes.json`（含更新源地址），然后构建 APK。`VersionCode` 必须递增。重建当前版本直接执行 `flutter build apk --release`。如使用其他公开发布仓库，构建和发布两个脚本都传入对应的 `OWNER/REPO`：构建参数为 `-Repository`，发布参数为 `--repo`。
+脚本同步更新 `pubspec.yaml`、当前版本说明和版本历史（从公开 Releases Atom feed 刷新），然后构建 APK。应用内“我的 → 更新日志”按发布时间倒序展示已发布版本；无网络时沿用 APK 中已有的历史记录。`VersionCode` 必须递增。重建当前版本直接执行 `flutter build apk --release`。如使用其他公开发布仓库，构建和发布两个脚本都传入对应的 `OWNER/REPO`：构建参数为 `-Repository`，发布参数为 `--repo`。
 
 ### 2. 配置发布环境
 

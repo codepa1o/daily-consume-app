@@ -16,6 +16,7 @@
 - 2026-10-04 后端已同步为 1.2.1：原有 10 张表保留，新增 `female_health_settings`、`menstrual_periods`、`female_health_days`，共 13 张表；`users` 新增性别，既有账号默认为未设置。迁移前后原有表的行数和内容指纹一致。
 - 2026-10-04 后端进一步升级至 1.3.0，正式接管 Alembic 并升级至 `0003_couple`，共 19 张业务表；日历与情侣空间服务已上线。原 13 张业务表的行数和内容指纹一致，代码和数据库备份保存在服务器 `/var/backups/daily-consume/`；真实 HTTPS 的情侣功能与原业务检查均通过。
 - 2026-10-04 后端随 1.3.1 更新迁移至 `0004_avatar`。`users` 新增受约束的头像 `BYTEA` 字段，总业务表数仍为 19；情侣回忆时间线由发布时刻按 Asia/Shanghai 日期分组，不另建时间线记录表。
+- 客户端 1.3.3 配套后端新增番茄钟设置、专注事项和完成记录接口；migration `0005_pomodoro` 为每个账号新增对应数据表。部署流程通过 `server/deploy.sh` 先备份、升级数据库，再重启 API。
 - 用户密码使用 Argon2 哈希，会话使用随机 Bearer 凭证，数据库只保存其 SHA256。会话有效期 30 天，过期重新登录，退出立即撤销当前会话。
 - HTTPS 使用带 IP SAN 的专用证书，客户端仅信任 APK 内的 `assets/server_ca.pem`；仍校验服务器地址和有效期，没有跳过 TLS 检查。当前证书有效期至 2029-10-02；轮换前需要先为客户端发布兼容的新证书。
 - 登录/注册按来源 IP 限流。服务端拒绝客户端提交用户 ID 等未定义字段，业务查询从会话确定归属。
@@ -37,6 +38,9 @@
 | workout/plans | GET | 返回 weekday、muscles、is_rest |
 | workout/schedule | PUT | weekly_goal 与完整的七天 plans，事务保存 |
 | workout/logs | GET / POST / DELETE | 查询 start/end；当天打卡 date/muscles；删除 date；禁止休息日和重复打卡 |
+| pomodoro/settings | GET / PUT | 读取或保存账号的专注、短休息、长休息时长和长休息轮数 |
+| pomodoro/tasks | GET / POST / DELETE | 读取、添加或按 id 删除当前账号的专注事项；标题忽略大小写去重 |
+| pomodoro/sessions | GET / POST | 按日期查询已完成专注；提交记录时校验所属任务并按 client_request_id 去重 |
 | legacy/import | POST | source_id、import_id、tables；返回导入凭据和逐表 counts |
 
 ## 旧记录导入

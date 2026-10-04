@@ -1,10 +1,10 @@
 {
-  "versionCode": 9,
-  "releaseNotes": [
-    "“我的”新增头像上传与裁剪，保存到账号资料并可在其他设备查看。",
-    "情侣空间新增纵向回忆时间线：按上海时区的发布时间分组，同一天只显示一个日期节点。",
-    "历史补录保留实际发布时间，并在卡片注明回忆发生日期；双人拼贴按发布日匹配双方最新照片。"
-  ],
+  "versionCode": 10,
+  "versionName": "1.3.3",
   "updateManifestUrl": "https://github.com/codepa1o/daily-consume-app/releases/latest/download/latest.json",
-  "versionName": "1.3.1"
+  "releaseNotes": [
+    "身体页底部新增番茄钟，可自定义专注、短休息、长休息时长及长休息轮数。",
+    "专注事项、计时设置和完成记录按账号保存并同步；跨页面时底部继续显示计时状态。",
+    "“我的 → 更新日志”新增按发布时间排列的版本时间线，可查看所有已发布版本。"
+  ]
 }

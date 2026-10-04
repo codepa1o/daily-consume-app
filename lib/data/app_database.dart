@@ -90,6 +90,58 @@ class WorkoutDayPlan {
       );
 }
 
+class PomodoroSettings {
+  const PomodoroSettings({
+    this.focusMinutes = 25,
+    this.shortBreakMinutes = 5,
+    this.longBreakMinutes = 15,
+    this.roundsPerLongBreak = 4,
+  });
+
+  final int focusMinutes;
+  final int shortBreakMinutes;
+  final int longBreakMinutes;
+  final int roundsPerLongBreak;
+
+  factory PomodoroSettings.fromMap(Map<String, Object?> row) =>
+      PomodoroSettings(
+        focusMinutes: row['focus_minutes']! as int,
+        shortBreakMinutes: row['short_break_minutes']! as int,
+        longBreakMinutes: row['long_break_minutes']! as int,
+        roundsPerLongBreak: row['rounds_per_long_break']! as int,
+      );
+}
+
+class PomodoroTask {
+  const PomodoroTask({required this.id, required this.title});
+
+  final int id;
+  final String title;
+
+  factory PomodoroTask.fromMap(Map<String, Object?> row) => PomodoroTask(
+        id: row['id']! as int,
+        title: row['title']! as String,
+      );
+}
+
+class PomodoroSession {
+  const PomodoroSession({
+    required this.taskTitle,
+    required this.durationMinutes,
+    required this.startedAt,
+  });
+
+  final String taskTitle;
+  final int durationMinutes;
+  final DateTime startedAt;
+
+  factory PomodoroSession.fromMap(Map<String, Object?> row) => PomodoroSession(
+        taskTitle: row['task_title']! as String,
+        durationMinutes: row['duration_minutes']! as int,
+        startedAt: DateTime.parse(row['started_at']! as String).toLocal(),
+      );
+}
+
 // Keep the existing page-facing API; all business storage now lives on the server.
 class AppDatabase {
   AppDatabase._();
@@ -202,5 +254,54 @@ class AppDatabase {
   Future<void> deleteWorkoutLog(DateTime date) async {
     await _api
         .request('DELETE', 'workout/logs', query: {'date': dateKey(date)});
+  }
+
+  Future<List<PomodoroTask>> getPomodoroTasks() async =>
+      (await _rows('pomodoro/tasks')).map(PomodoroTask.fromMap).toList();
+
+  Future<PomodoroSettings> getPomodoroSettings() async =>
+      PomodoroSettings.fromMap(Map<String, Object?>.from(
+          await _api.request('GET', 'pomodoro/settings') as Map));
+
+  Future<void> savePomodoroSettings(PomodoroSettings settings) async {
+    await _api.request('PUT', 'pomodoro/settings', body: {
+      'focus_minutes': settings.focusMinutes,
+      'short_break_minutes': settings.shortBreakMinutes,
+      'long_break_minutes': settings.longBreakMinutes,
+      'rounds_per_long_break': settings.roundsPerLongBreak,
+    });
+  }
+
+  Future<PomodoroTask> savePomodoroTask(String title) async =>
+      PomodoroTask.fromMap(Map<String, Object?>.from(await _api
+          .request('POST', 'pomodoro/tasks', body: {'title': title}) as Map));
+
+  Future<void> deletePomodoroTask(int id) async {
+    await _api.request('DELETE', 'pomodoro/tasks', query: {'id': '$id'});
+  }
+
+  Future<List<PomodoroSession>> getPomodoroSessions(
+          DateTime start, DateTime end) async =>
+      (await _rows('pomodoro/sessions',
+              query: {'start': dateKey(start), 'end': dateKey(end)}))
+          .map(PomodoroSession.fromMap)
+          .toList();
+
+  Future<void> savePomodoroSession({
+    required String requestId,
+    required int taskId,
+    required String taskTitle,
+    required int durationMinutes,
+    required DateTime startedAt,
+    required DateTime completedAt,
+  }) async {
+    await _api.request('POST', 'pomodoro/sessions', body: {
+      'client_request_id': requestId,
+      'task_id': taskId,
+      'task_title': taskTitle,
+      'duration_minutes': durationMinutes,
+      'started_at': startedAt.toUtc().toIso8601String(),
+      'completed_at': completedAt.toUtc().toIso8601String(),
+    });
   }
 }
