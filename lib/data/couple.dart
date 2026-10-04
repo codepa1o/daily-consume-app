@@ -48,30 +48,51 @@ class CoupleMemory {
       required this.authorId,
       required this.author,
       required this.date,
+      required this.publishedDate,
       required this.title,
       required this.content,
       required this.mood,
       required this.hasPhoto});
   final int id, authorId;
   final String author, title, content, mood;
-  final DateTime date;
+  final DateTime date, publishedDate;
   final bool hasPhoto;
   factory CoupleMemory.fromJson(Map<String, dynamic> value) => CoupleMemory(
       id: value['id'] as int,
       authorId: value['author_id'] as int,
       author: value['author_name'] as String,
       date: DateTime.parse(value['memory_date'] as String),
+      publishedDate:
+          journalDate(DateTime.parse(value['published_date'] as String)),
       title: value['title'] as String,
       content: value['content'] as String,
       mood: value['mood'] as String,
       hasPhoto: value['has_photo'] as bool);
 }
 
-/// The latest photo from each author on one calendar day, never two copies of one photo.
+class CoupleTimelineDay {
+  const CoupleTimelineDay(this.date, this.memories);
+  final DateTime date;
+  final List<CoupleMemory> memories;
+}
+
+/// Group publish-time-ordered rows. A date split across API pages keeps one marker.
+List<CoupleTimelineDay> coupleTimelineDays(List<CoupleMemory> memories) {
+  final days = <DateTime, List<CoupleMemory>>{};
+  for (final memory in memories) {
+    days.putIfAbsent(memory.publishedDate, () => []).add(memory);
+  }
+  return [
+    for (final day in days.entries)
+      CoupleTimelineDay(day.key, List.unmodifiable(day.value)),
+  ];
+}
+
+/// The latest photo from each publication day, never two copies of one photo.
 List<CoupleMemory> couplePair(List<CoupleMemory> memories, DateTime date) {
   final authors = <int>{};
   final sorted = memories
-      .where((m) => m.hasPhoto && dateKey(m.date) == dateKey(date))
+      .where((m) => m.hasPhoto && dateKey(m.publishedDate) == dateKey(date))
       .toList()
     ..sort((a, b) => b.id.compareTo(a.id));
   return sorted.where((m) => authors.add(m.authorId)).take(2).toList();

@@ -103,8 +103,9 @@ def prepare_photo(encoded):
         raise HTTPException(422, '请选择 8 MB 以内的静态 JPG、PNG 或 WebP 照片（最多 2400 万像素）')
 
 
-MEMORY_COLUMNS = '''m.id,m.author_id,u.nickname AS author_name,m.memory_date,m.title,
-    m.content,m.mood,(m.photo IS NOT NULL) AS has_photo,m.created_at'''
+MEMORY_COLUMNS = '''m.id,m.author_id,u.nickname AS author_name,m.memory_date,
+    (m.created_at AT TIME ZONE 'Asia/Shanghai')::date AS published_date,
+    m.title,m.content,m.mood,(m.photo IS NOT NULL) AS has_photo,m.created_at'''
 
 
 def create_couple_router(connect, current_user):
@@ -200,7 +201,7 @@ def create_couple_router(connect, current_user):
             db.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
             space = space_for(db, user)
             rows = db.execute(f'''SELECT {MEMORY_COLUMNS} FROM couple_memories m JOIN users u ON u.id=m.author_id
-                WHERE m.space_id=%s ORDER BY m.memory_date DESC,m.id DESC LIMIT %s OFFSET %s''',
+                WHERE m.space_id=%s ORDER BY m.created_at DESC,m.id DESC LIMIT %s OFFSET %s''',
                 (space['id'], limit + 1, offset)).fetchall()
         return {'items': rows[:limit], 'has_more': len(rows) > limit}
 
@@ -234,8 +235,12 @@ def create_couple_router(connect, current_user):
             space = space_for(db, user)
             rows = db.execute(f'''SELECT DISTINCT ON (m.author_id) {MEMORY_COLUMNS}
                 FROM couple_memories m JOIN users u ON u.id=m.author_id
-                WHERE m.space_id=%s AND m.memory_date=%s AND m.photo IS NOT NULL
-                ORDER BY m.author_id,m.id DESC''', (space['id'], memory_date)).fetchall()
+                WHERE m.space_id=%s
+                  AND m.created_at >= (%s::date::timestamp AT TIME ZONE 'Asia/Shanghai')
+                  AND m.created_at < ((%s::date + 1)::timestamp AT TIME ZONE 'Asia/Shanghai')
+                  AND m.photo IS NOT NULL
+                ORDER BY m.author_id,m.created_at DESC,m.id DESC''',
+                (space['id'], memory_date, memory_date)).fetchall()
         return {'items': rows}
 
     @router.get('/memories/{ident}')

@@ -1,6 +1,6 @@
 # 生活日历接口与验证
 
-日期：2026-10-04。客户端：1.3.0+8。状态：本地实现和验证完成；随情侣空间部署，生活日历后端已上线并通过真实 HTTPS 的个人记录隔离检查。客户端签名 APK 更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.0%2B8)。
+日期：2026-10-04。客户端：1.3.1+9。状态：生活日历后端已上线并通过真实 HTTPS 的个人记录隔离检查。客户端签名 APK 更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.1%2B9)。
 
 ## 实现范围
 

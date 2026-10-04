@@ -2,7 +2,7 @@
 
 2026-10-04：Flutter 客户端和 FastAPI/PostgreSQL 后端实现。入口：我的 → 情侣空间。
 
-状态：现有服务器已上线，Alembic `0003_couple` 为 head，服务 active；1.3.0+8 签名 APK 已构建并核对，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.0%2B8)。两台手机需更新到此版本。Android 真机相册选择尚未人工验收。
+状态：现有服务器已升级至 Alembic `0004_avatar`，服务 active；1.3.1+9 签名 APK 已发布，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.1%2B9)。两台手机需更新到此版本。Android 真机相册选择尚未人工验收。
 
 ## 使用流程
 
@@ -10,7 +10,7 @@
 
 空间成员可以发布照片或纯文字回忆，设置回忆日期、标题、正文和心情。双方可以查看、留言、用“❤️、抱抱、想你、开心”回应。只能删除自己的回忆；删除同时移除其照片、留言和表情，客户端先确认。
 
-回忆册和星空可切换，分页查看历史；下拉、刷新按钮和回到前台时获取最新数据。首版未提供实时推送、解除绑定、照片原文件下载和离线持久草稿。个人日历、身体及女性健康数据仍按个人账号隔离，不会因绑定分享。
+回忆册和星空可切换，分页查看历史。回忆册按服务器发布时间（Asia/Shanghai）倒序显示纵向时间线，一天只有一个日期节点；同一天发布的照片、文字和心情都归入这个节点。历史补录仍留在实际发布日，若所选回忆日期不同，在卡片标注“回忆于 YYYY-MM-DD”。翻页遇到同一天剩余内容时，合并到现有节点，不重复显示日期。下拉、刷新按钮和回到前台时获取最新数据。首版未提供实时推送、解除绑定、照片原文件下载和离线持久草稿。个人日历、身体及女性健康数据仍按个人账号隔离，不会因绑定分享。
 
 ## 照片玩法
 
@@ -20,6 +20,12 @@
 - 惊喜刮刮卡：拖动擦除涂层，提供直接打开和重新盖上操作。
 - 回忆星空：每颗星对应真实回忆，可以点开；多页星空和列表共用已加载记录。
 - 立体照片：手指控制卡片透视和光影，松手归位。这是立体卡片视差，尚未生成照片深度图或重建人像前后景。
+
+## 回忆时间线
+
+回忆册按 `created_at` 发布时刻分日；API 使用 `(created_at AT TIME ZONE 'Asia/Shanghai')::date` 返回 `published_date`。列表按发布时间与 ID 倒序，最近一天在顶部。同一天的一张或多张回忆显示在同一个日期节点下；offset 分页可以穿过某一天，客户端按 `published_date` 合并已加载的记录，不能重复绘制日期节点。
+
+回忆编辑器里的 `memory_date` 表示照片中事情发生的日期，不参与时间线分组。回忆补录到今天发布时，显示在今天的节点，照片下方显示“回忆于 YYYY-MM-DD”。双人拼贴也按发布日取双方最新的照片，与选填的发生日期无关。
 
 ## 存储与访问
 
@@ -39,8 +45,8 @@
 | couple/invite | POST | 生成新邀请码及有效期 |
 | couple/invite/preview | POST | code，查看邀请，不建立成员关系 |
 | couple/join | POST | code，确认加入，消费邀请码 |
-| couple/memories | GET / POST | 分页 offset/limit；保存 memory_date、title、content、mood、可选 photo_base64、client_request_id |
-| couple/pair | GET | date，返回当天每位成员最新的一张照片 |
+| couple/memories | GET / POST | 按发布时间倒序分页；每条记录返回上海时区 `published_date`；保存 `memory_date`、title、content、mood、可选 photo_base64、client_request_id |
+| couple/pair | GET | date 是发布时间的上海日历日期；返回当天每位成员最新的一张照片 |
 | couple/memories/{id} | GET / DELETE | 详情含留言和表情；作者删除 |
 | couple/memories/{id}/photo | GET | thumbnail=true/false，返回鉴权后的 JPEG |
 | couple/memories/{id}/comments | POST | content、client_request_id |
@@ -50,7 +56,7 @@
 
 升级至 Alembic `0003_couple`；上传 couple.py、journal.py、database.py、app.py、迁移目录和依赖文件，Pillow 纳入依赖锁。按数据库迁移指南先备份，再执行 deploy.sh。API 安装包使用现有服务器地址和证书。
 
-真实 PostgreSQL 检查：设置 `TEST_DATABASE_URL` 指向隔离测试库，运行 `python -m unittest discover -s server -p 'test_*.py' -v`。用例覆盖邀请码失效/并发抢占、第三人访问、图片验证/缩放/元数据清理、重试去重、表情覆盖、作者删除、分页拼贴与已有表数据保留。
+真实 PostgreSQL 检查：设置 `TEST_DATABASE_URL` 指向隔离测试库，运行 `python -m unittest discover -s server -p 'test_*.py' -v`。用例覆盖邀请码失效/并发抢占、第三人访问、图片验证/缩放/元数据清理、重试去重、表情覆盖、作者删除、发布时间分组与分页拼贴，以及已有表数据保留。
 
 上线后从服务器实际 Nginx HTTPS 检查：
 

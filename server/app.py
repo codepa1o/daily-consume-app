@@ -1,4 +1,5 @@
 """Daily Consume HTTPS API. Every business query is scoped to its session owner."""
+import base64
 import hashlib
 import json
 import re
@@ -20,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, m
 
 from database import DSN
 from journal import create_journal_router
-from couple import create_couple_router
+from couple import create_couple_router, prepare_photo
 
 password_hasher = PasswordHasher()
 dummy_password_hash = password_hasher.hash(secrets.token_urlsafe(32))
@@ -33,7 +34,7 @@ def connect():
     return psycopg.connect(DSN, row_factory=dict_row)
 
 
-app = FastAPI(title='日常 API', version='1.3.0',
+app = FastAPI(title='日常 API', version='1.3.1',
               docs_url=None, redoc_url=None, openapi_url=None)
 
 
@@ -83,7 +84,7 @@ def current_user(credentials: Annotated[HTTPAuthorizationCredentials | None, Dep
         raise HTTPException(401, '请先登录')
     token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
     with connect() as db:
-        user = db.execute('''SELECT u.id, u.username, u.nickname, u.gender, u.created_at, s.token_hash
+        user = db.execute('''SELECT u.id, u.username, u.nickname, u.gender, u.avatar, u.created_at, s.token_hash
             FROM user_sessions s JOIN users u ON u.id=s.user_id
             WHERE s.token_hash=%s AND s.expires_at>now() AND u.active''', (token_hash,)).fetchone()
     if not user:
@@ -98,7 +99,14 @@ app.include_router(create_couple_router(connect, current_user))
 
 
 def public_user(user):
-    return {key: user[key] for key in ('id', 'username', 'nickname', 'gender', 'created_at')}
+    avatar = user.get('avatar')
+    return {
+        key: user[key]
+        for key in ('id', 'username', 'nickname', 'gender', 'created_at')
+    } | {
+        'avatar_base64': base64.b64encode(bytes(avatar)).decode('ascii')
+        if avatar is not None else None
+    }
 
 
 @app.get('/health')
@@ -163,12 +171,26 @@ class Profile(Input):
         return value.strip()
 
 
+class AvatarInput(Input):
+    photo_base64: str = Field(min_length=4, max_length=11184812)
+
+
 @app.put('/me')
 def save_profile(body: Profile, user: User):
     with connect() as db:
         updated = db.execute('''UPDATE users SET nickname=%s,gender=%s WHERE id=%s
-            RETURNING id,username,nickname,gender,created_at''',
+            RETURNING id,username,nickname,gender,avatar,created_at''',
             (body.nickname, body.gender, user['id'])).fetchone()
+    return public_user(updated)
+
+
+@app.put('/me/avatar')
+def save_avatar(body: AvatarInput, user: User):
+    _, avatar = prepare_photo(body.photo_base64)
+    with connect() as db:
+        updated = db.execute('''UPDATE users SET avatar=%s WHERE id=%s
+            RETURNING id,username,nickname,gender,avatar,created_at''',
+            (avatar, user['id'])).fetchone()
     return public_user(updated)
 
 

@@ -8,7 +8,6 @@ import 'account_pages.dart';
 import 'update/app_updates.dart';
 import 'workout_page.dart';
 import 'female_health_page.dart';
-import 'widgets/app_logo.dart';
 import 'life_calendar.dart';
 import 'couple_page.dart' show recoverCouplePhoto;
 
@@ -60,15 +59,18 @@ class _AppShellState extends State<AppShell> {
       listenable: ApiClient.instance,
       builder: (context, _) {
         final female = ApiClient.instance.account?.isFemale == true;
-        final tabs = ['body', 'diary', 'workout', if (female) 'female', 'my'];
-        if (!tabs.contains(selected)) selected = 'my';
+        final tabs = ['body', 'diary', 'workout', if (female) 'female'];
+        if (!tabs.contains(selected)) selected = 'body';
         return Scaffold(
+          drawer: const Drawer(
+            backgroundColor: paper,
+            child: MyPage(),
+          ),
           body: IndexedStack(index: tabs.indexOf(selected), children: [
             const BodyPage(key: ValueKey('body')),
             const DiaryPage(key: ValueKey('diary')),
             const WorkoutPage(key: ValueKey('workout')),
             if (female) const FemaleHealthPage(key: ValueKey('female')),
-            const MyPage(key: ValueKey('my')),
           ]),
           bottomNavigationBar: NavigationBar(
             selectedIndex: tabs.indexOf(selected),
@@ -86,8 +88,6 @@ class _AppShellState extends State<AppShell> {
               if (female)
                 const NavigationDestination(
                     icon: Icon(Icons.local_florist_outlined), label: '女性健康'),
-              const NavigationDestination(
-                  icon: Icon(Icons.person_outline_rounded), label: '我的'),
             ],
           ),
         );
@@ -762,7 +762,18 @@ class _TopLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
         children: [
-          const AppLogo(),
+          ListenableBuilder(
+            listenable: ApiClient.instance,
+            builder: (context, _) => IconButton(
+              tooltip: '打开我的',
+              onPressed: () => Scaffold.of(context).openDrawer(),
+              padding: EdgeInsets.zero,
+              icon: AccountAvatar(
+                bytes: ApiClient.instance.account?.avatarBytes,
+                radius: 21,
+              ),
+            ),
+          ),
           const SizedBox(width: 10),
           const Column(
             crossAxisAlignment: CrossAxisAlignment.start,

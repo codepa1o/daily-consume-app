@@ -183,8 +183,10 @@ class CoupleApiTests(unittest.TestCase):
         partner = self.create(self.b)
         latest = self.create()
         self.create(photo_base64=None, title='纯文字日记')
-        pair = self.client.get('/couple/pair?date=2024-02-29', headers=self.a).json()['items']
+        publication_day = today().isoformat()
+        pair = self.client.get(f'/couple/pair?date={publication_day}', headers=self.a).json()['items']
         self.assertEqual({row['id'] for row in pair}, {partner['id'], latest['id']})
+        self.assertTrue(all(row['published_date'].isoformat() == publication_day for row in pair))
         page = self.client.get('/couple/memories?limit=2', headers=self.a).json()
         self.assertTrue(page['has_more'])
         following = self.client.get('/couple/memories?limit=2&offset=2', headers=self.b).json()

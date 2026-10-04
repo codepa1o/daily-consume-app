@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'data/api_client.dart';
 import 'data/legacy_migration.dart';
@@ -41,6 +45,23 @@ class NetworkFailure extends StatelessWidget {
               label: const Text('重试')),
         ]),
       )));
+}
+
+class AccountAvatar extends StatelessWidget {
+  const AccountAvatar({super.key, required this.bytes, this.radius = 26});
+
+  final Uint8List? bytes;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) => CircleAvatar(
+        radius: radius,
+        backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+        backgroundImage: bytes == null ? null : MemoryImage(bytes!),
+        child: bytes == null
+            ? Icon(Icons.person_outline, size: radius + 4)
+            : null,
+      );
 }
 
 class AuthGate extends StatefulWidget {
@@ -426,6 +447,58 @@ class _MyPageState extends State<MyPage> {
     super.dispose();
   }
 
+  Future<void> _changeAvatar() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        requestFullMetadata: false,
+      );
+      if (picked == null || !mounted) return;
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: picked.path,
+        maxWidth: 512,
+        maxHeight: 512,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 85,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: '裁剪头像',
+            toolbarColor: const Color(0xff64765a),
+            toolbarWidgetColor: Colors.white,
+            cropStyle: CropStyle.circle,
+            lockAspectRatio: true,
+            initAspectRatio: CropAspectRatioPreset.square,
+            aspectRatioPresets: [CropAspectRatioPreset.square],
+          ),
+          IOSUiSettings(
+            title: '裁剪头像',
+            doneButtonTitle: '使用',
+            cancelButtonTitle: '取消',
+            cropStyle: CropStyle.circle,
+            aspectRatioLockEnabled: true,
+            aspectRatioPickerButtonHidden: true,
+            aspectRatioPresets: [CropAspectRatioPreset.square],
+          ),
+        ],
+      );
+      if (cropped == null || !mounted) return;
+      await serverAction(
+        context,
+        () async => ApiClient.instance.saveAvatar(await cropped.readAsBytes()),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('照片选择或裁剪失败，请重试')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _editProfile() async {
     final account = ApiClient.instance.account!;
     final nickname = TextEditingController(text: account.nickname);
@@ -561,9 +634,17 @@ class _MyPageState extends State<MyPage> {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        CircleAvatar(
-                            radius: 26,
-                            child: const Icon(Icons.person_outline, size: 30)),
+                        InkWell(
+                          onTap: _busy ? null : _changeAvatar,
+                          customBorder: const CircleBorder(),
+                          child: AccountAvatar(
+                            bytes: account.avatarBytes,
+                            radius: 30,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text('点击头像更换',
+                            style: TextStyle(fontSize: 12, color: Colors.grey)),
                         const SizedBox(height: 16),
                         Text(account.nickname,
                             style: const TextStyle(
@@ -587,8 +668,11 @@ class _MyPageState extends State<MyPage> {
                   subtitle: const Text('两个人的照片、留言和日常回忆'),
                   trailing: const Icon(Icons.chevron_right),
                   enabled: !_busy,
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CouplePage())))),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const CouplePage()));
+                  })),
           Card(
               child: ListTile(
             leading: const Icon(Icons.manage_accounts_outlined),

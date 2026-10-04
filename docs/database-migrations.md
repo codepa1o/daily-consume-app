@@ -11,6 +11,7 @@
 - `server/database.py`：API 与迁移共享的 `DATABASE_URL` 配置。
 - `server/migrations/versions/0002_journal.py`：生活日历增量迁移，新增 `journal_entries` 表与索引，已有日记时拒绝回退删表。
 - `server/migrations/versions/0003_couple.py`：情侣空间增量迁移，新增空间、成员、照片回忆、留言和表情五张表。当前 head 为 `0003_couple`，共 19 张业务表；冻结基线仍为原 13 张表。空间有数据时拒绝回退删表。
+- `server/migrations/versions/0004_avatar.py`：为 `users` 增加最大 1 MiB 的头像 `BYTEA` 字段，不新增业务表；当前 head 为 `0004_avatar`，共 19 张业务表。已设置头像时拒绝回退移除列。
 
 `DATABASE_URL` 接受 psycopg/libpq 的连接字符串或 PostgreSQL URI，不必转换为 SQLAlchemy URL。未设置时，使用 `dbname=daily_consume user=daily_consume host=/var/run/postgresql`，由系统用户 `daily-consume` 通过 peer 映射认证。不要将数据库密码提交到仓库。迁移使用连接的 `current_schema()`，版本表也位于同一 schema；本地测试通过独立 `search_path` 隔离。
 

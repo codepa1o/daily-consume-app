@@ -12,12 +12,13 @@ import 'package:daily_consume/couple_page.dart';
 import 'package:daily_consume/data/api_client.dart';
 
 CoupleMemory memory(int id, int author,
-        {bool photo = true, String day = '2024-02-29'}) =>
+        {bool photo = true, String day = '2024-02-29', String? publishedDay}) =>
     CoupleMemory(
         id: id,
         authorId: author,
         author: '用户$author',
         date: DateTime.parse(day),
+        publishedDate: DateTime.parse(publishedDay ?? day),
         title: '回忆$id',
         content: '',
         mood: '',
@@ -318,6 +319,7 @@ Map<String, dynamic> testRow(int id, int author) => {
       'author_id': author,
       'author_name': author == 1 ? '我' : '她',
       'memory_date': '2024-02-29',
+      'published_date': '2024-02-29',
       'title': '一起散步回家',
       'content': '一起散步回家。',
       'mood': '开心',

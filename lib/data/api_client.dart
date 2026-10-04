@@ -22,11 +22,13 @@ class Account {
       required this.username,
       required this.nickname,
       this.gender = 'unset',
+      this.avatarBytes,
       required this.createdAt});
   final int id;
   final String username;
   final String nickname;
   final String gender;
+  final Uint8List? avatarBytes;
   bool get isFemale => gender == 'female';
   final DateTime createdAt;
   factory Account.fromJson(Map<String, dynamic> json) => Account(
@@ -34,6 +36,9 @@ class Account {
         username: json['username'] as String,
         nickname: json['nickname'] as String,
         gender: json['gender'] as String? ?? 'unset',
+        avatarBytes: json['avatar_base64'] == null
+            ? null
+            : base64Decode(json['avatar_base64'] as String),
         createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       );
 }
@@ -172,6 +177,13 @@ class ApiClient extends ChangeNotifier {
   Future<void> saveProfile(String nickname, String gender) async {
     final updated = await request('PUT', 'me',
         body: {'nickname': nickname.trim(), 'gender': gender});
+    account = Account.fromJson(updated as Map<String, dynamic>);
+    notifyListeners();
+  }
+
+  Future<void> saveAvatar(Uint8List bytes) async {
+    final updated = await request('PUT', 'me/avatar',
+        body: {'photo_base64': base64Encode(bytes)});
     account = Account.fromJson(updated as Map<String, dynamic>);
     notifyListeners();
   }
