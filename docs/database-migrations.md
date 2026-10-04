@@ -9,6 +9,8 @@
 - `server/migrations/versions/0001_baseline.py` 与 `0001_schema.sql`：冻结的 1.2.1 基线，共 13 张业务表。
 - `server/migrations/script.py.mako`：新增迁移模板，未填写的升级和回退操作会报错，避免发布空迁移。
 - `server/database.py`：API 与迁移共享的 `DATABASE_URL` 配置。
+- `server/migrations/versions/0002_journal.py`：生活日历增量迁移，新增 `journal_entries` 表与索引，已有日记时拒绝回退删表。
+- `server/migrations/versions/0003_couple.py`：情侣空间增量迁移，新增空间、成员、照片回忆、留言和表情五张表。当前 head 为 `0003_couple`，共 19 张业务表；冻结基线仍为原 13 张表。空间有数据时拒绝回退删表。
 
 `DATABASE_URL` 接受 psycopg/libpq 的连接字符串或 PostgreSQL URI，不必转换为 SQLAlchemy URL。未设置时，使用 `dbname=daily_consume user=daily_consume host=/var/run/postgresql`，由系统用户 `daily-consume` 通过 peer 映射认证。不要将数据库密码提交到仓库。迁移使用连接的 `current_schema()`，版本表也位于同一 schema；本地测试通过独立 `search_path` 隔离。
 
@@ -59,7 +61,7 @@ def downgrade():
 
 ## 服务器部署
 
-部署前备份数据库并核实可恢复。上传 `app.py`、`database.py`、`alembic.ini`、完整 `migrations/` 目录、依赖文件及更新后的 `deploy.sh`，同时保留现有 service 和 Nginx 配置。迁移目录中的 `.py`、`.sql`、`.mako` 都必须上传。
+部署前备份数据库并核实可恢复。上传 `app.py`、`journal.py`、`couple.py`、`database.py`、`alembic.ini`、完整 `migrations/` 目录、依赖文件及更新后的 `deploy.sh`，同时保留现有 service 和 Nginx 配置。情侣邀请码预览及加入使用认证限流规则，须同步上传新 Nginx 配置。迁移目录中的 `.py`、`.sql`、`.mako` 都必须上传。
 
 服务器仍通过 `server/deploy.sh` 部署。脚本安装依赖后，从 `/opt/daily-consume` 执行：
 

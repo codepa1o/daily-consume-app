@@ -14,6 +14,7 @@
 - Ubuntu 22.04、PostgreSQL 14，数据库与角色 `daily_consume`。数据库仅监听本机，应用通过 Unix socket 和专用系统用户 `daily-consume` 的 peer 映射连接。
 - 后端目录 `/opt/daily-consume`，systemd 服务 `daily-consume.service`；开机启动、失败自动重启。
 - 2026-10-04 后端已同步为 1.2.1：原有 10 张表保留，新增 `female_health_settings`、`menstrual_periods`、`female_health_days`，共 13 张表；`users` 新增性别，既有账号默认为未设置。迁移前后原有表的行数和内容指纹一致。
+- 2026-10-04 后端进一步升级至 1.3.0，正式接管 Alembic 并升级至 `0003_couple`，共 19 张业务表；日历与情侣空间服务已上线。原 13 张业务表的行数和内容指纹一致，代码和数据库备份保存在服务器 `/var/backups/daily-consume/`；真实 HTTPS 的情侣功能与原业务检查均通过。
 - 用户密码使用 Argon2 哈希，会话使用随机 Bearer 凭证，数据库只保存其 SHA256。会话有效期 30 天，过期重新登录，退出立即撤销当前会话。
 - HTTPS 使用带 IP SAN 的专用证书，客户端仅信任 APK 内的 `assets/server_ca.pem`；仍校验服务器地址和有效期，没有跳过 TLS 检查。当前证书有效期至 2029-10-02；轮换前需要先为客户端发布兼容的新证书。
 - 登录/注册按来源 IP 限流。服务端拒绝客户端提交用户 ID 等未定义字段，业务查询从会话确定归属。
@@ -49,7 +50,7 @@ SQLite 仅作为只读的旧数据来源保留，不再新建或升级本地业�
 
 `scripts/server_admin.py` 使用 Paramiko，通过 `DAILY_SSH_PASSWORD`、可选的 `DAILY_SSH_USER` 和 `DAILY_SSH_HOST` 连接；服务端不使用 SSH 密码连接数据库。主机密钥保存在电脑用户目录 `.ssh/daily-consume-known-hosts`，后续变更会被拒绝。
 
-初次运行 `server/bootstrap.sh` 创建数据库、专用用户和 TLS 证书。上传 app.py、database.py、alembic.ini、完整 migrations/ 目录、requirements.txt、requirements.lock、deploy.sh、daily-consume.service、nginx.conf 后运行 `server/deploy.sh`。脚本以应用系统用户执行 Alembic 迁移，成功后才重启服务；首次接管已有数据库会核对当前 13 张表的结构，不一致则中止。不要重新生成已有服务器私钥。操作说明见 [数据库迁移指南](../database-migrations.md)。
+初次运行 `server/bootstrap.sh` 创建数据库、专用用户和 TLS 证书。上传 app.py、journal.py、couple.py、database.py、alembic.ini、完整 migrations/ 目录、requirements.txt、requirements.lock、deploy.sh、daily-consume.service、nginx.conf 后运行 `server/deploy.sh`。脚本以应用系统用户执行 Alembic 迁移，成功后才重启服务；首次接管已有数据库会核对基线 13 张表的结构，不一致则中止，再执行增量迁移。不要重新生成已有服务器私钥。操作说明见 [数据库迁移指南](../database-migrations.md)、[生活日历说明](journal.md) 和 [情侣空间说明](couple-space.md)。
 
 真实接口检查（服务器上，以应用用户运行）：
 

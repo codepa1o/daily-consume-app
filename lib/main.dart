@@ -9,6 +9,8 @@ import 'update/app_updates.dart';
 import 'workout_page.dart';
 import 'female_health_page.dart';
 import 'widgets/app_logo.dart';
+import 'life_calendar.dart';
+import 'couple_page.dart' show recoverCouplePhoto;
 
 const paper = Color(0xfff6f5ef);
 const surface = Color(0xfffffefa);
@@ -21,6 +23,7 @@ const mealTypes = ['早餐', '午餐', '晚餐'];
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await recoverCouplePhoto();
   runApp(const DailyConsumeApp());
 }
 
@@ -245,11 +248,6 @@ class _BodyPageState extends State<BodyPage> {
     final series = weights;
     const unit = 'kg';
 
-    if (loading)
-      return const SafeArea(
-          child: Center(child: CircularProgressIndicator(color: sage)));
-    if (loadError != null)
-      return NetworkFailure(message: loadError!, onRetry: reload);
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
@@ -271,105 +269,114 @@ class _BodyPageState extends State<BodyPage> {
           const Text('持续记录，让身体的状态有迹可循。',
               style: TextStyle(color: muted, fontSize: 13)),
           const SizedBox(height: 22),
-          Row(
-            children: [
-              Expanded(
-                child: _MetricCard(
-                  label: '当前身高',
-                  value: latestHeight?.value.toStringAsFixed(1) ?? '—',
-                  unit: 'cm',
-                  caption: latestHeight == null
-                      ? '添加一次身高记录'
-                      : '最近更新 · ' + formatDate(latestHeight.date),
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: _MetricCard(
-                  label: '最近体重',
-                  value: latestWeight?.value.toStringAsFixed(1) ?? '—',
-                  unit: 'kg',
-                  caption: latestWeight == null
-                      ? '记录今天的体重'
-                      : '最近记录 · ' + formatDate(latestWeight.date),
-                  emphasized: true,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 17),
-          _SectionCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (loading)
+            const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator(color: sage)))
+          else if (loadError != null)
+            NetworkFailure(message: loadError!, onRetry: reload)
+          else ...[
+            Row(
               children: [
-                const Text('体重趋势',
-                    style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 14),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      series.isEmpty
-                          ? '—'
-                          : series.last.value.toStringAsFixed(1) + ' ' + unit,
-                      style: const TextStyle(
-                          fontFamily: 'serif', fontSize: 25, color: ink),
-                    ),
-                    const SizedBox(width: 8),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(series.length.toString() + ' 条记录',
-                          style: const TextStyle(color: muted, fontSize: 10)),
-                    ),
-                  ],
+                Expanded(
+                  child: _MetricCard(
+                    label: '当前身高',
+                    value: latestHeight?.value.toStringAsFixed(1) ?? '—',
+                    unit: 'cm',
+                    caption: latestHeight == null
+                        ? '添加一次身高记录'
+                        : '最近更新 · ' + formatDate(latestHeight.date),
+                  ),
                 ),
-                const SizedBox(height: 6),
-                if (series.isEmpty)
-                  const _EmptyChart()
-                else
-                  SizedBox(
-                    height: 150,
-                    child: CustomPaint(
-                      painter: _TrendPainter(
-                          values: series.map((entry) => entry.value).toList(),
-                          color: sage),
-                      child: const SizedBox.expand(),
-                    ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: _MetricCard(
+                    label: '最近体重',
+                    value: latestWeight?.value.toStringAsFixed(1) ?? '—',
+                    unit: 'kg',
+                    caption: latestWeight == null
+                        ? '记录今天的体重'
+                        : '最近记录 · ' + formatDate(latestWeight.date),
+                    emphasized: true,
                   ),
-                if (series.isNotEmpty)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(formatDate(series.first.date),
-                          style: const TextStyle(color: muted, fontSize: 9)),
-                      Text(formatDate(series.last.date),
-                          style: const TextStyle(color: muted, fontSize: 9)),
-                    ],
-                  ),
+                ),
               ],
             ),
-          ),
-          const SizedBox(height: 14),
-          _ActionPanel(
-            title: '今天称过体重了吗？',
-            subtitle: '记录或修改某一天的体重',
-            buttonLabel: '记录体重',
-            onPressed: () => editValue(weight: true),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => editValue(weight: false),
-            icon: const Icon(Icons.add, size: 17),
-            label: Text(latestHeight == null ? '添加身高记录' : '更新身高记录'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: sage,
-              side: const BorderSide(color: Color(0xffd9ded3)),
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+            const SizedBox(height: 17),
+            _SectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('体重趋势',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 14),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        series.isEmpty
+                            ? '—'
+                            : series.last.value.toStringAsFixed(1) + ' ' + unit,
+                        style: const TextStyle(
+                            fontFamily: 'serif', fontSize: 25, color: ink),
+                      ),
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(series.length.toString() + ' 条记录',
+                            style: const TextStyle(color: muted, fontSize: 10)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (series.isEmpty)
+                    const _EmptyChart()
+                  else
+                    SizedBox(
+                      height: 150,
+                      child: CustomPaint(
+                        painter: _TrendPainter(
+                            values: series.map((entry) => entry.value).toList(),
+                            color: sage),
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                  if (series.isNotEmpty)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(formatDate(series.first.date),
+                            style: const TextStyle(color: muted, fontSize: 9)),
+                        Text(formatDate(series.last.date),
+                            style: const TextStyle(color: muted, fontSize: 9)),
+                      ],
+                    ),
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: 14),
+            _ActionPanel(
+              title: '今天称过体重了吗？',
+              subtitle: '记录或修改某一天的体重',
+              buttonLabel: '记录体重',
+              onPressed: () => editValue(weight: true),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => editValue(weight: false),
+              icon: const Icon(Icons.add, size: 17),
+              label: Text(latestHeight == null ? '添加身高记录' : '更新身高记录'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: sage,
+                side: const BorderSide(color: Color(0xffd9ded3)),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ],
+          const LifeCalendar(),
         ],
       ),
     );

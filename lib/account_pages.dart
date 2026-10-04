@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'data/api_client.dart';
 import 'data/legacy_migration.dart';
 import 'update/app_updates.dart';
+import 'couple_page.dart';
 
 Future<bool> serverAction(
     BuildContext context, Future<void> Function() action) async {
@@ -579,6 +580,15 @@ class _MyPageState extends State<MyPage> {
                         Text('注册时间　$registered'),
                       ]))),
           const SizedBox(height: 14),
+          Card(
+              child: ListTile(
+                  leading: const Icon(Icons.favorite_border),
+                  title: const Text('情侣空间'),
+                  subtitle: const Text('两个人的照片、留言和日常回忆'),
+                  trailing: const Icon(Icons.chevron_right),
+                  enabled: !_busy,
+                  onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CouplePage())))),
           Card(
               child: ListTile(
             leading: const Icon(Icons.manage_accounts_outlined),
