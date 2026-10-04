@@ -7,8 +7,10 @@ import json
 import secrets
 import socket
 import ssl
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 from PIL import Image
 
@@ -82,7 +84,8 @@ def main():
         request('GET', f'couple/memories/{ident}', token=outsider, expected=404)
         passed('Photo upload, safe retry, JPEG read, no-store and outsider denial')
         request('POST', 'couple/memories', body | {'client_request_id': secrets.token_hex(16)}, b, 201)
-        assert len(request('GET', 'couple/pair?date=2024-02-29', token=a)['items']) == 2
+        published_today = datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
+        assert len(request('GET', 'couple/pair?date=' + published_today, token=a)['items']) == 2
         request('POST', f'couple/memories/{ident}/comments',
                 {'content': 'A note for you', 'client_request_id': secrets.token_hex(16)}, b, 201)
         request('PUT', f'couple/memories/{ident}/reaction', {'emoji': '❤️'}, b)

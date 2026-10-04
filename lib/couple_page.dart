@@ -309,16 +309,8 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
                                         child: const Text('留下第一段回忆')),
                                   ]))
                             else ...[
-                              for (final memory in memories)
-                                Padding(
-                                    padding: const EdgeInsets.only(bottom: 22),
-                                    child: Semantics(
-                                        button: true,
-                                        label: '打开回忆：${memory.title}',
-                                        child: InkWell(
-                                            onTap: () => open(memory),
-                                            child: CouplePolaroid(
-                                                memory: memory, api: api)))),
+                              for (final day in coupleTimelineDays(memories))
+                                _timelineDay(day),
                             ],
                             if (hasMore)
                               TextButton(
@@ -326,6 +318,55 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
                                   child:
                                       Text(loadingMore ? '正在加载…' : '查看更多回忆')),
                           ])));
+
+  Widget _timelineDay(CoupleTimelineDay day) => Padding(
+        padding: const EdgeInsets.only(bottom: 22),
+        child: Stack(clipBehavior: Clip.none, children: [
+          Positioned(
+            left: 8,
+            top: 16,
+            bottom: -22,
+            child: Container(width: 2, color: const Color(0xffe2c8bd)),
+          ),
+          Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: coupleRose,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: couplePaper, width: 3),
+                ),
+              ),
+              const SizedBox(width: 13),
+              Text(dateKey(day.date).replaceAll('-', '.'),
+                  style: const TextStyle(
+                      color: coupleInk, fontSize: 18, fontFamily: 'serif')),
+              const SizedBox(width: 10),
+              Text('${day.memories.length} 段回忆',
+                  style: const TextStyle(color: coupleRose, fontSize: 12)),
+            ]),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.only(left: 26),
+              child: Column(children: [
+                for (var i = 0; i < day.memories.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 14),
+                  Semantics(
+                    button: true,
+                    label: '打开回忆：${day.memories[i].title}',
+                    child: InkWell(
+                      onTap: () => open(day.memories[i]),
+                      child: CouplePolaroid(memory: day.memories[i], api: api),
+                    ),
+                  ),
+                ],
+              ]),
+            ),
+          ]),
+        ]),
+      );
 }
 
 class _CoupleSetup extends StatefulWidget {
@@ -714,7 +755,7 @@ class _CoupleDetailState extends State<CoupleDetail>
   String? error, actionError;
   int effect = 0, revision = 0;
   bool busy = false, scratchRevealed = false;
-  late Future<List<CoupleMemory>> pair = api.pair(widget.memory.date);
+  late Future<List<CoupleMemory>> pair = api.pair(widget.memory.publishedDate);
   @override
   void initState() {
     super.initState();
@@ -835,17 +876,18 @@ class _CoupleDetailState extends State<CoupleDetail>
               if (snapshot.hasError)
                 return _CoupleFailure(
                     message: coupleError(snapshot.error!),
-                    retry: () => setState(() => pair = api.pair(memory.date)));
+                    retry: () =>
+                        setState(() => pair = api.pair(memory.publishedDate)));
               if (!snapshot.hasData)
                 return const Padding(
                     padding: EdgeInsets.all(40),
                     child: Center(child: CircularProgressIndicator()));
-              final rows = couplePair(snapshot.data!, memory.date);
+              final rows = couplePair(snapshot.data!, memory.publishedDate);
               if (rows.length < 2)
                 return Column(children: [
                   front,
                   const SizedBox(height: 16),
-                  const Text('等你们在同一天各留下一张照片，就能拼成“今天的我们”。',
+                  const Text('等你们在同一天各发布一张照片，就能拼成“今天的我们”。',
                       textAlign: TextAlign.center)
                 ]);
               return Column(children: [

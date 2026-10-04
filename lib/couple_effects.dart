@@ -119,7 +119,8 @@ class CouplePolaroid extends StatelessWidget {
             style: const TextStyle(
                 color: coupleInk, fontSize: 18, fontFamily: 'serif')),
         const SizedBox(height: 6),
-        Text('${dateKey(memory.date)} · ${memory.author}',
+        Text(
+            '${memory.author}${dateKey(memory.date) == dateKey(memory.publishedDate) ? '' : ' · 回忆于 ${dateKey(memory.date)}'}',
             textAlign: TextAlign.center,
             style: const TextStyle(color: Color(0xff877267), fontSize: 12)),
       ]));
