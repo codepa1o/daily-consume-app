@@ -70,6 +70,11 @@ def main():
         assert len(request('GET', 'couple/space', token=b)['members']) == 2
         request('POST', 'couple/join', {'code': code}, outsider, 404)
         passed('TLS, authenticated invitation confirmation, shared space and one-time code')
+        anniversary = request('PUT', 'couple/space/anniversary',
+                              {'since_date': '2024-02-28'}, a)
+        assert anniversary['since_date'] == '2024-02-28'
+        assert request('GET', 'couple/space', token=b)['since_date'] == '2024-02-28'
+        passed('Calendar anniversary updates are shared with both members')
         output = io.BytesIO()
         Image.new('RGB', (320, 220), '#b68370').save(output, 'JPEG')
         body = {'memory_date': '2024-02-29', 'title': 'Test memory', 'content': 'HTTPS test',
@@ -83,6 +88,31 @@ def main():
         request('GET', f'couple/memories/{ident}/photo', token=outsider, expected=404)
         request('GET', f'couple/memories/{ident}', token=outsider, expected=404)
         passed('Photo upload, safe retry, JPEG read, no-store and outsider denial')
+        album_body = {key: value for key, value in body.items() if key != 'photo_base64'}
+        album_body |= {'display_mode': 'swipe', 'photos_base64': [body['photo_base64']] * 2,
+                       'client_request_id': secrets.token_hex(16)}
+        album = request('POST', 'couple/memories', album_body, a, 201)
+        assert album['photo_count'] == 2 and album['display_mode'] == 'swipe'
+        thumbnails = request('GET', f"couple/memories/{album['id']}/photos", token=b)['items']
+        assert [item['position'] for item in thumbnails] == [0, 1]
+        for position in range(2):
+            Image.open(io.BytesIO(request('GET',
+                f"couple/memories/{album['id']}/photos/{position}?thumbnail=false",
+                token=b, binary=True))).verify()
+        request('GET', f"couple/memories/{album['id']}/photos/0", token=outsider, expected=404)
+        nine_body = album_body | {'display_mode': 'grid', 'photos_base64': [body['photo_base64']] * 9,
+                                  'client_request_id': secrets.token_hex(16)}
+        nine = request('POST', 'couple/memories', nine_body, a, 201)
+        assert nine['photo_count'] == 9 and nine['display_mode'] == 'grid'
+        thumbs = request('GET', f"couple/memories/{nine['id']}/photos", token=b)['items']
+        assert [item['position'] for item in thumbs] == list(range(9))
+        cover = Image.open(io.BytesIO(request('GET',
+            f"couple/memories/{nine['id']}/photo?thumbnail=true", token=b, binary=True)))
+        assert cover.size == (400, 400)
+        request('POST', 'couple/memories',
+                nine_body | {'photos_base64': [body['photo_base64']] * 10,
+                             'client_request_id': secrets.token_hex(16)}, a, 422)
+        passed('Two-photo swipe and nine-photo grid albums, order, cap and access checks')
         request('POST', 'couple/memories', body | {'client_request_id': secrets.token_hex(16)}, b, 201)
         published_today = datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
         assert len(request('GET', 'couple/pair?date=' + published_today, token=a)['items']) == 2

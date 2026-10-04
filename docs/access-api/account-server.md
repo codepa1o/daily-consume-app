@@ -17,6 +17,7 @@
 - 2026-10-04 后端进一步升级至 1.3.0，正式接管 Alembic 并升级至 `0003_couple`，共 19 张业务表；日历与情侣空间服务已上线。原 13 张业务表的行数和内容指纹一致，代码和数据库备份保存在服务器 `/var/backups/daily-consume/`；真实 HTTPS 的情侣功能与原业务检查均通过。
 - 2026-10-04 后端随 1.3.1 更新迁移至 `0004_avatar`。`users` 新增受约束的头像 `BYTEA` 字段，总业务表数仍为 19；情侣回忆时间线由发布时刻按 Asia/Shanghai 日期分组，不另建时间线记录表。
 - 2026-10-04 后端随 1.3.3 部署升级至 `0005_pomodoro`，新增账号专属的番茄钟设置、专注事项和完成记录表，共 22 张业务表。部署前数据库备份为 `/var/backups/daily-consume/daily_consume-pre-1.3.3-20261004T104935Z.dump`，`pg_restore --list` 检查通过；迁移完成后 API health 与新路由鉴权检查通过。
+- 2026-10-05 后端随 1.3.4+11 部署升级至 `0006_memory_albums`，新增有序相册照片表并回填旧单图回忆，当前共 23 张业务表。部署前数据库备份 `/var/backups/daily-consume/daily_consume-pre-1.3.4-20261004T195407Z.dump`（SHA256 `7a866d4e3d5d71f0077947660a59750ae820682b9b008b0ae45d30e2ab8839b9`）及代码备份 `/var/backups/daily-consume/daily-consume-code-pre-1.3.4-20261004T195407Z.tar.gz` 均已留存，数据库备份经 `pg_restore --list` 检查。修复发布接口后，服务与 Nginx 为 active，Alembic head、健康检查及 7 组真实 HTTPS 情侣空间检查通过；报告在 `/opt/daily-consume/couple-api-checks.json`，本次随机账号已清理。
 - 用户密码使用 Argon2 哈希，会话使用随机 Bearer 凭证，数据库只保存其 SHA256。会话有效期 30 天，过期重新登录，退出立即撤销当前会话。
 - HTTPS 使用带 IP SAN 的专用证书，客户端仅信任 APK 内的 `assets/server_ca.pem`；仍校验服务器地址和有效期，没有跳过 TLS 检查。当前证书有效期至 2029-10-02；轮换前需要先为客户端发布兼容的新证书。
 - 登录/注册按来源 IP 限流。服务端拒绝客户端提交用户 ID 等未定义字段，业务查询从会话确定归属。
