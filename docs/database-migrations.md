@@ -14,7 +14,8 @@
 - `server/migrations/versions/0004_avatar.py`：为 `users` 增加最大 1 MiB 的头像 `BYTEA` 字段，不新增业务表；1.3.1 部署后共 19 张业务表。已设置头像时拒绝回退移除列。
 - `server/migrations/versions/0005_pomodoro.py`：新增账号专属的番茄钟设置、专注事项与完成记录三张表；1.3.3 部署后共 22 张业务表。非空数据时拒绝回退删除。
 - `server/migrations/versions/0006_memory_albums.py`：增加回忆照片展示模式及有序相册表，并将原有单张照片回填到相册第 0 张；1.3.4 部署后为当前 head，共 23 张业务表。存在多图或滑动相册时拒绝降级丢弃数据。
-- `server/migrations/versions/0007_profile_age.py`：为 `users` 增加可选年龄字段，限制为 1–120 岁；不新增业务表。1.3.5 及后续版本部署后为当前 head，共 23 张业务表。
+- `server/migrations/versions/0007_profile_age.py`：为 `users` 增加可选年龄字段，限制为 1–120 岁；不新增业务表。1.3.5 和 1.3.6 部署后为当前 head，共 23 张业务表。
+- `server/migrations/versions/0008_other_expenses.py`：新增账号专属的非餐饮消费记录表，支持按日期统计，并允许在消费类别、日期和金额范围内校验；1.3.7 部署后为当前 head，共 24 张业务表。
 
 `DATABASE_URL` 接受 psycopg/libpq 的连接字符串或 PostgreSQL URI，不必转换为 SQLAlchemy URL。未设置时，使用 `dbname=daily_consume user=daily_consume host=/var/run/postgresql`，由系统用户 `daily-consume` 通过 peer 映射认证。不要将数据库密码提交到仓库。迁移使用连接的 `current_schema()`，版本表也位于同一 schema；本地测试通过独立 `search_path` 隔离。
 
@@ -65,7 +66,7 @@ def downgrade():
 
 ## 服务器部署
 
-部署前备份数据库并核实可恢复。上传 `app.py`、`journal.py`、`couple.py`、`database.py`、`alembic.ini`、完整 `migrations/` 目录、依赖文件及更新后的 `deploy.sh`，同时保留现有 service 和 Nginx 配置。情侣邀请码预览及加入使用认证限流规则，须同步上传新 Nginx 配置。迁移目录中的 `.py`、`.sql`、`.mako` 都必须上传。
+部署前备份数据库并核实可恢复。上传 `app.py`、`journal.py`、`couple.py`、`database.py`、`alembic.ini`、完整 `migrations/` 目录、依赖文件及更新后的 `deploy.sh`，同时保留现有 service 和 Nginx 配置。情侣邀请码预览及加入使用认证限流规则，须同步上传新 Nginx 配置。迁移目录中的 `.py`、`.sql`、`.mako` 都必须上传。`0008_other_expenses` 同时上线 `/other-expenses` 的列表、创建、编辑和删除接口；所有操作按登录账号隔离。
 
 服务器仍通过 `server/deploy.sh` 部署。脚本安装依赖后，从 `/opt/daily-consume` 执行：
 

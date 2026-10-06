@@ -57,9 +57,9 @@ APK 默认输出到 build/app/outputs/flutter-apk/app-release.apk。
 
 ## 更新与发布
 
-当前发布版本为 `1.3.4+11`，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.4%2B11)。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧 SQLite，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
+当前发布版本为 `1.3.7+14`，见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.3.7%2B14)。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧数据，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
 
-生活日历、情侣空间和番茄钟数据均按账号保存在服务器；后端已升级至 `0006_memory_albums`。安装 `1.3.4+11` 可使用恋爱纪念日、多图相册、回忆时间线和番茄钟后台提醒。客户端发版不会自动更新业务服务器。接口、验证与部署清单见 [生活日历说明](docs/access-api/journal.md) 和 [情侣空间说明](docs/access-api/couple-space.md)。完整的构建、发布与网页操作教程见 [GitHub Release 发布教程](docs/github-release-guide.md)。
+生活日历、情侣空间、番茄钟和非餐饮消费记录均按账号保存在服务器；后端数据库迁移目标为 `0008_other_expenses`。安装 `1.3.7+14` 可在更新完成后自动重新打开 App，并显示更新日志。客户端发版不会自动更新业务服务器。接口、验证与部署清单见 [生活日历说明](docs/access-api/journal.md) 和 [情侣空间说明](docs/access-api/couple-space.md)。完整的构建、发布与网页操作教程见 [GitHub Release 发布教程](docs/github-release-guide.md)。
 
 默认更新地址：
 
@@ -67,14 +67,14 @@ APK 默认输出到 build/app/outputs/flutter-apk/app-release.apk。
 
 APK 与 `latest.json` 都作为公开 GitHub Release 的附件发布，无需自有域名或服务器。应用匿名下载；GitHub 上传凭证仅在电脑端使用。下载支持最多 5 次 HTTPS 跳转，只接受配置域名及 GitHub 指定的下载域名。网络检查与日志展示独立进行，安装在应用前台继续。
 
-Android 首次更新可能要求允许本应用“安装未知应用”；点击“允许安装更新”，授权后返回即可继续。系统要求确认安装时需点击确认；如果取消，可以在更新面板重试。成功更新后再次打开应用即可看到更新日志，关闭后同一版本不再自动弹出。
+Android 首次更新可能要求允许本应用“安装未知应用”；点击“允许安装更新”，授权后返回即可继续。若系统要求确认安装，点击确认后安装完成会自动重新打开 App，并显示本次更新日志。
 
 ### 1. 构建新版本
 
 将本次更新内容写到一个 UTF-8 文本文件，例如 `release-notes.txt`，每行一条。执行：
 
 ```powershell
-.\scripts\build_release.ps1 -VersionName '1.1.1' -VersionCode 5 -NotesFile '.\release-notes.txt'
+.\scripts\build_release.ps1 -VersionName '1.3.8' -VersionCode 15 -NotesFile '.\release-notes.txt'
 ```
 
 若当前终端找不到 Flutter，可以增加参数：

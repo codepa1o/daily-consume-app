@@ -1,6 +1,7 @@
 package com.example.daily_consume
 
 import android.Manifest
+import android.app.ActivityOptions
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -266,9 +267,23 @@ class MainActivity : FlutterActivity() {
                         session.fsync(output)
                     }
                 }
-                val callback = Intent(this, UpdateInstallReceiver::class.java).setAction("$packageName.UPDATE_RESULT")
+                val callback = Intent(this, MainActivity::class.java)
+                    .setAction("$packageName.UPDATE_RESULT")
                 val mutable = if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
-                val pending = PendingIntent.getBroadcast(this, id, callback, PendingIntent.FLAG_UPDATE_CURRENT or mutable)
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or mutable
+                val pending = if (Build.VERSION.SDK_INT >= 34) {
+                    val startMode = if (Build.VERSION.SDK_INT >= 36) {
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS
+                    } else {
+                        @Suppress("DEPRECATION")
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    }
+                val options = ActivityOptions.makeBasic()
+                    .setPendingIntentCreatorBackgroundActivityStartMode(startMode)
+                    PendingIntent.getActivity(this, id, callback, flags, options.toBundle())
+                } else {
+                    PendingIntent.getActivity(this, id, callback, flags)
+                }
                 session.commit(pending.intentSender)
             }
         } catch (error: Exception) {

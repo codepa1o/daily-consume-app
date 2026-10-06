@@ -41,6 +41,28 @@ class MealEntry {
       );
 }
 
+class OtherExpenseEntry {
+  const OtherExpenseEntry({
+    required this.id,
+    required this.date,
+    required this.category,
+    required this.expenseCents,
+  });
+
+  final int id;
+  final DateTime date;
+  final String category;
+  final int expenseCents;
+
+  factory OtherExpenseEntry.fromMap(Map<String, Object?> row) =>
+      OtherExpenseEntry(
+        id: row['id']! as int,
+        date: dateFromKey(row['date']! as String),
+        category: row['category']! as String,
+        expenseCents: row['expense_cents']! as int,
+      );
+}
+
 class WorkoutMuscle {
   const WorkoutMuscle(
       {required this.name, required this.colorValue, this.builtIn = false});
@@ -195,6 +217,34 @@ class AppDatabase {
   Future<void> deleteMeal(DateTime date, String mealType) async {
     await _api.request('DELETE', 'meals',
         query: {'date': dateKey(date), 'meal_type': mealType});
+  }
+
+  Future<List<OtherExpenseEntry>> getOtherExpensesBetween(
+          DateTime start, DateTime end) async =>
+      (await _rows('other-expenses',
+              query: {'start': dateKey(start), 'end': dateKey(end)}))
+          .map(OtherExpenseEntry.fromMap)
+          .toList();
+
+  Future<void> saveOtherExpense({
+    int? id,
+    required DateTime date,
+    required String category,
+    required int expenseCents,
+  }) async {
+    await _api.request(
+      id == null ? 'POST' : 'PUT',
+      id == null ? 'other-expenses' : 'other-expenses/$id',
+      body: {
+        'date': dateKey(date),
+        'category': category,
+        'expense_cents': expenseCents,
+      },
+    );
+  }
+
+  Future<void> deleteOtherExpense(int id) async {
+    await _api.request('DELETE', 'other-expenses/$id');
   }
 
   Future<List<WorkoutMuscle>> getWorkoutMuscles() async =>

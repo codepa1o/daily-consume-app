@@ -61,7 +61,7 @@ def plain_ai_text(value):
     return value.strip()
 
 
-app = FastAPI(title='日常 API', version='1.3.6',
+app = FastAPI(title='日常 API', version='1.3.7',
               docs_url=None, redoc_url=None, openapi_url=None)
 
 
@@ -524,6 +524,18 @@ class Meal(DatedInput):
         return value.strip()
 
 
+class OtherExpenseInput(DatedInput):
+    category: str = Field(min_length=1, max_length=80)
+    expense_cents: int = Field(ge=0, le=10000000000, strict=True)
+
+    @field_validator('category')
+    @classmethod
+    def nonempty_category(cls, value):
+        if not value.strip():
+            raise ValueError('消费类别不能为空')
+        return value.strip()
+
+
 def upsert(db, table, owner, row, keys):
     columns = list(row)
     updates = ','.join(f'{c}=EXCLUDED.{c}' for c in columns if c not in keys)
@@ -579,6 +591,47 @@ def save_meal(body: Meal, user: User):
 def delete_meal(user: User, date: date, meal_type: Literal['早餐', '午餐', '晚餐']):
     with connect() as db:
         db.execute('DELETE FROM meal_entries WHERE user_id=%s AND date=%s AND meal_type=%s', (user['id'], date, meal_type))
+    return {'ok': True}
+
+
+@app.get('/other-expenses')
+def other_expenses(user: User, start: date, end: date):
+    if start > end:
+        raise HTTPException(422, '日期范围不正确')
+    with connect() as db:
+        return db.execute('''SELECT id,date,category,expense_cents FROM other_expense_entries
+            WHERE user_id=%s AND date BETWEEN %s AND %s ORDER BY date,id''',
+            (user['id'], start, end)).fetchall()
+
+
+@app.post('/other-expenses', status_code=201)
+def create_other_expense(body: OtherExpenseInput, user: User):
+    with connect() as db:
+        return db.execute('''INSERT INTO other_expense_entries(user_id,date,category,expense_cents)
+            VALUES (%s,%s,%s,%s) RETURNING id,date,category,expense_cents''',
+            (user['id'], body.date, body.category, body.expense_cents)).fetchone()
+
+
+@app.put('/other-expenses/{expense_id}')
+def update_other_expense(expense_id: int, body: OtherExpenseInput, user: User):
+    with connect() as db:
+        row = db.execute('''UPDATE other_expense_entries
+            SET date=%s,category=%s,expense_cents=%s
+            WHERE user_id=%s AND id=%s
+            RETURNING id,date,category,expense_cents''',
+            (body.date, body.category, body.expense_cents, user['id'], expense_id)).fetchone()
+        if not row:
+            raise HTTPException(404, '其他消费记录不存在')
+        return row
+
+
+@app.delete('/other-expenses/{expense_id}')
+def delete_other_expense(expense_id: int, user: User):
+    with connect() as db:
+        removed = db.execute('''DELETE FROM other_expense_entries
+            WHERE user_id=%s AND id=%s RETURNING id''', (user['id'], expense_id)).fetchone()
+        if not removed:
+            raise HTTPException(404, '其他消费记录不存在')
     return {'ok': True}
 
 

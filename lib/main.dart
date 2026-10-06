@@ -874,6 +874,8 @@ class _DiaryPageState extends State<DiaryPage> {
   _Period period = _Period.day;
   List<MealEntry> dayMeals = [];
   List<MealEntry> periodMeals = [];
+  List<OtherExpenseEntry> dayOtherExpenses = [];
+  List<OtherExpenseEntry> periodOtherExpenses = [];
   bool loading = true;
   String? loadError;
   int _loadVersion = 0;
@@ -905,12 +907,18 @@ class _DiaryPageState extends State<DiaryPage> {
       loadError = null;
     });
     try {
-      final data = await Future.wait(
-          [db.getMealsForDate(date), db.getMealsBetween(start, end)]);
+      final data = await Future.wait<dynamic>([
+        db.getMealsForDate(date),
+        db.getMealsBetween(start, end),
+        db.getOtherExpensesBetween(date, date),
+        db.getOtherExpensesBetween(start, end),
+      ]);
       if (!mounted || version != _loadVersion) return;
       setState(() {
-        dayMeals = data[0];
-        periodMeals = data[1];
+        dayMeals = data[0] as List<MealEntry>;
+        periodMeals = data[1] as List<MealEntry>;
+        dayOtherExpenses = data[2] as List<OtherExpenseEntry>;
+        periodOtherExpenses = data[3] as List<OtherExpenseEntry>;
         loading = false;
       });
     } catch (error) {
@@ -1081,9 +1089,173 @@ class _DiaryPageState extends State<DiaryPage> {
     await reload();
   }
 
-  int get dayTotal => dayMeals.fold(0, (sum, item) => sum + item.expenseCents);
+  Future<void> editOtherExpense({OtherExpenseEntry? existing}) async {
+    final category = TextEditingController(text: existing?.category ?? '');
+    final amount = TextEditingController(
+      text: existing == null
+          ? ''
+          : (existing.expenseCents / 100).toStringAsFixed(2),
+    );
+    final formKey = GlobalKey<FormState>();
+    var saving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(existing == null ? '添加其他消费' : '编辑其他消费',
+              style: const TextStyle(fontFamily: 'serif', fontSize: 24)),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: category,
+                  autofocus: true,
+                  maxLength: 80,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: '消费类别',
+                    hintText: '例如：购物、乘车',
+                    filled: true,
+                    fillColor: paper,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none),
+                  ),
+                  validator: (value) =>
+                      value == null || value.trim().isEmpty ? '请填写消费类别' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: amount,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: '消费金额（元）',
+                    prefixText: '¥ ',
+                    filled: true,
+                    fillColor: paper,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none),
+                  ),
+                  validator: (value) {
+                    final parsed = double.tryParse(value ?? '');
+                    return parsed == null || !parsed.isFinite || parsed < 0
+                        ? '请输入有效金额'
+                        : null;
+                  },
+                ),
+                const SizedBox(height: 5),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('记录日期：' + formatDate(selectedDate, year: true),
+                      style: const TextStyle(color: muted, fontSize: 11)),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                child: const Text('取消')),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDialogState(() => saving = true);
+                      final success = await serverAction(
+                        dialogContext,
+                        () => db.saveOtherExpense(
+                          id: existing?.id,
+                          date: selectedDate,
+                          category: category.text.trim(),
+                          expenseCents:
+                              (double.parse(amount.text) * 100).round(),
+                        ),
+                      );
+                      if (!dialogContext.mounted) return;
+                      if (!success) {
+                        setDialogState(() => saving = false);
+                        return;
+                      }
+                      Navigator.pop(dialogContext);
+                      setState(() => loading = true);
+                      await reload();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('其他消费已保存')),
+                        );
+                      }
+                    },
+              child: Text(saving ? '保存中…' : '保存'),
+            ),
+          ],
+        ),
+      ),
+    );
+    category.dispose();
+    amount.dispose();
+  }
+
+  Future<void> deleteOtherExpense(OtherExpenseEntry expense) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('删除这笔消费？'),
+        content:
+            Text('${expense.category} · ${formatMoney(expense.expenseCents)}'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('删除')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!await serverAction(context, () => db.deleteOtherExpense(expense.id)) ||
+        !mounted) return;
+    setState(() => loading = true);
+    await reload();
+  }
+
+  int get dayTotal =>
+      dayMeals.fold(0, (sum, item) => sum + item.expenseCents) +
+      dayOtherExpenses.fold(0, (sum, item) => sum + item.expenseCents);
   int get periodTotal =>
-      periodMeals.fold(0, (sum, item) => sum + item.expenseCents);
+      periodMeals.fold(0, (sum, item) => sum + item.expenseCents) +
+      periodOtherExpenses.fold(0, (sum, item) => sum + item.expenseCents);
+
+  int get periodOtherExpenseTotal =>
+      periodOtherExpenses.fold(0, (sum, item) => sum + item.expenseCents);
+
+  List<_PieSlice> get dailyPieSlices {
+    final totals = <String, int>{};
+    for (final meal in dayMeals) {
+      totals.update(meal.mealType, (value) => value + meal.expenseCents,
+          ifAbsent: () => meal.expenseCents);
+    }
+    for (final expense in dayOtherExpenses) {
+      totals.update(expense.category, (value) => value + expense.expenseCents,
+          ifAbsent: () => expense.expenseCents);
+    }
+    final entries = totals.entries.where((entry) => entry.value > 0).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return [
+      for (var index = 0; index < entries.length; index++)
+        _PieSlice(
+          label: entries[index].key,
+          cents: entries[index].value,
+          color: _pieColors[index % _pieColors.length],
+        ),
+    ];
+  }
 
   int mealTotal(String type) => periodMeals
       .where((meal) => meal.mealType == type)
@@ -1091,12 +1263,12 @@ class _DiaryPageState extends State<DiaryPage> {
 
   List<_ChartValue> chartValues() {
     if (period == _Period.day) {
-      return mealTypes
-          .map((type) => _ChartValue(
-                type.substring(0, 1),
-                dayMeals
-                    .where((meal) => meal.mealType == type)
-                    .fold(0, (sum, meal) => sum + meal.expenseCents),
+      return dailyPieSlices
+          .map((slice) => _ChartValue(
+                slice.label.length > 2
+                    ? slice.label.substring(0, 2)
+                    : slice.label,
+                slice.cents,
               ))
           .toList();
     }
@@ -1105,8 +1277,11 @@ class _DiaryPageState extends State<DiaryPage> {
       return List.generate(7, (index) {
         final date = rangeStart.add(Duration(days: index));
         final cents = periodMeals
-            .where((meal) => dateKey(meal.date) == dateKey(date))
-            .fold(0, (sum, meal) => sum + meal.expenseCents);
+                .where((meal) => dateKey(meal.date) == dateKey(date))
+                .fold<int>(0, (sum, meal) => sum + meal.expenseCents) +
+            periodOtherExpenses
+                .where((expense) => dateKey(expense.date) == dateKey(date))
+                .fold<int>(0, (sum, expense) => sum + expense.expenseCents);
         return _ChartValue(labels[index], cents);
       });
     }
@@ -1116,9 +1291,13 @@ class _DiaryPageState extends State<DiaryPage> {
       final firstDay = index * 7 + 1;
       final lastDay = math.min(firstDay + 6, days).toInt();
       final cents = periodMeals
-          .where(
-              (meal) => meal.date.day >= firstDay && meal.date.day <= lastDay)
-          .fold(0, (sum, meal) => sum + meal.expenseCents);
+              .where((meal) =>
+                  meal.date.day >= firstDay && meal.date.day <= lastDay)
+              .fold<int>(0, (sum, meal) => sum + meal.expenseCents) +
+          periodOtherExpenses
+              .where((expense) =>
+                  expense.date.day >= firstDay && expense.date.day <= lastDay)
+              .fold<int>(0, (sum, expense) => sum + expense.expenseCents);
       return _ChartValue((index + 1).toString() + '周', cents);
     });
   }
@@ -1193,7 +1372,17 @@ class _DiaryPageState extends State<DiaryPage> {
             ],
           ),
           const SizedBox(height: 8),
-          _DailySpendCard(totalCents: dayTotal, mealCount: dayMeals.length),
+          _DailySpendCard(
+            totalCents: dayTotal,
+            mealCount: dayMeals.length,
+            otherExpenseCount: dayOtherExpenses.length,
+          ),
+          const SizedBox(height: 10),
+          _DailyExpensePieCard(
+            title: isToday ? '今日消费构成' : '当天消费构成',
+            totalCents: dayTotal,
+            slices: dailyPieSlices,
+          ),
           const SizedBox(height: 19),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1216,6 +1405,43 @@ class _DiaryPageState extends State<DiaryPage> {
               ),
             );
           }),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('其他消费',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              TextButton.icon(
+                onPressed: () => editOtherExpense(),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('添加'),
+                style: TextButton.styleFrom(
+                  foregroundColor: sage,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
+          if (dayOtherExpenses.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: line),
+              ),
+              child: const Text('还没有记录其他消费',
+                  style: TextStyle(color: muted, fontSize: 11)),
+            )
+          else
+            ...dayOtherExpenses.map((expense) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _OtherExpenseCard(
+                    expense: expense,
+                    onEdit: () => editOtherExpense(existing: expense),
+                    onDelete: () => deleteOtherExpense(expense),
+                  ),
+                )),
           const SizedBox(height: 10),
           _StatisticsCard(
             period: period,
@@ -1223,6 +1449,7 @@ class _DiaryPageState extends State<DiaryPage> {
             breakfastCents: mealTotal('早餐'),
             lunchCents: mealTotal('午餐'),
             dinnerCents: mealTotal('晚餐'),
+            otherExpenseCents: periodOtherExpenseTotal,
             chartValues: chartValues(),
             onPeriodChanged: setPeriod,
           ),
@@ -1511,9 +1738,14 @@ class _ActionPanel extends StatelessWidget {
 }
 
 class _DailySpendCard extends StatelessWidget {
-  const _DailySpendCard({required this.totalCents, required this.mealCount});
+  const _DailySpendCard({
+    required this.totalCents,
+    required this.mealCount,
+    required this.otherExpenseCount,
+  });
   final int totalCents;
   final int mealCount;
+  final int otherExpenseCount;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1527,7 +1759,7 @@ class _DailySpendCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('今日饮食消费',
+                  const Text('当天总消费',
                       style: TextStyle(color: sage, fontSize: 10)),
                   const SizedBox(height: 5),
                   Text(formatMoney(totalCents),
@@ -1540,8 +1772,57 @@ class _DailySpendCard extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Text('$mealCount 餐 · 已记录',
+              child: Text('$mealCount 餐 · $otherExpenseCount 笔其他消费',
                   style: const TextStyle(color: sage, fontSize: 10)),
+            ),
+          ],
+        ),
+      );
+}
+
+class _OtherExpenseCard extends StatelessWidget {
+  const _OtherExpenseCard({
+    required this.expense,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final OtherExpenseEntry expense;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(13, 9, 5, 9),
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: line),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.sell_outlined, size: 16, color: sage),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(expense.category,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12)),
+            ),
+            Text(formatMoney(expense.expenseCents),
+                style: const TextStyle(fontFamily: 'serif', fontSize: 15)),
+            IconButton(
+              onPressed: onEdit,
+              tooltip: '编辑消费',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.edit_outlined, size: 16, color: muted),
+            ),
+            IconButton(
+              onPressed: onDelete,
+              tooltip: '删除消费',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.delete_outline_rounded,
+                  size: 17, color: muted),
             ),
           ],
         ),
@@ -1637,6 +1918,151 @@ class _ChartValue {
   final int cents;
 }
 
+class _PieSlice {
+  const _PieSlice({
+    required this.label,
+    required this.cents,
+    required this.color,
+  });
+
+  final String label;
+  final int cents;
+  final Color color;
+}
+
+const _pieColors = [
+  Color(0xffb4775d),
+  sage,
+  Color(0xff8b8294),
+  Color(0xffc59c4d),
+  Color(0xff6d8fa4),
+  Color(0xff9b7ca0),
+  Color(0xffc87962),
+];
+
+class _DailyExpensePieCard extends StatelessWidget {
+  const _DailyExpensePieCard({
+    required this.title,
+    required this.totalCents,
+    required this.slices,
+  });
+
+  final String title;
+  final int totalCents;
+  final List<_PieSlice> slices;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+        decoration: BoxDecoration(
+          color: const Color(0xfff0efe8),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(title,
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+                Text(formatMoney(totalCents),
+                    style: const TextStyle(fontFamily: 'serif', fontSize: 16)),
+              ],
+            ),
+            const SizedBox(height: 11),
+            if (slices.isEmpty)
+              const SizedBox(
+                height: 112,
+                child: Center(
+                  child: Text('当天暂无消费金额',
+                      style: TextStyle(color: muted, fontSize: 11)),
+                ),
+              )
+            else
+              Row(
+                children: [
+                  SizedBox(
+                    width: 116,
+                    height: 116,
+                    child: CustomPaint(
+                      painter: _ExpensePiePainter(slices),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        for (final slice in slices)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 3),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                      color: slice.color,
+                                      shape: BoxShape.circle),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(slice.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          color: muted, fontSize: 10)),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(formatMoney(slice.cents),
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      );
+}
+
+class _ExpensePiePainter extends CustomPainter {
+  const _ExpensePiePainter(this.slices);
+
+  final List<_PieSlice> slices;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = slices.fold<int>(0, (sum, slice) => sum + slice.cents);
+    if (total == 0) return;
+
+    final bounds = Offset.zero & size;
+    var startAngle = -math.pi / 2;
+    for (final slice in slices) {
+      final sweepAngle = math.pi * 2 * slice.cents / total;
+      canvas.drawArc(
+        bounds,
+        startAngle,
+        sweepAngle,
+        true,
+        Paint()..color = slice.color,
+      );
+      startAngle += sweepAngle;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ExpensePiePainter oldDelegate) =>
+      oldDelegate.slices != slices;
+}
+
 class _StatisticsCard extends StatelessWidget {
   const _StatisticsCard({
     required this.period,
@@ -1644,6 +2070,7 @@ class _StatisticsCard extends StatelessWidget {
     required this.breakfastCents,
     required this.lunchCents,
     required this.dinnerCents,
+    required this.otherExpenseCents,
     required this.chartValues,
     required this.onPeriodChanged,
   });
@@ -1652,6 +2079,7 @@ class _StatisticsCard extends StatelessWidget {
   final int breakfastCents;
   final int lunchCents;
   final int dinnerCents;
+  final int otherExpenseCents;
   final List<_ChartValue> chartValues;
   final ValueChanged<_Period> onPeriodChanged;
 
@@ -1746,6 +2174,7 @@ class _StatisticsCard extends StatelessWidget {
               _Breakdown(label: '早餐', cents: breakfastCents),
               _Breakdown(label: '午餐', cents: lunchCents),
               _Breakdown(label: '晚餐', cents: dinnerCents),
+              _Breakdown(label: '其他', cents: otherExpenseCents),
             ],
           ),
         ],
