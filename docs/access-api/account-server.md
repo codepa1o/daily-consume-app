@@ -18,6 +18,7 @@
 - 2026-10-04 后端随 1.3.1 更新迁移至 `0004_avatar`。`users` 新增受约束的头像 `BYTEA` 字段，总业务表数仍为 19；情侣回忆时间线由发布时刻按 Asia/Shanghai 日期分组，不另建时间线记录表。
 - 2026-10-04 后端随 1.3.3 部署升级至 `0005_pomodoro`，新增账号专属的番茄钟设置、专注事项和完成记录表，共 22 张业务表。部署前数据库备份为 `/var/backups/daily-consume/daily_consume-pre-1.3.3-20261004T104935Z.dump`，`pg_restore --list` 检查通过；迁移完成后 API health 与新路由鉴权检查通过。
 - 2026-10-05 后端随 1.3.4+11 部署升级至 `0006_memory_albums`，新增有序相册照片表并回填旧单图回忆，当前共 23 张业务表。部署前数据库备份 `/var/backups/daily-consume/daily_consume-pre-1.3.4-20261004T195407Z.dump`（SHA256 `7a866d4e3d5d71f0077947660a59750ae820682b9b008b0ae45d30e2ab8839b9`）及代码备份 `/var/backups/daily-consume/daily-consume-code-pre-1.3.4-20261004T195407Z.tar.gz` 均已留存，数据库备份经 `pg_restore --list` 检查。修复发布接口后，服务与 Nginx 为 active，Alembic head、健康检查及 7 组真实 HTTPS 情侣空间检查通过；报告在 `/opt/daily-consume/couple-api-checks.json`，本次随机账号已清理。
+- 2026-10-06 后端随 1.3.6 部署 AI 个人分析、每日总结接口及 `prompts/` 提示词目录；数据库已是 `0007_profile_age`，无需新增迁移。部署前数据库备份 `/var/backups/daily-consume/daily_consume-pre-1.3.6-20261006T080857Z.dump`（SHA256 `a11d5541a1da8ae5e2eab2de9075309fc1113897d42832590f3477b4a66b0452`，`pg_restore --list` 校验通过，共 167 条归档目录项），代码快照 `/var/backups/daily-consume/daily-consume-code-pre-1.3.6-20261006T080857Z.tar.gz`（SHA256 `e77a8dfcb6c1b34dc25c9aa4db892057ed03e74076616470c1df348c07ef9e62`，未包含 `.env` 和虚拟环境）。部署后服务与 Nginx 为 active，两个 AI 路由及提示词文件加载成功，HTTPS health 返回正常。
 - 用户密码使用 Argon2 哈希，会话使用随机 Bearer 凭证，数据库只保存其 SHA256。会话有效期 30 天，过期重新登录，退出立即撤销当前会话。
 - HTTPS 使用带 IP SAN 的专用证书，客户端仅信任 APK 内的 `assets/server_ca.pem`；仍校验服务器地址和有效期，没有跳过 TLS 检查。当前证书有效期至 2029-10-02；轮换前需要先为客户端发布兼容的新证书。
 - 登录/注册按来源 IP 限流。服务端拒绝客户端提交用户 ID 等未定义字段，业务查询从会话确定归属。
@@ -25,7 +26,7 @@
 
 ## 接口
 
-认证与资料接口：`POST auth/register`（username、password、nickname）、`POST auth/login`（username、password）、`GET me`、`PUT me`（nickname、gender）、`PUT me/avatar`（photo_base64）、`POST auth/logout`。女性健康接口与实际部署验证见 `docs/access-api/female-health.md`。
+认证与资料接口：`POST auth/register`（username、password、nickname）、`POST auth/login`（username、password）、`GET me`、`PUT me`（nickname、gender、age）、`PUT me/avatar`（photo_base64）、`POST auth/logout`。AI 接口包括 `POST ai/profile-analysis`（基于个人资料和身体记录生成分析）及 `POST ai/daily-summary`（总结指定日期的日记、饮食消费、身体与健身记录，并给出建议）。女性健康接口与实际部署验证见 `docs/access-api/female-health.md`。
 
 业务请求携带 `Authorization: Bearer <session>`；未登录/过期为 401，账号或数据冲突为 409，输入错误为 422，限流为 429。所有接口响应为 JSON，关闭缓存。
 
@@ -56,7 +57,7 @@ SQLite 仅作为只读的旧数据来源保留，不再新建或升级本地业�
 
 `scripts/server_admin.py` 使用 Paramiko，通过 `DAILY_SSH_PASSWORD`、可选的 `DAILY_SSH_USER` 和 `DAILY_SSH_HOST` 连接；服务端不使用 SSH 密码连接数据库。主机密钥保存在电脑用户目录 `.ssh/daily-consume-known-hosts`，后续变更会被拒绝。
 
-初次运行 `server/bootstrap.sh` 创建数据库、专用用户和 TLS 证书。上传 app.py、journal.py、couple.py、database.py、alembic.ini、完整 migrations/ 目录、requirements.txt、requirements.lock、deploy.sh、daily-consume.service、nginx.conf 后运行 `server/deploy.sh`。脚本以应用系统用户执行 Alembic 迁移，成功后才重启服务；首次接管已有数据库会核对基线 13 张表的结构，不一致则中止，再执行增量迁移。不要重新生成已有服务器私钥。操作说明见 [数据库迁移指南](../database-migrations.md)、[生活日历说明](journal.md) 和 [情侣空间说明](couple-space.md)。
+初次运行 `server/bootstrap.sh` 创建数据库、专用用户和 TLS 证书。上传 app.py、journal.py、couple.py、database.py、alembic.ini、完整 migrations/ 目录、prompts/ 目录、requirements.txt、requirements.lock、deploy.sh、daily-consume.service、nginx.conf 后运行 `server/deploy.sh`。脚本以应用系统用户执行 Alembic 迁移，成功后才重启服务；首次接管已有数据库会核对基线 13 张表的结构，不一致则中止，再执行增量迁移。不要覆盖服务器 `.env` 或重新生成已有服务器私钥。操作说明见 [数据库迁移指南](../database-migrations.md)、[生活日历说明](journal.md) 和 [情侣空间说明](couple-space.md)。
 
 真实接口检查（服务器上，以应用用户运行）：
 
