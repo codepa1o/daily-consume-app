@@ -203,32 +203,22 @@ class _BodyPageState extends State<BodyPage> {
     }
   }
 
-  Future<void> _generateAi(String path, String title,
-      {Map<String, dynamic>? body}) async {
+  Future<Map<String, dynamic>> _loadAiReport(bool daily) async =>
+      await ApiClient.instance.request(
+              'POST', daily ? 'ai/daily-summary' : 'ai/profile-analysis',
+              body: daily ? {'date': dateKey(DateTime.now())} : null)
+          as Map<String, dynamic>;
+
+  Future<void> _generateAi(bool daily) async {
     if (_aiBusy) return;
     setState(() => _aiBusy = true);
     try {
-      final response = await ApiClient.instance
-          .request('POST', path, body: body) as Map<String, dynamic>;
+      final report = await _loadAiReport(daily);
       if (!mounted) return;
-      final content = (response['analysis'] ?? response['summary']) as String;
       await showDialog<void>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(title),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 480),
-            child: SingleChildScrollView(
-              child: SelectableText(content,
-                  style: const TextStyle(color: ink, height: 1.6)),
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('关闭')),
-          ],
-        ),
+        builder: (_) => _AiReportDialog(
+            report: report, initialDaily: daily, loadReport: _loadAiReport),
       );
     } catch (error) {
       if (mounted) {
@@ -252,9 +242,7 @@ class _BodyPageState extends State<BodyPage> {
           Row(children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: _aiBusy
-                    ? null
-                    : () => _generateAi('ai/profile-analysis', 'AI个人分析'),
+                onPressed: _aiBusy ? null : () => _generateAi(false),
                 icon: const Icon(Icons.insights_outlined, size: 18),
                 label: const Text('个人分析'),
               ),
@@ -262,10 +250,7 @@ class _BodyPageState extends State<BodyPage> {
             const SizedBox(width: 10),
             Expanded(
               child: FilledButton.tonalIcon(
-                onPressed: _aiBusy
-                    ? null
-                    : () => _generateAi('ai/daily-summary', 'AI今日总结',
-                        body: {'date': dateKey(DateTime.now())}),
+                onPressed: _aiBusy ? null : () => _generateAi(true),
                 icon: const Icon(Icons.auto_awesome_outlined, size: 18),
                 label: const Text('今日总结'),
               ),
@@ -522,6 +507,354 @@ class _BodyPageState extends State<BodyPage> {
           PomodoroCard(timerController: widget.timerController),
         ],
       ),
+    );
+  }
+}
+
+class _AiReportDialog extends StatefulWidget {
+  const _AiReportDialog({
+    required this.report,
+    required this.initialDaily,
+    required this.loadReport,
+  });
+
+  final Map<String, dynamic> report;
+  final bool initialDaily;
+  final Future<Map<String, dynamic>> Function(bool daily) loadReport;
+
+  @override
+  State<_AiReportDialog> createState() => _AiReportDialogState();
+}
+
+class _AiReportDialogState extends State<_AiReportDialog> {
+  late bool _daily;
+  late Map<String, dynamic> _report;
+  Map<String, dynamic>? _profileReport;
+  Map<String, dynamic>? _dailyReport;
+  bool _loading = false;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _daily = widget.initialDaily;
+    _report = widget.report;
+    if (_daily) {
+      _dailyReport = widget.report;
+    } else {
+      _profileReport = widget.report;
+    }
+  }
+
+  Future<void> _selectTab(bool daily) async {
+    if (_loading) return;
+    if (_daily == daily && _loadError == null) return;
+    final cached = daily ? _dailyReport : _profileReport;
+    if (cached != null) {
+      setState(() {
+        _daily = daily;
+        _report = cached;
+        _loadError = null;
+      });
+      return;
+    }
+    setState(() {
+      _daily = daily;
+      _report = const <String, dynamic>{};
+      _loadError = null;
+      _loading = true;
+    });
+    try {
+      final loaded = await widget.loadReport(daily);
+      if (!mounted) return;
+      setState(() {
+        _report = loaded;
+        if (daily) {
+          _dailyReport = loaded;
+        } else {
+          _profileReport = loaded;
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() =>
+          _loadError = error is ApiException ? error.message : 'AI 生成失败，请稍后重试');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Widget _tabButton(bool daily, String label) {
+    final selected = _daily == daily;
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(11),
+            onTap: _loading ? null : () => _selectTab(daily),
+            child: Container(
+              alignment: Alignment.center,
+              constraints: const BoxConstraints(minHeight: 42),
+              decoration: BoxDecoration(
+                color: selected ? surface : Colors.transparent,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Text(label,
+                  style: TextStyle(
+                      color: selected ? ink : muted,
+                      fontSize: 12,
+                      fontWeight:
+                          selected ? FontWeight.w600 : FontWeight.w500)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _text(dynamic value) => value is String ? value : '';
+
+  List<Map<String, dynamic>> _rows(dynamic value) => value is List
+      ? value
+          .whereType<Map>()
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList()
+      : const <Map<String, dynamic>>[];
+
+  List<String> _strings(dynamic value) =>
+      value is List ? value.whereType<String>().toList() : const <String>[];
+
+  Widget _highlight(Map<String, dynamic> metric, bool emphasized) {
+    final unit = _text(metric['unit']);
+    final caption = _text(metric['caption']);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 11, 10, 10),
+      decoration: BoxDecoration(
+        color: emphasized ? sageSoft : const Color(0xfff0efe8),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(_text(metric['label']),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: muted, fontSize: 10)),
+        const SizedBox(height: 5),
+        Text.rich(TextSpan(
+          style: const TextStyle(
+              color: ink, fontFamily: 'serif', fontSize: 22, height: 1),
+          children: [
+            TextSpan(text: _text(metric['value'])),
+            if (unit.isNotEmpty)
+              TextSpan(
+                  text: ' $unit',
+                  style: const TextStyle(
+                      color: muted, fontFamily: 'sans-serif', fontSize: 10)),
+          ],
+        )),
+        if (caption.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(caption,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: muted, fontSize: 9)),
+        ],
+      ]),
+    );
+  }
+
+  Widget _section(Map<String, dynamic> section) {
+    final items = _rows(section['items']);
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: _SectionCard(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_text(section['title']),
+              style: const TextStyle(fontWeight: FontWeight.w600, color: ink)),
+          const SizedBox(height: 9),
+          ...items.map((item) {
+            final label = _text(item['label']);
+            final value = _text(item['value']);
+            final detail = _text(item['detail']);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (label.isNotEmpty)
+                    Text(label,
+                        style: const TextStyle(
+                            color: sage,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600)),
+                  if (value.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(top: label.isEmpty ? 0 : 3),
+                      child: Text(value,
+                          style: const TextStyle(color: ink, height: 1.4)),
+                    ),
+                  if (detail.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(detail,
+                          style: const TextStyle(color: muted, fontSize: 10)),
+                    ),
+                ],
+              ),
+            );
+          }),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = _text(_report['subtitle']);
+    final summary = _text(_report['summary']);
+    final highlights = _rows(_report['highlights']);
+    final sections = _rows(_report['sections']);
+    final suggestions = _strings(_report['suggestions']);
+    final notice = _text(_report['notice']);
+    final screen = MediaQuery.sizeOf(context);
+    final contentWidth = math.min(screen.width - 112, 480.0).toDouble();
+
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(22, 19, 22, 5),
+      contentPadding: const EdgeInsets.fromLTRB(22, 8, 22, 8),
+      title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('生活记录 · AI 回顾',
+            style: TextStyle(color: sage, fontSize: 10, letterSpacing: 1.2)),
+        const SizedBox(height: 4),
+        const Text('把记录，变成\n看得见的回顾。',
+            style:
+                const TextStyle(color: ink, fontFamily: 'serif', fontSize: 23)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+              color: const Color(0xfff0efe8),
+              borderRadius: BorderRadius.circular(14)),
+          child: Row(children: [
+            _tabButton(false, '个人分析'),
+            _tabButton(true, '今日总结'),
+          ]),
+        ),
+      ]),
+      content: SizedBox(
+        width: contentWidth,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: screen.height * 0.64),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_loading) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 28),
+                    child:
+                        Center(child: CircularProgressIndicator(color: sage)),
+                  ),
+                  const Center(
+                      child: Text('正在整理记录…',
+                          style: TextStyle(color: muted, fontSize: 12))),
+                ],
+                if (_loadError != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Text(_loadError!,
+                        style: const TextStyle(color: muted, height: 1.4)),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => _selectTab(_daily),
+                      icon: const Icon(Icons.refresh_rounded, size: 17),
+                      label: const Text('重试'),
+                    ),
+                  ),
+                ],
+                if (!_loading && _loadError == null) ...[
+                  if (subtitle.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 7),
+                      child: Text(subtitle,
+                          style: const TextStyle(color: sage, fontSize: 11)),
+                    ),
+                  if (summary.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(summary,
+                          style: const TextStyle(color: ink, height: 1.5)),
+                    ),
+                  if (highlights.isNotEmpty)
+                    GridView.count(
+                      crossAxisCount: screen.width < 380 ? 1 : 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      mainAxisExtent: 86,
+                      children: [
+                        for (var i = 0; i < highlights.length; i++)
+                          _highlight(highlights[i], i == 0),
+                      ],
+                    ),
+                  for (final section in sections) _section(section),
+                  if (suggestions.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                            color: sageSoft,
+                            borderRadius: BorderRadius.circular(16)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(children: [
+                              Icon(Icons.lightbulb_outline_rounded,
+                                  color: sage, size: 17),
+                              SizedBox(width: 7),
+                              Text('给你的建议',
+                                  style: TextStyle(
+                                      color: sage,
+                                      fontWeight: FontWeight.w600)),
+                            ]),
+                            const SizedBox(height: 8),
+                            for (var i = 0; i < suggestions.length; i++)
+                              Padding(
+                                padding: EdgeInsets.only(
+                                    bottom:
+                                        i == suggestions.length - 1 ? 0 : 7),
+                                child: Text(suggestions[i],
+                                    style: const TextStyle(
+                                        color: ink, height: 1.4)),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (notice.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Text(notice,
+                          style: const TextStyle(color: muted, fontSize: 10)),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: const Text('关闭')),
+      ],
     );
   }
 }
