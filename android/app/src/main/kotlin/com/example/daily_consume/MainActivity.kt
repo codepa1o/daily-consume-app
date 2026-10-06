@@ -2,16 +2,12 @@ package com.example.daily_consume
 
 import android.Manifest
 import android.app.AlarmManager
-import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
-import android.media.AudioAttributes
-import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -35,7 +31,7 @@ class MainActivity : FlutterActivity() {
         val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "daily_consume/updates")
         retainedUpdateChannel = channel
         updateChannel = WeakReference(channel)
-        createPomodoroNotificationChannels()
+        PomodoroAlert.ensureNotificationChannel(this)
         channel.setMethodCallHandler { call, result ->
             val prefs = getSharedPreferences("updates", MODE_PRIVATE)
             when (call.method) {
@@ -105,26 +101,6 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    private fun createPomodoroNotificationChannels() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-            .build()
-        val channel = NotificationChannel(
-            PomodoroAlert.CHANNEL, "番茄钟提醒", NotificationManager.IMPORTANCE_HIGH
-        ).apply {
-            description = "番茄钟阶段结束时响铃并振动"
-            enableVibration(true)
-            vibrationPattern = longArrayOf(0, 350, 180, 350)
-            setSound(sound, audioAttributes)
-            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            setShowBadge(false)
-        }
-        manager.createNotificationChannel(channel)
-    }
-
     private fun hasNotificationPermission(): Boolean {
         val permissionGranted = Build.VERSION.SDK_INT < 33 ||
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
@@ -175,8 +151,9 @@ class MainActivity : FlutterActivity() {
     private fun openNotificationSettings(result: MethodChannel.Result) {
         try {
             val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                     .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                    .putExtra(Settings.EXTRA_CHANNEL_ID, PomodoroAlert.CHANNEL)
             } else {
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
             }

@@ -22,12 +22,14 @@ class Account {
       required this.username,
       required this.nickname,
       this.gender = 'unset',
+      this.age,
       this.avatarBytes,
       required this.createdAt});
   final int id;
   final String username;
   final String nickname;
   final String gender;
+  final int? age;
   final Uint8List? avatarBytes;
   bool get isFemale => gender == 'female';
   final DateTime createdAt;
@@ -36,6 +38,7 @@ class Account {
         username: json['username'] as String,
         nickname: json['nickname'] as String,
         gender: json['gender'] as String? ?? 'unset',
+        age: json['age'] as int?,
         avatarBytes: json['avatar_base64'] == null
             ? null
             : base64Decode(json['avatar_base64'] as String),
@@ -174,9 +177,9 @@ class ApiClient extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> saveProfile(String nickname, String gender) async {
+  Future<void> saveProfile(String nickname, String gender, int? age) async {
     final updated = await request('PUT', 'me',
-        body: {'nickname': nickname.trim(), 'gender': gender});
+        body: {'nickname': nickname.trim(), 'gender': gender, 'age': age});
     account = Account.fromJson(updated as Map<String, dynamic>);
     notifyListeners();
   }
