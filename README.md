@@ -36,6 +36,8 @@ AI 功能通过 DeepSeek OpenAI 兼容的 Chat Completions 接口生成内容。
 
 `.env` 同时可设置 `DATABASE_URL`，用于覆盖服务器 PostgreSQL 连接串；留空时沿用 Linux 本地 PostgreSQL socket 默认值。接口为 `POST /ai/profile-analysis` 和 `POST /ai/daily-summary`，后者请求体为 `{"date":"YYYY-MM-DD"}`。systemd 部署读取 `/opt/daily-consume/.env`；文件应设为 `0640` 并保证服务账号可读，然后重启服务。未配置 `DEEPSEEK_API_KEY` 时，AI 接口会返回服务未配置提示；数据库迁移由现有部署脚本自动升级到最新版本。
 
+两段 AI 提示词集中在项目根目录 `prompts/`。`profile_analysis.md` 约束个人资料分析，`daily_summary.md` 约束当日活动总结；服务端每次请求时读取对应文件，调整提示词不需要改动接口代码。两个接口返回标题、摘要、重点数据、小节和建议等结构化内容，由客户端按卡片样式展示。
+
 本机 Flutter SDK：E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter
 
 本机 Android SDK：E:\Android\Sdk
