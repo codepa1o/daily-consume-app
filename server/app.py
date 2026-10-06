@@ -38,7 +38,10 @@ def connect():
     return psycopg.connect(DSN, row_factory=dict_row)
 
 
-PROMPT_DIR = Path(__file__).resolve().parents[1] / 'prompts'
+SERVER_DIR = Path(__file__).resolve().parent
+PROMPT_DIR = SERVER_DIR / 'prompts'
+if not PROMPT_DIR.is_dir():
+    PROMPT_DIR = SERVER_DIR.parent / 'prompts'
 
 
 def load_ai_prompt(name):
