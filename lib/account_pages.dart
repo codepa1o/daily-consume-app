@@ -502,6 +502,7 @@ class _MyPageState extends State<MyPage> {
   Future<void> _editProfile() async {
     final account = ApiClient.instance.account!;
     final nickname = TextEditingController(text: account.nickname);
+    final age = TextEditingController(text: account.age?.toString() ?? '');
     final form = GlobalKey<FormState>();
     var gender = account.gender;
     var saving = false;
@@ -525,6 +526,21 @@ class _MyPageState extends State<MyPage> {
                   decoration: const InputDecoration(labelText: '昵称'),
                   validator: (value) =>
                       (value?.trim().isEmpty ?? true) ? '请输入昵称' : null,
+                ),
+                TextFormField(
+                  controller: age,
+                  enabled: !saving,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: '年龄（可选）'),
+                  validator: (raw) {
+                    final value = raw?.trim() ?? '';
+                    if (value.isEmpty) return null;
+                    final years = int.tryParse(value);
+                    if (years == null || years < 1 || years > 120) {
+                      return '请输入 1–120 的整数年龄';
+                    }
+                    return null;
+                  },
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: gender,
@@ -562,8 +578,8 @@ class _MyPageState extends State<MyPage> {
                             error = null;
                           });
                           try {
-                            await ApiClient.instance
-                                .saveProfile(nickname.text, gender);
+                            await ApiClient.instance.saveProfile(nickname.text,
+                                gender, int.tryParse(age.text.trim()));
                             if (dialogContext.mounted)
                               Navigator.pop(dialogContext);
                           } catch (failure) {
@@ -585,6 +601,7 @@ class _MyPageState extends State<MyPage> {
     await Navigator.of(context, rootNavigator: true).push(route);
     await route.completed;
     nickname.dispose();
+    age.dispose();
   }
 
   Future<void> _logout() async {
@@ -622,6 +639,7 @@ class _MyPageState extends State<MyPage> {
     if (account == null) return const SizedBox.shrink();
     final registered =
         '${account.createdAt.year}-${account.createdAt.month.toString().padLeft(2, '0')}-${account.createdAt.day.toString().padLeft(2, '0')}';
+    final ageLabel = account.age == null ? '未设置' : '${account.age} 岁';
     return SafeArea(
         child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
@@ -658,6 +676,8 @@ class _MyPageState extends State<MyPage> {
                           _ => '未设置'
                         }}'),
                         const SizedBox(height: 10),
+                        Text('年龄　$ageLabel'),
+                        const SizedBox(height: 10),
                         Text('注册时间　$registered'),
                       ]))),
           const SizedBox(height: 14),
@@ -677,7 +697,7 @@ class _MyPageState extends State<MyPage> {
               child: ListTile(
             leading: const Icon(Icons.manage_accounts_outlined),
             title: const Text('个人资料'),
-            subtitle: const Text('昵称、性别'),
+            subtitle: const Text('昵称、性别、年龄'),
             trailing: const Icon(Icons.chevron_right),
             enabled: !_busy,
             onTap: _editProfile,

@@ -170,6 +170,7 @@ class _BodyPageState extends State<BodyPage> {
   List<BodyEntry> weights = [];
   List<BodyEntry> heights = [];
   bool loading = true;
+  bool _aiBusy = false;
   String? loadError;
   int _loadVersion = 0;
 
@@ -201,6 +202,81 @@ class _BodyPageState extends State<BodyPage> {
       });
     }
   }
+
+  Future<void> _generateAi(String path, String title,
+      {Map<String, dynamic>? body}) async {
+    if (_aiBusy) return;
+    setState(() => _aiBusy = true);
+    try {
+      final response = await ApiClient.instance
+          .request('POST', path, body: body) as Map<String, dynamic>;
+      if (!mounted) return;
+      final content = (response['analysis'] ?? response['summary']) as String;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(title),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 480),
+            child: SingleChildScrollView(
+              child: SelectableText(content,
+                  style: const TextStyle(color: ink, height: 1.6)),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('关闭')),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content:
+                Text(error is ApiException ? error.message : 'AI 生成失败，请稍后重试')));
+      }
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
+  }
+
+  Widget _aiPanel() => _SectionCard(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('AI 生活助手',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 5),
+          const Text('看看近期身体状态，也回顾今天的记录。',
+              style: TextStyle(color: muted, fontSize: 12)),
+          const SizedBox(height: 13),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _aiBusy
+                    ? null
+                    : () => _generateAi('ai/profile-analysis', 'AI个人分析'),
+                icon: const Icon(Icons.insights_outlined, size: 18),
+                label: const Text('个人分析'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: FilledButton.tonalIcon(
+                onPressed: _aiBusy
+                    ? null
+                    : () => _generateAi('ai/daily-summary', 'AI今日总结',
+                        body: {'date': dateKey(DateTime.now())}),
+                icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                label: const Text('今日总结'),
+              ),
+            ),
+          ]),
+          if (_aiBusy) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(),
+          ],
+        ]),
+      );
 
   Future<void> editValue({required bool weight}) async {
     final entries = weight ? weights : heights;
@@ -440,6 +516,7 @@ class _BodyPageState extends State<BodyPage> {
               ),
             ),
           ],
+          _aiPanel(),
           const LifeCalendar(),
           const SizedBox(height: 16),
           PomodoroCard(timerController: widget.timerController),
