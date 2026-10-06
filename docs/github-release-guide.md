@@ -4,15 +4,15 @@
 
 ## 本次版本
 
-- 应用显示版本：1.3.4。
-- 内部版本编号：11，即 `pubspec.yaml` 中的 `1.3.4+11`。
-- Release 标签：`v1.3.4+11`。
-- 更新日志原稿：`docs/release-notes/1.3.4.txt`，每行一条。
-- 情侣相册依赖后端 migration `0006_memory_albums`；本版先部署后端并升级数据库，再公开客户端 APK。GitHub 发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
+- 应用显示版本：1.3.6。
+- 内部版本编号：13，即 `pubspec.yaml` 中的 `1.3.6+13`。
+- Release 标签：`v1.3.6+13`。
+- 更新日志原稿：`docs/release-notes/1.3.6.txt`，每行一条。
+- AI 报告页面使用结构化展示，后端依赖个人资料年龄迁移 `0007_profile_age` 和提示词文件；发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
 
 ## 以后发布新版的推荐步骤
 
-以下以 **下一版 1.3.5+12** 为例。不要再次用这个步骤创建已发布的 1.3.4+11。
+以下以 **1.3.6+13** 为例。每次正式发布都应使用新的版本号和内部版本编号。
 
 ### 1. 验证代码
 
@@ -28,13 +28,13 @@ Set-Location E:\my_project\daily-consume
 
 ### 2. 写日志并构建
 
-新建 UTF-8 文件 `docs/release-notes/1.3.5.txt`，每行一条给用户看的更新内容，然后执行：
+新建 UTF-8 文件 `docs/release-notes/1.3.6.txt`，每行一条给用户看的更新内容，然后执行：
 
 ```powershell
 .\scripts\build_release.ps1 `
-  -VersionName '1.3.5' `
-  -VersionCode 12 `
-  -NotesFile '.\docs\release-notes\1.3.5.txt' `
+  -VersionName '1.3.6' `
+  -VersionCode 13 `
+  -NotesFile '.\docs\release-notes\1.3.6.txt' `
   -Flutter 'E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter\bin\flutter.bat'
 ```
 
@@ -78,7 +78,7 @@ python scripts/publish_github_release.py
 
 成功后终端会显示 Release、Manifest 和 APK 地址。网络中断后可重试相同发布命令；相同附件会复用，不同内容不会被覆盖。一次只运行一个发布进程；正式发布后还要修改 APK 时，应增加 `VersionCode`，不要覆盖旧附件。
 
-生成的清单位于 `build/github-release/<VersionCode>/latest.json`，本次为 `build/github-release/7/latest.json`，无需手工编写。
+生成的清单位于 `build/github-release/<VersionCode>/latest.json`，本次为 `build/github-release/13/latest.json`，无需手工编写。
 
 ## 网页手动发布
 
