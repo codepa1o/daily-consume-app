@@ -2,8 +2,8 @@
 from alembic import op
 from sqlalchemy import text
 
-revision = '0008_body_weight_goal'
-down_revision = '0007_profile_age'
+revision = '0009_body_weight_goal'
+down_revision = '0008_other_expenses'
 branch_labels = None
 depends_on = None
 
