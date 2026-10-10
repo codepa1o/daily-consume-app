@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -429,52 +430,76 @@ class _WorkoutPageState extends State<WorkoutPage> {
         !plannedRest &&
         selectedLog == null &&
         _selectedMuscles.isNotEmpty;
-    return Stack(
-      children: [
+    return LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 1080;
+      final selectedDay = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _selectedDateHeader(),
+          const SizedBox(height: 10),
+          _musclePicker(selectedLog),
+          const SizedBox(height: 14),
+          if (selectedLog != null)
+            _checkedInPanel(selectedLog)
+          else
+            _checkInPanel(canCheckIn),
+        ],
+      );
+      final trainingOverview = Column(children: [
+        _weekCard(),
+        const SizedBox(height: 12),
+        _goalCard(weekLogs.length),
+        const SizedBox(height: 18),
+        _statisticsCard(),
+      ]);
+
+      return Stack(children: [
         SafeArea(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+            padding:
+                EdgeInsets.fromLTRB(wide ? 36 : 20, 22, wide ? 36 : 20, 32),
             children: [
               const _WorkoutTopLine(),
-              const SizedBox(height: 22),
+              const SizedBox(height: 24),
               const Text('训练记录',
                   style: TextStyle(
                       color: _sage,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.8)),
               const SizedBox(height: 7),
-              const Text('练得有序，\n也记得开心。',
+              Text(wide ? '练得有序，也记得开心。' : '练得有序，\n也记得开心。',
                   style: TextStyle(
                       color: _ink,
                       fontFamily: 'serif',
-                      fontSize: 32,
+                      fontSize: wide ? 36 : 32,
                       height: 1.12,
                       letterSpacing: -1.1)),
               const SizedBox(height: 7),
               const Text('每一次坚持，都值得被好好记录。',
-                  style: TextStyle(color: _muted, fontSize: 13)),
-              const SizedBox(height: 20),
-              _weekCard(),
-              const SizedBox(height: 12),
-              _goalCard(weekLogs.length),
-              const SizedBox(height: 18),
-              _selectedDateHeader(),
-              const SizedBox(height: 10),
-              _musclePicker(selectedLog),
-              const SizedBox(height: 14),
-              if (selectedLog != null)
-                _checkedInPanel(selectedLog)
-              else
-                _checkInPanel(canCheckIn),
-              const SizedBox(height: 18),
-              _statisticsCard(),
+                  style: TextStyle(color: _muted, fontSize: 14)),
+              const SizedBox(height: 22),
+              if (wide)
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(flex: 6, child: trainingOverview),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 5, child: selectedDay),
+                ])
+              else ...[
+                _weekCard(),
+                const SizedBox(height: 12),
+                _goalCard(weekLogs.length),
+                const SizedBox(height: 18),
+                selectedDay,
+                const SizedBox(height: 18),
+                _statisticsCard(),
+              ],
             ],
           ),
         ),
         if (_showReward) const _FlowerReward(),
-      ],
-    );
+      ]);
+    });
   }
 
   Widget _weekCard() => _Card(
@@ -838,7 +863,9 @@ class _WorkoutPageState extends State<WorkoutPage> {
                     ? '只能为今天打卡'
                     : _selectedMuscles.isEmpty
                         ? '先选择今天训练的部位'
-                        : '训练完成后，长按按钮打卡',
+                        : kIsWeb
+                            ? '选择训练部位后，点击完成打卡'
+                            : '训练完成后，长按按钮打卡',
             style: const TextStyle(color: _muted, fontSize: 10),
           ),
         ],

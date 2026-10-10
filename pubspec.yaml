@@ -1,7 +1,7 @@
 name: daily_consume
-description: Account-based Android app for server-stored body, meal, spending and workout records.
+description: Account-based Flutter app for server-stored body, meal, spending and workout records.
 publish_to: none
-version: 1.3.6+13
+version: 1.4.0+14
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
@@ -9,11 +9,18 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   sqflite: ^2.4.4
   crypto: ^3.0.7
+  http: ^1.6.0
   flutter_secure_storage: ^11.2.0
   image_cropper: ^12.2.1
   image_picker: ^1.2.3
+  web: ^1.1.1
+  pdf: '>=3.12.0 <3.13.0'
+  webview_flutter: ^4.12.0
+  tyme: ^1.5.0
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4

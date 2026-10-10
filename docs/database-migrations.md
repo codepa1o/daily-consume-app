@@ -15,6 +15,7 @@
 - `server/migrations/versions/0005_pomodoro.py`：新增账号专属的番茄钟设置、专注事项与完成记录三张表；1.3.3 部署后共 22 张业务表。非空数据时拒绝回退删除。
 - `server/migrations/versions/0006_memory_albums.py`：增加回忆照片展示模式及有序相册表，并将原有单张照片回填到相册第 0 张；1.3.4 部署后为当前 head，共 23 张业务表。存在多图或滑动相册时拒绝降级丢弃数据。
 - `server/migrations/versions/0007_profile_age.py`：为 `users` 增加可选年龄字段，限制为 1–120 岁；不新增业务表。1.3.5 及后续版本部署后为当前 head，共 23 张业务表。
+- `server/migrations/versions/0008_body_weight_goal.py`：新增账号专属身体设置表，保存可选目标体重（20–300 kg）；1.4.0 部署后为当前 head，共 24 张业务表。
 
 `DATABASE_URL` 接受 psycopg/libpq 的连接字符串或 PostgreSQL URI，不必转换为 SQLAlchemy URL。未设置时，使用 `dbname=daily_consume user=daily_consume host=/var/run/postgresql`，由系统用户 `daily-consume` 通过 peer 映射认证。不要将数据库密码提交到仓库。迁移使用连接的 `current_schema()`，版本表也位于同一 schema；本地测试通过独立 `search_path` 隔离。
 

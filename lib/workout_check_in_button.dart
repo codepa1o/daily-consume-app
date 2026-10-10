@@ -1,7 +1,8 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
-/// A two-second hold with visible progress; releasing or dragging cancels it.
+/// Web 端使用点击打卡；触控端保留两秒长按确认。
 class WorkoutCheckInButton extends StatefulWidget {
   const WorkoutCheckInButton(
       {super.key, required this.enabled, required this.onCheckIn});
@@ -50,7 +51,31 @@ class _WorkoutCheckInButtonState extends State<WorkoutCheckInButton>
   }
 
   @override
-  Widget build(BuildContext context) => Semantics(
+  Widget build(BuildContext context) {
+    if (kIsWeb) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: widget.enabled && !_saving ? _finish : null,
+          icon: _saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.fitness_center_rounded),
+          label: Text(_saving ? '正在保存…' : '完成今天打卡'),
+          style: FilledButton.styleFrom(
+            backgroundColor: _sage,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(52),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+      );
+    }
+    return Semantics(
         button: true,
         enabled: widget.enabled,
         label: '长按两秒完成健身打卡',
@@ -145,6 +170,6 @@ class _WorkoutCheckInButtonState extends State<WorkoutCheckInButton>
               ),
             ),
           ),
-        ),
-      );
+        ));
+  }
 }

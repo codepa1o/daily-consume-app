@@ -1,21 +1,29 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter/semantics.dart' show SemanticsBinding;
+import 'package:flutter/services.dart';
 
 import 'data/app_database.dart';
 import 'data/api_client.dart';
 import 'account_pages.dart';
-import 'update/app_updates.dart';
+import 'update/app_updates_platform.dart';
 import 'workout_page.dart';
+import 'travel_planner_page.dart';
 import 'female_health_page.dart';
 import 'life_calendar.dart';
 import 'couple_page.dart' show recoverCouplePhoto;
+import 'navigation/app_location.dart';
 import 'pomodoro_card.dart';
+import 'widgets/app_logo.dart';
 
 const paper = Color(0xfff6f5ef);
 const surface = Color(0xfffffefa);
 const ink = Color(0xff292c25);
-const muted = Color(0xff85877d);
+const muted = Color(0xff70756b);
 const line = Color(0xffe8e7df);
 const sage = Color(0xff64765a);
 const sageSoft = Color(0xffe9eee4);
@@ -23,6 +31,9 @@ const mealTypes = ['早餐', '午餐', '晚餐'];
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    SemanticsBinding.instance.ensureSemantics();
+  }
   await recoverCouplePhoto();
   runApp(const DailyConsumeApp());
 }
@@ -34,6 +45,12 @@ class DailyConsumeApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
         title: '日常',
         debugShowCheckedModeBanner: false,
+        locale: const Locale('zh', 'CN'),
+        supportedLocales: const [Locale('zh', 'CN')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+        ],
         theme: ThemeData(
           useMaterial3: true,
           scaffoldBackgroundColor: paper,
@@ -53,106 +70,296 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  String selected = 'body';
+  late String selected;
+  late final StreamSubscription<String?> _pageSubscription;
   final _pomodoroTimer = PomodoroTimerController();
 
   @override
+  void initState() {
+    super.initState();
+    selected = initialAppPage;
+    _pageSubscription = appPageChanges.listen((page) {
+      if (page != null && mounted) setState(() => selected = page);
+    });
+  }
+
+  @override
   void dispose() {
+    _pageSubscription.cancel();
     _pomodoroTimer.dispose();
     super.dispose();
   }
+
+  void _selectPage(String page) {
+    if (page == selected) return;
+    setState(() => selected = page);
+    pushAppPage(page);
+  }
+
+  Widget _timerBanner() => AnimatedBuilder(
+        animation: _pomodoroTimer,
+        builder: (context, _) {
+          final info = _pomodoroTimer.info;
+          if (info == null) return const SizedBox.shrink();
+          return Material(
+            color: surface,
+            child: InkWell(
+              onTap: () => _selectPage('body'),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+                child: Row(children: [
+                  const Icon(Icons.timer_outlined, color: sage),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(info.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600)),
+                        const Text('返回番茄钟',
+                            style: TextStyle(color: muted, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(info.remaining,
+                      style: const TextStyle(
+                          color: sage,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                          fontWeight: FontWeight.w600)),
+                  if (info.paused) ...[
+                    const SizedBox(width: 8),
+                    const Text('已暂停',
+                        style: TextStyle(color: muted, fontSize: 11)),
+                  ],
+                ]),
+              ),
+            ),
+          );
+        },
+      );
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
       listenable: ApiClient.instance,
       builder: (context, _) {
         final female = ApiClient.instance.account?.isFemale == true;
-        final tabs = ['body', 'diary', 'workout', if (female) 'female'];
+        final tabs = [
+          'body',
+          'diary',
+          'workout',
+          'travel',
+          if (female) 'female'
+        ];
         if (!tabs.contains(selected)) selected = 'body';
-        return Scaffold(
-          drawer: const Drawer(
-            backgroundColor: paper,
-            child: MyPage(),
-          ),
-          body: IndexedStack(index: tabs.indexOf(selected), children: [
+        final pageStack = IndexedStack(
+          index: tabs.indexOf(selected),
+          children: [
             BodyPage(
                 key: const ValueKey('body'), timerController: _pomodoroTimer),
             const DiaryPage(key: ValueKey('diary')),
             const WorkoutPage(key: ValueKey('workout')),
+            const TravelPlannerPage(key: ValueKey('travel')),
             if (female) const FemaleHealthPage(key: ValueKey('female')),
-          ]),
-          bottomNavigationBar: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedBuilder(
-                animation: _pomodoroTimer,
-                builder: (context, _) {
-                  final info = _pomodoroTimer.info;
-                  if (info == null) return const SizedBox.shrink();
-                  return Material(
-                    color: surface,
-                    child: InkWell(
-                      onTap: () => setState(() => selected = 'body'),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 9),
-                        child: Row(children: [
-                          const Icon(Icons.timer_outlined, color: sage),
-                          const SizedBox(width: 11),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        );
+        return LayoutBuilder(builder: (context, constraints) {
+          final desktop = constraints.maxWidth >= 840;
+          final extendedRail = constraints.maxWidth >= 1200;
+          return Scaffold(
+            drawer: const Drawer(
+              backgroundColor: paper,
+              child: MyPage(),
+            ),
+            body: desktop
+                ? SafeArea(
+                    child: Row(children: [
+                      Container(
+                        width: extendedRail ? 244 : 80,
+                        color: surface,
+                        child: Column(children: [
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                                extendedRail ? 22 : 0, 22, 12, 18),
+                            child: Row(
+                              mainAxisAlignment: extendedRail
+                                  ? MainAxisAlignment.start
+                                  : MainAxisAlignment.center,
                               children: [
-                                Text(info.label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600)),
-                                Text('返回番茄钟',
-                                    style:
-                                        TextStyle(color: muted, fontSize: 11)),
+                                const AppLogo(),
+                                if (extendedRail) ...[
+                                  const SizedBox(width: 10),
+                                  const Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text('DAY BY DAY',
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                letterSpacing: 1.4)),
+                                        SizedBox(height: 3),
+                                        Text('日常记录',
+                                            style: TextStyle(
+                                                color: muted, fontSize: 11)),
+                                      ]),
+                                ],
                               ],
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Text(info.remaining,
-                              style: const TextStyle(
-                                  color: sage,
-                                  fontFeatures: [FontFeature.tabularFigures()],
-                                  fontWeight: FontWeight.w600)),
-                          if (info.paused) ...[
-                            const SizedBox(width: 8),
-                            const Text('已暂停',
-                                style: TextStyle(color: muted, fontSize: 11)),
-                          ],
+                          if (extendedRail)
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(22, 0, 12, 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text('工作区',
+                                    style: TextStyle(
+                                        color: muted,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                          Expanded(
+                            child: NavigationRail(
+                              selectedIndex: tabs.indexOf(selected),
+                              onDestinationSelected: (index) =>
+                                  _selectPage(tabs[index]),
+                              extended: extendedRail,
+                              labelType: extendedRail
+                                  ? NavigationRailLabelType.none
+                                  : NavigationRailLabelType.all,
+                              minWidth: 80,
+                              minExtendedWidth: 244,
+                              groupAlignment: -1,
+                              backgroundColor: surface,
+                              indicatorColor: sageSoft,
+                              destinations: [
+                                const NavigationRailDestination(
+                                    icon: Icon(Icons.show_chart_rounded),
+                                    label: Text('身体')),
+                                const NavigationRailDestination(
+                                    icon: Icon(Icons.restaurant_menu_rounded),
+                                    label: Text('饮食消费')),
+                                const NavigationRailDestination(
+                                    icon: Icon(Icons.fitness_center_rounded),
+                                    label: Text('健身')),
+                                const NavigationRailDestination(
+                                    icon: Icon(Icons.travel_explore_rounded),
+                                    label: Text('旅游规划')),
+                                if (female)
+                                  const NavigationRailDestination(
+                                      icon: Icon(Icons.local_florist_outlined),
+                                      label: Text('女性健康')),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 1, color: line),
+                          Builder(builder: (scaffoldContext) {
+                            final account = ApiClient.instance.account;
+                            return Tooltip(
+                              message: '我的账户与设置',
+                              child: InkWell(
+                                onTap: () =>
+                                    Scaffold.of(scaffoldContext).openDrawer(),
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: extendedRail ? 18 : 0,
+                                      vertical: 14),
+                                  child: Row(
+                                    mainAxisAlignment: extendedRail
+                                        ? MainAxisAlignment.start
+                                        : MainAxisAlignment.center,
+                                    children: [
+                                      AccountAvatar(
+                                          bytes: account?.avatarBytes,
+                                          radius: 20),
+                                      if (extendedRail) ...[
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(account?.nickname ?? '我的',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w600)),
+                                              const Text('账户与设置',
+                                                  style: TextStyle(
+                                                      color: muted,
+                                                      fontSize: 11)),
+                                            ],
+                                          ),
+                                        ),
+                                        const Icon(Icons.chevron_right,
+                                            color: muted, size: 18),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
                         ]),
                       ),
-                    ),
-                  );
-                },
-              ),
-              NavigationBar(
-                selectedIndex: tabs.indexOf(selected),
-                onDestinationSelected: (index) =>
-                    setState(() => selected = tabs[index]),
-                backgroundColor: surface,
-                indicatorColor: sageSoft,
-                destinations: [
-                  const NavigationDestination(
-                      icon: Icon(Icons.show_chart_rounded), label: '身体'),
-                  const NavigationDestination(
-                      icon: Icon(Icons.restaurant_menu_rounded), label: '饮食消费'),
-                  const NavigationDestination(
-                      icon: Icon(Icons.fitness_center_rounded), label: '健身'),
-                  if (female)
-                    const NavigationDestination(
-                        icon: Icon(Icons.local_florist_outlined),
-                        label: '女性健康'),
-                ],
-              ),
-            ],
-          ),
-        );
+                      const VerticalDivider(width: 1, color: line),
+                      Expanded(
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1480),
+                            child: Column(children: [
+                              Expanded(child: pageStack),
+                              _timerBanner(),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  )
+                : pageStack,
+            bottomNavigationBar: desktop
+                ? null
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _timerBanner(),
+                      NavigationBar(
+                        selectedIndex: tabs.indexOf(selected),
+                        onDestinationSelected: (index) =>
+                            _selectPage(tabs[index]),
+                        backgroundColor: surface,
+                        indicatorColor: sageSoft,
+                        destinations: [
+                          const NavigationDestination(
+                              icon: Icon(Icons.show_chart_rounded),
+                              label: '身体'),
+                          const NavigationDestination(
+                              icon: Icon(Icons.restaurant_menu_rounded),
+                              label: '饮食消费'),
+                          const NavigationDestination(
+                              icon: Icon(Icons.fitness_center_rounded),
+                              label: '健身'),
+                          const NavigationDestination(
+                              icon: Icon(Icons.travel_explore_rounded),
+                              label: '旅游规划'),
+                          if (female)
+                            const NavigationDestination(
+                                icon: Icon(Icons.local_florist_outlined),
+                                label: '女性健康'),
+                        ],
+                      ),
+                    ],
+                  ),
+          );
+        });
       });
 }
 
@@ -169,6 +376,7 @@ class _BodyPageState extends State<BodyPage> {
   final db = AppDatabase.instance;
   List<BodyEntry> weights = [];
   List<BodyEntry> heights = [];
+  double? goalWeight;
   bool loading = true;
   bool _aiBusy = false;
   String? loadError;
@@ -180,18 +388,25 @@ class _BodyPageState extends State<BodyPage> {
     reload();
   }
 
-  Future<void> reload() async {
+  Future<void> reload({bool showLoading = true}) async {
     final version = ++_loadVersion;
-    setState(() {
-      loading = true;
-      loadError = null;
-    });
+    if (showLoading) {
+      setState(() {
+        loading = true;
+        loadError = null;
+      });
+    }
     try {
-      final data = await Future.wait([db.getWeights(), db.getHeights()]);
+      final data = await Future.wait<Object?>([
+        db.getWeights(),
+        db.getHeights(),
+        db.getGoalWeight(),
+      ]);
       if (!mounted || version != _loadVersion) return;
       setState(() {
-        weights = data[0];
-        heights = data[1];
+        weights = data[0] as List<BodyEntry>;
+        heights = data[1] as List<BodyEntry>;
+        goalWeight = data[2] as double?;
         loading = false;
       });
     } catch (error) {
@@ -266,13 +481,12 @@ class _BodyPageState extends State<BodyPage> {
   Future<void> editValue({required bool weight}) async {
     final entries = weight ? weights : heights;
     final latest = entries.isEmpty ? null : entries.last;
-    final input =
-        TextEditingController(text: latest?.value.toStringAsFixed(1) ?? '');
     final formKey = GlobalKey<FormState>();
+    double? inputValue;
     var date = DateTime.now();
     var saving = false;
 
-    await showDialog<void>(
+    final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
@@ -284,7 +498,7 @@ class _BodyPageState extends State<BodyPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextFormField(
-                  controller: input,
+                  initialValue: latest?.value.toStringAsFixed(1) ?? '',
                   autofocus: true,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
@@ -306,6 +520,7 @@ class _BodyPageState extends State<BodyPage> {
                       return '身高范围为 80–250 cm';
                     return null;
                   },
+                  onSaved: (raw) => inputValue = double.tryParse(raw ?? ''),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -333,7 +548,8 @@ class _BodyPageState extends State<BodyPage> {
                   ? null
                   : () async {
                       if (!formKey.currentState!.validate()) return;
-                      final value = double.parse(input.text);
+                      formKey.currentState!.save();
+                      final value = inputValue!;
                       setDialogState(() => saving = true);
                       final success =
                           await serverAction(dialogContext, () async {
@@ -348,14 +564,7 @@ class _BodyPageState extends State<BodyPage> {
                         setDialogState(() => saving = false);
                         return;
                       }
-                      Navigator.pop(dialogContext);
-                      await reload();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text(weight ? '体重记录已保存' : '身高记录已保存')),
-                        );
-                      }
+                      Navigator.pop(dialogContext, true);
                     },
               child: Text(saving ? '保存中…' : '保存'),
             ),
@@ -363,7 +572,96 @@ class _BodyPageState extends State<BodyPage> {
         ),
       ),
     );
-    input.dispose();
+    if (saved == true && mounted) {
+      await reload(showLoading: false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(weight ? '体重记录已保存' : '身高记录已保存')),
+        );
+      }
+    }
+  }
+
+  Future<void> editGoalWeight() async {
+    final formKey = GlobalKey<FormState>();
+    double? inputValue;
+    var saving = false;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          Future<void> persist(double? value) async {
+            setDialogState(() => saving = true);
+            final success = await serverAction(
+                dialogContext, () => db.saveGoalWeight(value));
+            if (!dialogContext.mounted) return;
+            if (!success) {
+              setDialogState(() => saving = false);
+              return;
+            }
+            Navigator.pop(dialogContext, true);
+          }
+
+          return AlertDialog(
+            title: const Text('设置目标体重',
+                style: TextStyle(fontFamily: 'serif', fontSize: 24)),
+            content: Form(
+              key: formKey,
+              child: TextFormField(
+                initialValue: goalWeight?.toStringAsFixed(1) ?? '',
+                autofocus: true,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: '目标体重（kg）',
+                  filled: true,
+                  fillColor: paper,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none),
+                ),
+                validator: (raw) {
+                  final value = double.tryParse(raw ?? '');
+                  if (value == null || !value.isFinite) return '请输入有效数值';
+                  if (value < 20 || value > 300) return '体重范围为 20–300 kg';
+                  return null;
+                },
+                onSaved: (raw) => inputValue = double.tryParse(raw ?? ''),
+              ),
+            ),
+            actions: [
+              if (goalWeight != null)
+                TextButton(
+                  onPressed: saving ? null : () => persist(null),
+                  child: const Text('清除目标'),
+                ),
+              TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('取消')),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () {
+                        if (!formKey.currentState!.validate()) return;
+                        formKey.currentState!.save();
+                        persist(inputValue);
+                      },
+                child: Text(saving ? '保存中…' : '保存'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (saved == true && mounted) {
+      await reload(showLoading: false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('目标体重已更新')),
+        );
+      }
+    }
   }
 
   @override
@@ -372,142 +670,179 @@ class _BodyPageState extends State<BodyPage> {
     final latestHeight = heights.isEmpty ? null : heights.last;
     final series = weights;
     const unit = 'kg';
-
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-        children: [
-          const _TopLine(),
-          const SizedBox(height: 22),
-          const _Kicker('身体记录'),
-          const SizedBox(height: 7),
-          const Text(
-            '慢一点，\n也看得见变化。',
-            style: TextStyle(
-                color: ink,
-                fontFamily: 'serif',
-                fontSize: 32,
-                height: 1.12,
-                letterSpacing: -1.1),
-          ),
-          const SizedBox(height: 7),
-          const Text('持续记录，让身体的状态有迹可循。',
-              style: TextStyle(color: muted, fontSize: 13)),
-          const SizedBox(height: 22),
-          if (loading)
-            const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator(color: sage)))
-          else if (loadError != null)
-            NetworkFailure(message: loadError!, onRetry: reload)
-          else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: _MetricCard(
-                    label: '当前身高',
-                    value: latestHeight?.value.toStringAsFixed(1) ?? '—',
-                    unit: 'cm',
-                    caption: latestHeight == null
-                        ? '添加一次身高记录'
-                        : '最近更新 · ' + formatDate(latestHeight.date),
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: _MetricCard(
-                    label: '最近体重',
-                    value: latestWeight?.value.toStringAsFixed(1) ?? '—',
-                    unit: 'kg',
-                    caption: latestWeight == null
-                        ? '记录今天的体重'
-                        : '最近记录 · ' + formatDate(latestWeight.date),
-                    emphasized: true,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 17),
-            _SectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('体重趋势',
-                      style:
-                          TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 14),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        series.isEmpty
-                            ? '—'
-                            : series.last.value.toStringAsFixed(1) + ' ' + unit,
-                        style: const TextStyle(
-                            fontFamily: 'serif', fontSize: 25, color: ink),
-                      ),
-                      const SizedBox(width: 8),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(series.length.toString() + ' 条记录',
-                            style: const TextStyle(color: muted, fontSize: 10)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  if (series.isEmpty)
-                    const _EmptyChart()
-                  else
-                    SizedBox(
-                      height: 150,
-                      child: CustomPaint(
-                        painter: _TrendPainter(
-                            values: series.map((entry) => entry.value).toList(),
-                            color: sage),
-                        child: const SizedBox.expand(),
-                      ),
-                    ),
-                  if (series.isNotEmpty)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(formatDate(series.first.date),
-                            style: const TextStyle(color: muted, fontSize: 9)),
-                        Text(formatDate(series.last.date),
-                            style: const TextStyle(color: muted, fontSize: 9)),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            _ActionPanel(
-              title: '今天称过体重了吗？',
-              subtitle: '记录或修改某一天的体重',
-              buttonLabel: '记录体重',
-              onPressed: () => editValue(weight: true),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => editValue(weight: false),
-              icon: const Icon(Icons.add, size: 17),
-              label: Text(latestHeight == null ? '添加身高记录' : '更新身高记录'),
-              style: OutlinedButton.styleFrom(
+    return LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 1080;
+      final chart = _SectionCard(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Expanded(
+                child: Text('体重趋势',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+            Text('${series.length} 条记录',
+                style: const TextStyle(color: muted, fontSize: 12)),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: editGoalWeight,
+              icon: const Icon(Icons.flag_outlined, size: 15),
+              label: Text(goalWeight == null
+                  ? '设置目标'
+                  : '目标 ${goalWeight!.toStringAsFixed(1)} kg'),
+              style: TextButton.styleFrom(
                 foregroundColor: sage,
-                side: const BorderSide(color: Color(0xffd9ded3)),
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                minimumSize: const Size(0, 34),
+                textStyle: const TextStyle(fontSize: 11),
               ),
             ),
+          ]),
+          const SizedBox(height: 12),
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(
+              series.isEmpty
+                  ? '—'
+                  : '${series.last.value.toStringAsFixed(1)} $unit',
+              style: const TextStyle(
+                  fontFamily: 'serif', fontSize: 27, color: ink),
+            ),
+            if (series.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(formatDate(series.last.date),
+                    style: const TextStyle(color: muted, fontSize: 11)),
+              ),
+            ],
+          ]),
+          const SizedBox(height: 8),
+          if (series.isEmpty)
+            const _EmptyChart()
+          else
+            _InteractiveWeightChart(entries: series, goalWeight: goalWeight),
+          if (series.isNotEmpty)
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text(formatDate(series.first.date),
+                  style: const TextStyle(color: muted, fontSize: 11)),
+              Text(formatDate(series.last.date),
+                  style: const TextStyle(color: muted, fontSize: 11)),
+            ]),
+        ]),
+      );
+      final heightSection = Row(children: [
+        Expanded(
+          child: _MetricCard(
+            label: '当前身高',
+            value: latestHeight?.value.toStringAsFixed(1) ?? '—',
+            unit: 'cm',
+            caption: latestHeight == null
+                ? '添加一次身高记录'
+                : '最近更新 · ${formatDate(latestHeight.date)}',
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 136,
+          child: OutlinedButton.icon(
+            onPressed: () => editValue(weight: false),
+            icon: const Icon(Icons.add, size: 17),
+            label: Text(latestHeight == null ? '添加身高记录' : '更新身高记录'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: sage,
+              side: const BorderSide(color: Color(0xffd9ded3)),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
+              textStyle: const TextStyle(fontSize: 11),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
+      ]);
+      final weightSection = Row(children: [
+        Expanded(
+          child: _MetricCard(
+            label: '最近体重',
+            value: latestWeight?.value.toStringAsFixed(1) ?? '—',
+            unit: 'kg',
+            caption: latestWeight == null
+                ? '记录今天的体重'
+                : '最近记录 · ${formatDate(latestWeight.date)}',
+            emphasized: true,
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 152,
+          child: _ActionPanel(
+            title: '今天称过体重了吗？',
+            subtitle: '记录或修改某一天的体重',
+            buttonLabel: '记录体重',
+            onPressed: () => editValue(weight: true),
+          ),
+        ),
+      ]);
+      final metrics = constraints.maxWidth >= 640
+          ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: heightSection),
+              const SizedBox(width: 14),
+              Expanded(child: weightSection),
+            ])
+          : Column(children: [
+              heightSection,
+              const SizedBox(height: 14),
+              weightSection,
+            ]);
+      final aiPanel = _aiPanel();
+
+      return SafeArea(
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(wide ? 36 : 20, 22, wide ? 36 : 20, 32),
+          children: [
+            const _TopLine(),
+            const SizedBox(height: 24),
+            const _Kicker('身体记录'),
+            const SizedBox(height: 7),
+            Text(
+              wide ? '慢一点，也看得见变化。' : '慢一点，\n也看得见变化。',
+              style: TextStyle(
+                  color: ink,
+                  fontFamily: 'serif',
+                  fontSize: wide ? 36 : 32,
+                  height: 1.12,
+                  letterSpacing: -1.1),
+            ),
+            const SizedBox(height: 7),
+            const Text('持续记录，让身体的状态有迹可循。',
+                style: TextStyle(color: muted, fontSize: 14)),
+            const SizedBox(height: 24),
+            if (loading)
+              const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator(color: sage)))
+            else if (loadError != null)
+              NetworkFailure(message: loadError!, onRetry: reload)
+            else ...[
+              metrics,
+              const SizedBox(height: 18),
+              if (wide)
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(flex: 7, child: chart),
+                  const SizedBox(width: 18),
+                  Expanded(flex: 4, child: aiPanel),
+                ])
+              else ...[
+                chart,
+                const SizedBox(height: 14),
+                aiPanel,
+              ],
+            ],
+            const SizedBox(height: 10),
+            const LifeCalendar(),
+            const SizedBox(height: 16),
+            PomodoroCard(timerController: widget.timerController),
           ],
-          _aiPanel(),
-          const LifeCalendar(),
-          const SizedBox(height: 16),
-          PomodoroCard(timerController: widget.timerController),
-        ],
-      ),
-    );
+        ),
+      );
+    });
   }
 }
 
@@ -1132,66 +1467,47 @@ class _DiaryPageState extends State<DiaryPage> {
       return NetworkFailure(message: loadError!, onRetry: reload);
     final mealByType = {for (final meal in dayMeals) meal.mealType: meal};
     final isToday = dateKey(selectedDate) == dateKey(DateTime.now());
-
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+    return LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 1050;
+      final dailyRecords = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _TopLine(),
-          const SizedBox(height: 22),
-          const _Kicker('饮食日记'),
-          const SizedBox(height: 7),
-          const Text('今天吃了什么？',
-              style: TextStyle(
-                  color: ink,
-                  fontFamily: 'serif',
-                  fontSize: 31,
-                  letterSpacing: -1)),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () =>
-                    setDate(selectedDate.subtract(const Duration(days: 1))),
-                icon: const Icon(Icons.chevron_left_rounded),
-                visualDensity: VisualDensity.compact,
-              ),
-              Expanded(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: chooseDate,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 7),
-                    child: Column(
-                      children: [
-                        Text(formatDate(selectedDate, year: true),
-                            style: const TextStyle(
-                                fontFamily: 'serif', fontSize: 17)),
-                        const SizedBox(height: 3),
-                        Text(
-                          weekdayName(selectedDate.weekday) +
-                              ' · ' +
-                              (isToday ? '今天' : '历史记录'),
-                          style: const TextStyle(color: muted, fontSize: 10),
-                        ),
-                      ],
-                    ),
-                  ),
+          Row(children: [
+            IconButton(
+              tooltip: '前一天',
+              onPressed: () =>
+                  setDate(selectedDate.subtract(const Duration(days: 1))),
+              icon: const Icon(Icons.chevron_left_rounded),
+            ),
+            Expanded(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: chooseDate,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  child: Column(children: [
+                    Text(formatDate(selectedDate, year: true),
+                        style:
+                            const TextStyle(fontFamily: 'serif', fontSize: 18)),
+                    const SizedBox(height: 3),
+                    Text(
+                        '${weekdayName(selectedDate.weekday)} · ${isToday ? '今天' : '历史记录'}',
+                        style: const TextStyle(color: muted, fontSize: 12)),
+                  ]),
                 ),
               ),
-              IconButton(
-                onPressed: isToday
-                    ? null
-                    : () => setDate(selectedDate.add(const Duration(days: 1))),
-                icon: const Icon(Icons.chevron_right_rounded),
-                visualDensity: VisualDensity.compact,
-              ),
-              TextButton(
+            ),
+            IconButton(
+              tooltip: '后一天',
+              onPressed: isToday
+                  ? null
+                  : () => setDate(selectedDate.add(const Duration(days: 1))),
+              icon: const Icon(Icons.chevron_right_rounded),
+            ),
+            TextButton(
                 onPressed: () => setDate(DateTime.now()),
-                child: const Text('今天'),
-              ),
-            ],
-          ),
+                child: const Text('今天')),
+          ]),
           const SizedBox(height: 8),
           _DailySpendCard(totalCents: dayTotal, mealCount: dayMeals.length),
           const SizedBox(height: 19),
@@ -1199,8 +1515,8 @@ class _DiaryPageState extends State<DiaryPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('三餐记录',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-              Text('餐费按餐次汇总', style: TextStyle(fontSize: 10, color: muted)),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              Text('餐费按餐次汇总', style: TextStyle(fontSize: 11, color: muted)),
             ],
           ),
           const SizedBox(height: 10),
@@ -1216,19 +1532,48 @@ class _DiaryPageState extends State<DiaryPage> {
               ),
             );
           }),
-          const SizedBox(height: 10),
-          _StatisticsCard(
-            period: period,
-            totalCents: periodTotal,
-            breakfastCents: mealTotal('早餐'),
-            lunchCents: mealTotal('午餐'),
-            dinnerCents: mealTotal('晚餐'),
-            chartValues: chartValues(),
-            onPeriodChanged: setPeriod,
-          ),
         ],
-      ),
-    );
+      );
+      final statistics = _StatisticsCard(
+        period: period,
+        totalCents: periodTotal,
+        breakfastCents: mealTotal('早餐'),
+        lunchCents: mealTotal('午餐'),
+        dinnerCents: mealTotal('晚餐'),
+        chartValues: chartValues(),
+        onPeriodChanged: setPeriod,
+      );
+
+      return SafeArea(
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(wide ? 36 : 20, 22, wide ? 36 : 20, 32),
+          children: [
+            const _TopLine(),
+            const SizedBox(height: 24),
+            const _Kicker('饮食日记'),
+            const SizedBox(height: 7),
+            Text('今天吃了什么？',
+                style: TextStyle(
+                    color: ink,
+                    fontFamily: 'serif',
+                    fontSize: wide ? 36 : 31,
+                    letterSpacing: -1)),
+            const SizedBox(height: 16),
+            if (wide)
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(flex: 6, child: dailyRecords),
+                const SizedBox(width: 20),
+                Expanded(flex: 4, child: statistics),
+              ])
+            else ...[
+              dailyRecords,
+              const SizedBox(height: 14),
+              statistics,
+            ],
+          ],
+        ),
+      );
+    });
   }
 }
 
@@ -1236,40 +1581,45 @@ class _TopLine extends StatelessWidget {
   const _TopLine();
 
   @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          ListenableBuilder(
-            listenable: ApiClient.instance,
-            builder: (context, _) => IconButton(
-              tooltip: '打开我的',
-              onPressed: () => Scaffold.of(context).openDrawer(),
-              padding: EdgeInsets.zero,
-              icon: AccountAvatar(
-                bytes: ApiClient.instance.account?.avatarBytes,
-                radius: 21,
+  Widget build(BuildContext context) =>
+      LayoutBuilder(builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900;
+        return Row(
+          children: [
+            ListenableBuilder(
+              listenable: ApiClient.instance,
+              builder: (context, _) => IconButton(
+                tooltip: '打开我的',
+                onPressed: () => Scaffold.of(context).openDrawer(),
+                padding: EdgeInsets.zero,
+                icon: AccountAvatar(
+                  bytes: ApiClient.instance.account?.avatarBytes,
+                  radius: 21,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('DAY BY DAY',
-                  style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.8)),
-              SizedBox(height: 2),
-              Text('身体 · 饮食 · 日常消费',
-                  style: TextStyle(fontSize: 9, color: muted)),
-            ],
-          ),
-          const Spacer(),
-          const Icon(Icons.cloud_done_outlined, color: sage, size: 16),
-          const SizedBox(width: 4),
-          const Text('账号记录', style: TextStyle(fontSize: 10, color: sage)),
-        ],
-      );
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('DAY BY DAY',
+                    style: TextStyle(
+                        fontSize: wide ? 12 : 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.8)),
+                SizedBox(height: wide ? 4 : 2),
+                Text('身体 · 饮食 · 日常消费',
+                    style: TextStyle(fontSize: wide ? 11 : 10, color: muted)),
+              ],
+            ),
+            const Spacer(),
+            Icon(Icons.cloud_done_outlined, color: sage, size: wide ? 19 : 16),
+            const SizedBox(width: 4),
+            Text('账号记录',
+                style: TextStyle(fontSize: wide ? 12 : 10, color: sage)),
+          ],
+        );
+      });
 }
 
 class _Kicker extends StatelessWidget {
@@ -1281,7 +1631,7 @@ class _Kicker extends StatelessWidget {
         text,
         style: const TextStyle(
             color: sage,
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.8),
       );
@@ -1311,7 +1661,7 @@ class _MetricCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(color: muted, fontSize: 10)),
+            Text(label, style: const TextStyle(color: muted, fontSize: 12)),
             const SizedBox(height: 9),
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -1320,13 +1670,13 @@ class _MetricCard extends StatelessWidget {
                   child: Text(value,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          fontFamily: 'serif', fontSize: 27, height: 1)),
+                          fontFamily: 'serif', fontSize: 30, height: 1)),
                 ),
                 const SizedBox(width: 4),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 2),
                   child: Text(unit,
-                      style: const TextStyle(color: muted, fontSize: 10)),
+                      style: const TextStyle(color: muted, fontSize: 11)),
                 ),
               ],
             ),
@@ -1334,7 +1684,7 @@ class _MetricCard extends StatelessWidget {
             Text(caption,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: muted, fontSize: 9)),
+                style: const TextStyle(color: muted, fontSize: 11)),
           ],
         ),
       );
@@ -1346,7 +1696,8 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(15),
+        padding:
+            EdgeInsets.all(MediaQuery.sizeOf(context).width >= 1100 ? 20 : 15),
         decoration: BoxDecoration(
           color: surface,
           borderRadius: BorderRadius.circular(18),
@@ -1375,32 +1726,247 @@ class _EmptyChart extends StatelessWidget {
       );
 }
 
+const _weightChartLeft = 48.0;
+const _weightChartRight = 4.0;
+
+class _InteractiveWeightChart extends StatefulWidget {
+  const _InteractiveWeightChart(
+      {required this.entries, required this.goalWeight});
+
+  final List<BodyEntry> entries;
+  final double? goalWeight;
+
+  @override
+  State<_InteractiveWeightChart> createState() =>
+      _InteractiveWeightChartState();
+}
+
+class _InteractiveWeightChartState extends State<_InteractiveWeightChart> {
+  int? _selectedIndex;
+  int _rangeDays = 0;
+
+  List<BodyEntry> get _visibleEntries {
+    if (_rangeDays == 0 || widget.entries.isEmpty) return widget.entries;
+    final firstDate =
+        widget.entries.last.date.subtract(Duration(days: _rangeDays - 1));
+    return widget.entries
+        .where((entry) => !entry.date.isBefore(firstDate))
+        .toList();
+  }
+
+  int _indexAt(double x, double width) {
+    final entries = _visibleEntries;
+    final plotWidth = width - _weightChartLeft - _weightChartRight;
+    if (entries.length < 2 || plotWidth <= 0) return 0;
+    final plotX = (x - _weightChartLeft).clamp(0.0, plotWidth).toDouble();
+    return (plotX / plotWidth * (entries.length - 1))
+        .round()
+        .clamp(0, entries.length - 1)
+        .toInt();
+  }
+
+  void _selectAt(Offset position, double width) {
+    if (_visibleEntries.isEmpty) return;
+    final next = _indexAt(position.dx, width);
+    if (_selectedIndex != next) setState(() => _selectedIndex = next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = _visibleEntries;
+    final selected = _selectedIndex == null
+        ? null
+        : entries.isEmpty
+            ? null
+            : entries[_selectedIndex!.clamp(0, entries.length - 1).toInt()];
+    final rangeLabel = _rangeDays == 0 ? '全部' : '近 $_rangeDays 天';
+    final semanticsValue = [
+      selected == null
+          ? '$rangeLabel，共 ${entries.length} 条记录'
+          : '${formatDate(selected.date)}，${selected.value.toStringAsFixed(1)} 千克',
+      if (widget.goalWeight != null)
+        '目标 ${widget.goalWeight!.toStringAsFixed(1)} 千克',
+    ].join('，');
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (entries.isEmpty) return KeyEventResult.ignored;
+        final current = _selectedIndex ?? entries.length - 1;
+        final next = switch (event.logicalKey) {
+          LogicalKeyboardKey.arrowLeft =>
+            (current - 1).clamp(0, entries.length - 1).toInt(),
+          LogicalKeyboardKey.arrowRight =>
+            (current + 1).clamp(0, entries.length - 1).toInt(),
+          _ => null,
+        };
+        if (next == null) return KeyEventResult.ignored;
+        setState(() => _selectedIndex = next);
+        return KeyEventResult.handled;
+      },
+      child: Semantics(
+        button: true,
+        label: '体重趋势图',
+        value: semanticsValue,
+        hint: '点击数据点，或聚焦后使用左右方向键浏览记录',
+        child: Column(children: [
+          Row(children: [
+            Text('$rangeLabel · ${entries.length} 条',
+                style: const TextStyle(color: muted, fontSize: 12)),
+            const Spacer(),
+            PopupMenuButton<int>(
+              tooltip: '选择趋势时间范围',
+              initialValue: _rangeDays,
+              onSelected: (value) => setState(() {
+                _rangeDays = value;
+                _selectedIndex = null;
+              }),
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 7, child: Text('最近 7 天')),
+                PopupMenuItem(value: 30, child: Text('最近 30 天')),
+                PopupMenuItem(value: 90, child: Text('最近 90 天')),
+                PopupMenuItem(value: 0, child: Text('全部记录')),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.calendar_month_outlined,
+                      size: 16, color: sage),
+                  const SizedBox(width: 5),
+                  Text(rangeLabel,
+                      style: const TextStyle(
+                          color: sage,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600)),
+                  const Icon(Icons.expand_more, size: 18, color: sage),
+                ]),
+              ),
+            ),
+          ]),
+          SizedBox(
+            height: 180,
+            child: LayoutBuilder(builder: (context, constraints) {
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onHover: (event) =>
+                    _selectAt(event.localPosition, constraints.maxWidth),
+                onExit: (_) => setState(() => _selectedIndex = null),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (event) =>
+                      _selectAt(event.localPosition, constraints.maxWidth),
+                  child: entries.isEmpty
+                      ? const Center(child: Text('此时间范围内没有体重记录'))
+                      : CustomPaint(
+                          painter: _TrendPainter(
+                            values:
+                                entries.map((entry) => entry.value).toList(),
+                            color: sage,
+                            goalWeight: widget.goalWeight,
+                            selectedIndex: _selectedIndex,
+                          ),
+                          child: const SizedBox.expand(),
+                        ),
+                ),
+              );
+            }),
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 140),
+            child: SizedBox(
+              key: ValueKey(selected?.date),
+              width: double.infinity,
+              child: Text(
+                selected == null
+                    ? widget.goalWeight == null
+                        ? '悬停或点击图表查看记录'
+                        : '虚线表示目标体重 · 悬停或点击查看记录'
+                    : '${formatDate(selected.date)}　${selected.value.toStringAsFixed(1)} kg',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: sage, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
 class _TrendPainter extends CustomPainter {
-  const _TrendPainter({required this.values, required this.color});
+  const _TrendPainter(
+      {required this.values,
+      required this.color,
+      this.goalWeight,
+      this.selectedIndex});
   final List<double> values;
   final Color color;
+  final double? goalWeight;
+  final int? selectedIndex;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const left = 3.0;
-    const right = 3.0;
     const top = 12.0;
     const bottom = 11.0;
-    final chart =
-        Rect.fromLTRB(left, top, size.width - right, size.height - bottom);
+    final chart = Rect.fromLTRB(_weightChartLeft, top,
+        size.width - _weightChartRight, size.height - bottom);
+    final axisTextStyle = const TextStyle(color: muted, fontSize: 10);
+    final unit = TextPainter(
+      text: TextSpan(text: 'kg', style: axisTextStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    unit.paint(canvas, Offset(0, 0));
+    if (values.isEmpty) return;
+
+    final allValues = [
+      ...values,
+      if (goalWeight != null) goalWeight!,
+    ];
+    final minValue = allValues.reduce((a, b) => a < b ? a : b);
+    final maxValue = allValues.reduce((a, b) => a > b ? a : b);
+    final step = _niceWeightStep(math.max((maxValue - minValue) / 3, .1));
+    var low = (minValue / step).floor() * step;
+    var high = (maxValue / step).ceil() * step;
+    if ((minValue - low).abs() < .000001) low -= step;
+    if ((high - maxValue).abs() < .000001) high += step;
+    if (high <= low) high = low + step;
+    var tickCount = ((high - low) / step).round();
+    if (tickCount < 2) {
+      low -= step;
+      high += step;
+      tickCount = ((high - low) / step).round();
+    }
     final grid = Paint()
       ..color = line
       ..strokeWidth = 1;
-    for (var row = 0; row < 3; row++) {
-      final y = chart.top + chart.height * row / 2;
+    for (var row = 0; row <= tickCount; row++) {
+      final y = chart.top + chart.height * row / tickCount;
       canvas.drawLine(Offset(chart.left, y), Offset(chart.right, y), grid);
+      final tick = TextPainter(
+        text: TextSpan(
+          text: (high - step * row).toStringAsFixed(step < 1 ? 1 : 0),
+          style: axisTextStyle,
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: _weightChartLeft - 9);
+      tick.paint(canvas,
+          Offset(_weightChartLeft - 7 - tick.width, y - tick.height / 2));
     }
-    if (values.isEmpty) return;
-    final minValue = values.reduce((a, b) => a < b ? a : b);
-    final maxValue = values.reduce((a, b) => a > b ? a : b);
-    final spread = math.max(maxValue - minValue, 0.4);
-    final low = minValue - spread * .22;
-    final high = maxValue + spread * .22;
+    canvas.drawLine(
+        Offset(chart.left, chart.top), Offset(chart.left, chart.bottom), grid);
+    if (goalWeight != null) {
+      final targetY =
+          chart.bottom - (goalWeight! - low) / (high - low) * chart.height;
+      final targetPaint = Paint()
+        ..color = const Color(0xffb4775d)
+        ..strokeWidth = 1.6;
+      var x = chart.left;
+      while (x < chart.right) {
+        canvas.drawLine(Offset(x, targetY),
+            Offset(math.min(x + 5, chart.right), targetY), targetPaint);
+        x += 9;
+      }
+    }
     final points = List.generate(values.length, (index) {
       final x = values.length == 1
           ? chart.center.dx
@@ -1444,11 +2010,35 @@ class _TrendPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.7,
     );
+    if (selectedIndex != null && selectedIndex! < points.length) {
+      final point = points[selectedIndex!];
+      canvas.drawLine(
+          Offset(point.dx, chart.top),
+          Offset(point.dx, chart.bottom),
+          Paint()
+            ..color = color.withValues(alpha: .28)
+            ..strokeWidth = 1);
+      canvas.drawCircle(point, 6, Paint()..color = surface);
+      canvas.drawCircle(point, 4, Paint()..color = color);
+    }
   }
 
   @override
   bool shouldRepaint(covariant _TrendPainter oldDelegate) =>
-      oldDelegate.color != color || !_sameValues(oldDelegate.values, values);
+      oldDelegate.color != color ||
+      oldDelegate.goalWeight != goalWeight ||
+      oldDelegate.selectedIndex != selectedIndex ||
+      !_sameValues(oldDelegate.values, values);
+}
+
+double _niceWeightStep(double target) {
+  final exponent = (math.log(target) / math.ln10).floor();
+  final scale = math.pow(10.0, exponent).toDouble();
+  final fraction = target / scale;
+  if (fraction <= 1) return scale;
+  if (fraction <= 2) return 2 * scale;
+  if (fraction <= 5) return 5 * scale;
+  return 10 * scale;
 }
 
 bool _sameValues(List<double> first, List<double> second) {
@@ -1477,33 +2067,29 @@ class _ActionPanel extends StatelessWidget {
         decoration: BoxDecoration(
             color: const Color(0xffebece4),
             borderRadius: BorderRadius.circular(16)),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Text(subtitle,
-                      style: const TextStyle(fontSize: 10, color: muted)),
-                ],
+            Text(title,
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(subtitle, style: const TextStyle(fontSize: 12, color: muted)),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: onPressed,
+                style: FilledButton.styleFrom(
+                  backgroundColor: sage,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                  textStyle: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                child: Text(buttonLabel),
               ),
-            ),
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: onPressed,
-              style: FilledButton.styleFrom(
-                backgroundColor: sage,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-                textStyle:
-                    const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
-              ),
-              child: Text(buttonLabel),
             ),
           ],
         ),

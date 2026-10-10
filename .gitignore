@@ -18,6 +18,10 @@ server/__pycache__/
 server/migrations/__pycache__/
 server/migrations/versions/__pycache__/
 server/.venv/
+server/__pycache__/
+server/travel_planner_core/**/__pycache__/
+server/travel_planner_core/__pycache__/
+.travel-cache/
 .env
 *.iml
 hs_err_pid*.log

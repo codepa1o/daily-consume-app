@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+
+import 'api_transport_io.dart'
+    if (dart.library.js_interop) 'api_transport_web.dart' as transport;
 
 enum AuthStatus { restoring, signedOut, signedIn, unavailable }
 
@@ -51,9 +52,8 @@ class ApiClient extends ChangeNotifier {
   static final instance = ApiClient._();
   static const _storage = FlutterSecureStorage();
   static const _tokenKey = 'daily_consume_session';
-  static final _base = Uri.parse(const String.fromEnvironment('API_BASE_URL',
-      defaultValue: 'https://47.99.142.117/api/v1/'));
-  HttpClient? _client;
+  static final _base = _apiBase();
+  http.Client? _client;
   String? _token;
   Future<void>? _clearingSession;
   Account? account;
@@ -61,17 +61,26 @@ class ApiClient extends ChangeNotifier {
   String message = '';
   int dataRevision = 0;
 
+  static Uri _apiBase() {
+    const configured = String.fromEnvironment('API_BASE_URL');
+    if (configured.isNotEmpty) return Uri.parse(configured);
+    if (kIsWeb) {
+      return kDebugMode
+          ? Uri.parse('http://127.0.0.1:8091/')
+          : Uri.base.resolve('/api/v1/');
+    }
+    return Uri.parse('https://47.99.142.117/api/v1/');
+  }
+
   Future<void> _prepare() async {
-    if (_base.scheme != 'https' || _base.host.isEmpty) {
-      throw const ApiException('服务器地址必须使用 HTTPS');
+    final localWebHttp = kIsWeb &&
+        _base.scheme == 'http' &&
+        const {'localhost', '127.0.0.1', '::1'}.contains(_base.host);
+    if ((_base.scheme != 'https' && !localWebHttp) || _base.host.isEmpty) {
+      throw const ApiException('服务器地址必须使用 HTTPS（本机开发可使用 localhost）');
     }
     if (_client != null) return;
-    final certificate = await rootBundle.load('assets/server_ca.pem');
-    final context = SecurityContext(withTrustedRoots: false)
-      ..setTrustedCertificatesBytes(certificate.buffer
-          .asUint8List(certificate.offsetInBytes, certificate.lengthInBytes));
-    _client = HttpClient(context: context)
-      ..connectionTimeout = const Duration(seconds: 12);
+    _client = await transport.createApiHttpClient();
   }
 
   Future<void> restore() async {
@@ -195,7 +204,8 @@ class ApiClient extends ChangeNotifier {
       {Object? body,
       Map<String, String>? query,
       bool authenticated = true,
-      bool binary = false}) async {
+      bool binary = false,
+      Duration? timeout}) async {
     await _prepare();
     final token = _token;
     if (authenticated && token == null)
@@ -204,27 +214,26 @@ class ApiClient extends ChangeNotifier {
         ? _base
         : _base.replace(path: '${_base.path}/');
     final uri = base.resolve(path).replace(queryParameters: query);
-    HttpClientRequest? outgoing;
     try {
-      outgoing = await _client!
-          .openUrl(method, uri)
-          .timeout(const Duration(seconds: 15));
-      outgoing.followRedirects = false;
-      outgoing.headers.set(HttpHeaders.acceptHeader, 'application/json');
-      if (authenticated)
-        outgoing.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      final outgoing = http.Request(method, uri)
+        ..followRedirects = false
+        ..headers['accept'] = 'application/json';
+      if (authenticated) outgoing.headers['authorization'] = 'Bearer $token';
       if (body != null) {
-        outgoing.headers.contentType = ContentType.json;
-        outgoing.write(jsonEncode(body));
+        outgoing.headers['content-type'] = 'application/json';
+        outgoing.body = jsonEncode(body);
       }
-      final response =
-          await outgoing.close().timeout(const Duration(seconds: 30));
-      final bytes = await consolidateHttpClientResponseBytes(response)
-          .timeout(const Duration(seconds: 30));
+      final response = await _client!
+          .send(outgoing)
+          .timeout(timeout ?? const Duration(seconds: 15));
+      final bytes = await response.stream
+          .toBytes()
+          .timeout(timeout ?? const Duration(seconds: 30));
       if (authenticated && token != _token)
         throw const ApiException('账号已切换，请重新加载');
-      if (binary && response.statusCode >= 200 && response.statusCode < 300)
-        return bytes;
+      if (binary && response.statusCode >= 200 && response.statusCode < 300) {
+        return Uint8List.fromList(bytes);
+      }
       final text = utf8.decode(bytes, allowMalformed: true);
       dynamic decoded;
       try {
@@ -245,11 +254,8 @@ class ApiClient extends ChangeNotifier {
                   : '服务器暂时不可用，请重试',
           statusCode: response.statusCode);
     } on TimeoutException catch (_) {
-      outgoing?.abort();
       throw const ApiException('连接超时，请检查网络后重试');
-    } on HandshakeException catch (_) {
-      throw const ApiException('服务器安全连接失败，请检查设备时间或更新应用');
-    } on IOException catch (_) {
+    } on http.ClientException catch (_) {
       throw const ApiException('无法连接服务器，请检查网络后重试');
     }
   }

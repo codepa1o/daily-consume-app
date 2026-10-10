@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
@@ -11,6 +12,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -99,6 +101,56 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "daily_consume/travel_exports")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "shareFiles") {
+                    shareTravelFiles(call, result)
+                } else {
+                    result.notImplemented()
+                }
+            }
+    }
+
+    private fun shareTravelFiles(call: io.flutter.plugin.common.MethodCall, result: MethodChannel.Result) {
+        try {
+            val files = call.argument<List<*>>("files").orEmpty()
+            require(files.isNotEmpty())
+            val subject = call.argument<String>("subject") ?: "旅游计划"
+            val directory = File(cacheDir, "travel_exports").apply { mkdirs() }
+            val staleBefore = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+            directory.listFiles()?.filter { it.lastModified() < staleBefore }?.forEach { it.delete() }
+
+            val uris = ArrayList<Uri>()
+            val mimeTypes = mutableSetOf<String>()
+            for (entry in files) {
+                val item = entry as? Map<*, *> ?: error("Invalid export item")
+                val name = (item["name"] as? String ?: "travel-export.bin")
+                    .replace(Regex("[^\\p{L}\\p{N}._-]"), "_")
+                    .take(100)
+                val bytes = item["bytes"] as? ByteArray ?: error("Invalid export bytes")
+                val mimeType = item["mimeType"] as? String ?: "application/octet-stream"
+                val file = File(directory, "${System.nanoTime()}_$name")
+                file.writeBytes(bytes)
+                mimeTypes.add(mimeType)
+                uris.add(FileProvider.getUriForFile(this, "$packageName.travel_exports", file))
+            }
+
+            val multiple = uris.size > 1
+            val intent = Intent(if (multiple) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND).apply {
+                type = if (multiple && mimeTypes.all { it.startsWith("image/") }) "image/*"
+                    else if (multiple) "*/*" else mimeTypes.first()
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                clipData = ClipData.newUri(contentResolver, subject, uris.first()).apply {
+                    uris.drop(1).forEach { addItem(ClipData.Item(it)) }
+                }
+                if (multiple) putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                else putExtra(Intent.EXTRA_STREAM, uris.first())
+            }
+            startActivity(Intent.createChooser(intent, subject))
+            result.success(null)
+        } catch (_: Exception) {
+            result.error("EXPORT", "无法打开系统分享面板，请重试", null)
+        }
     }
 
     private fun hasNotificationPermission(): Boolean {

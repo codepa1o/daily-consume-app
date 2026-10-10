@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -139,6 +140,7 @@ class _PomodoroCardState extends State<PomodoroCard>
   }
 
   Future<bool> _ensureReminderPermissions() async {
+    if (kIsWeb) return true;
     try {
       var allowed = await _pomodoroAlerts
               .invokeMethod<bool>('hasNotificationPermission') ??
@@ -224,6 +226,7 @@ class _PomodoroCardState extends State<PomodoroCard>
 
   Future<void> _scheduleBackgroundReminder(
       DateTime deadline, _PomodoroStep phase) async {
+    if (kIsWeb) return;
     final name = switch (phase) {
       _PomodoroStep.focus => 'focus',
       _PomodoroStep.shortBreak => 'shortBreak',
@@ -237,6 +240,7 @@ class _PomodoroCardState extends State<PomodoroCard>
   }
 
   Future<void> _cancelBackgroundReminder() async {
+    if (kIsWeb) return;
     try {
       await _pomodoroAlerts.invokeMethod<void>('cancelReminder');
     } on MissingPluginException catch (_) {

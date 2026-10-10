@@ -109,8 +109,6 @@ def create_journal_router(connect, current_user):
             values.extend(['%' + keyword + '%'] * 2)
         where = ' AND '.join(clauses)
         order = 'entry_date DESC, created_at DESC, id DESC'
-        if date is not None:
-            order = 'CASE WHEN is_todo AND NOT completed THEN 0 WHEN completed THEN 2 ELSE 1 END, created_at DESC, id DESC'
         with connect() as db:
             # Keep the count and page in one snapshot during concurrent edits.
             db.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +12,7 @@ import 'data/journal.dart' show journalToday;
 List<XFile>? recoveredCouplePhotos;
 
 Future<void> recoverCouplePhoto() async {
+  if (kIsWeb) return;
   try {
     final lost = await ImagePicker().retrieveLostData();
     recoveredCouplePhotos = lost.files?.take(9).toList();
@@ -369,8 +371,25 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
                                         child: const Text('留下第一段回忆')),
                                   ]))
                             else ...[
-                              for (final day in coupleTimelineDays(memories))
-                                _timelineDay(day),
+                              LayoutBuilder(builder: (context, constraints) {
+                                final columns =
+                                    constraints.maxWidth >= 980 ? 2 : 1;
+                                const gap = 16.0;
+                                final width = columns == 1
+                                    ? constraints.maxWidth
+                                    : (constraints.maxWidth - gap) / 2;
+                                return Wrap(
+                                  spacing: gap,
+                                  runSpacing: gap,
+                                  children: [
+                                    for (final day
+                                        in coupleTimelineDays(memories))
+                                      SizedBox(
+                                          width: width,
+                                          child: _timelineDay(day)),
+                                  ],
+                                );
+                              }),
                             ],
                             if (hasMore)
                               TextButton(
@@ -835,120 +854,127 @@ class _CoupleEditorState extends State<CoupleEditor> {
           ]),
           body: Form(
               key: form,
-              child: ListView(padding: const EdgeInsets.all(20), children: [
-                Row(children: [
-                  const Text('照片展示方式'),
-                  const Spacer(),
-                  Text('${photos.length} / 9 张',
-                      style: const TextStyle(color: Color(0xff877267))),
-                ]),
-                const SizedBox(height: 8),
-                Wrap(spacing: 8, children: [
-                  ChoiceChip(
-                      label: const Text('九宫格'),
-                      avatar: const Icon(Icons.grid_view, size: 18),
-                      selected: displayMode == 'grid',
-                      onSelected: busy
-                          ? null
-                          : (_) {
-                              setState(() {
-                                displayMode = 'grid';
-                                dirty = true;
-                              });
-                              showCurrentPhoto();
-                            }),
-                  ChoiceChip(
-                      label: const Text('滑动相册'),
-                      avatar:
-                          const Icon(Icons.view_carousel_outlined, size: 18),
-                      selected: displayMode == 'swipe',
-                      onSelected: busy
-                          ? null
-                          : (_) {
-                              setState(() {
-                                displayMode = 'swipe';
-                                dirty = true;
-                              });
-                              showCurrentPhoto();
-                            }),
-                ]),
-                const SizedBox(height: 10),
-                photoPreview(),
-                if (photos.isNotEmpty) const SizedBox(height: 10),
-                Wrap(spacing: 8, children: [
-                  OutlinedButton.icon(
-                      onPressed: busy || photos.length >= 9 ? null : pick,
-                      icon: const Icon(Icons.add_photo_alternate_outlined),
-                      label: Text(photos.isEmpty ? '添加照片' : '继续添加')),
-                ]),
-                const SizedBox(height: 16),
-                TextFormField(
-                    controller: title,
-                    enabled: !busy,
-                    maxLength: 100,
-                    decoration: const InputDecoration(
-                        labelText: '给这一刻起个名字', border: OutlineInputBorder()),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? '请写一个标题' : null),
-                const SizedBox(height: 12),
-                TextFormField(
-                    controller: content,
-                    enabled: !busy,
-                    minLines: 5,
-                    maxLines: 12,
-                    maxLength: 5000,
-                    decoration: const InputDecoration(
-                        labelText: '今天发生了什么，或想对另一半说什么？',
-                        alignLabelWithHint: true,
-                        border: OutlineInputBorder())),
-                ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.calendar_month),
-                    title: const Text('回忆日期'),
-                    subtitle: Text(dateKey(date)),
-                    onTap: busy
-                        ? null
-                        : () async {
-                            final value = await showDatePicker(
-                                context: context,
-                                initialDate:
-                                    DateTime(date.year, date.month, date.day),
-                                firstDate: DateTime(2000),
-                                lastDate: DateTime.now());
-                            if (value != null && mounted)
-                              setState(() {
-                                date = value;
-                                dirty = true;
-                              });
-                          }),
-                const Text('今天的心情'),
-                const SizedBox(height: 8),
-                Wrap(spacing: 8, runSpacing: 4, children: [
-                  for (final value in ['开心', '平静', '想你', '疲惫', '难过'])
-                    ChoiceChip(
-                        label: Text(value),
-                        selected: mood == value,
-                        onSelected: busy
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 960),
+                  child: ListView(padding: const EdgeInsets.all(20), children: [
+                    Row(children: [
+                      const Text('照片展示方式'),
+                      const Spacer(),
+                      Text('${photos.length} / 9 张',
+                          style: const TextStyle(color: Color(0xff877267))),
+                    ]),
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 8, children: [
+                      ChoiceChip(
+                          label: const Text('九宫格'),
+                          avatar: const Icon(Icons.grid_view, size: 18),
+                          selected: displayMode == 'grid',
+                          onSelected: busy
+                              ? null
+                              : (_) {
+                                  setState(() {
+                                    displayMode = 'grid';
+                                    dirty = true;
+                                  });
+                                  showCurrentPhoto();
+                                }),
+                      ChoiceChip(
+                          label: const Text('滑动相册'),
+                          avatar: const Icon(Icons.view_carousel_outlined,
+                              size: 18),
+                          selected: displayMode == 'swipe',
+                          onSelected: busy
+                              ? null
+                              : (_) {
+                                  setState(() {
+                                    displayMode = 'swipe';
+                                    dirty = true;
+                                  });
+                                  showCurrentPhoto();
+                                }),
+                    ]),
+                    const SizedBox(height: 10),
+                    photoPreview(),
+                    if (photos.isNotEmpty) const SizedBox(height: 10),
+                    Wrap(spacing: 8, children: [
+                      OutlinedButton.icon(
+                          onPressed: busy || photos.length >= 9 ? null : pick,
+                          icon: const Icon(Icons.add_photo_alternate_outlined),
+                          label: Text(photos.isEmpty ? '添加照片' : '继续添加')),
+                    ]),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                        controller: title,
+                        enabled: !busy,
+                        maxLength: 100,
+                        decoration: const InputDecoration(
+                            labelText: '给这一刻起个名字',
+                            border: OutlineInputBorder()),
+                        validator: (v) =>
+                            v == null || v.trim().isEmpty ? '请写一个标题' : null),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                        controller: content,
+                        enabled: !busy,
+                        minLines: 5,
+                        maxLines: 12,
+                        maxLength: 5000,
+                        decoration: const InputDecoration(
+                            labelText: '今天发生了什么，或想对另一半说什么？',
+                            alignLabelWithHint: true,
+                            border: OutlineInputBorder())),
+                    ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.calendar_month),
+                        title: const Text('回忆日期'),
+                        subtitle: Text(dateKey(date)),
+                        onTap: busy
                             ? null
-                            : (selected) => setState(() {
-                                  mood = selected ? value : '';
-                                  dirty = true;
-                                })),
-                ]),
-                const SizedBox(height: 18),
-                const Text('保存后，你们都可以看到。照片会转换成浏览图，移除定位等附加信息。',
-                    style: TextStyle(fontSize: 12, color: Color(0xff877267))),
-                if (error != null)
-                  Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Text(error!,
-                          style: TextStyle(
-                              color: Theme.of(context).colorScheme.error))),
-                const SizedBox(height: 20),
-                FilledButton(
-                    onPressed: busy ? null : save,
-                    child: Text(busy ? '保存中…' : '保存到我们的小窝')),
-              ]))));
+                            : () async {
+                                final value = await showDatePicker(
+                                    context: context,
+                                    initialDate: DateTime(
+                                        date.year, date.month, date.day),
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime.now());
+                                if (value != null && mounted)
+                                  setState(() {
+                                    date = value;
+                                    dirty = true;
+                                  });
+                              }),
+                    const Text('今天的心情'),
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 8, runSpacing: 4, children: [
+                      for (final value in ['开心', '平静', '想你', '疲惫', '难过'])
+                        ChoiceChip(
+                            label: Text(value),
+                            selected: mood == value,
+                            onSelected: busy
+                                ? null
+                                : (selected) => setState(() {
+                                      mood = selected ? value : '';
+                                      dirty = true;
+                                    })),
+                    ]),
+                    const SizedBox(height: 18),
+                    const Text('保存后，你们都可以看到。照片会转换成浏览图，移除定位等附加信息。',
+                        style:
+                            TextStyle(fontSize: 12, color: Color(0xff877267))),
+                    if (error != null)
+                      Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: Text(error!,
+                              style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error))),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                        onPressed: busy ? null : save,
+                        child: Text(busy ? '保存中…' : '保存到我们的小窝')),
+                  ]),
+                ),
+              ))));
 }
 
 class CoupleDetail extends StatefulWidget {
@@ -1182,116 +1208,137 @@ class _CoupleDetailState extends State<CoupleDetail>
             ? _CoupleFailure(message: error!, retry: reload)
             : detail == null
                 ? const Center(child: CircularProgressIndicator())
-                : ListView(padding: const EdgeInsets.all(20), children: [
-                    DropdownButtonFormField<int>(
-                        initialValue: effect,
-                        decoration: const InputDecoration(
-                            labelText: '照片玩法', border: OutlineInputBorder()),
-                        items: [
-                          for (var i = 0; i < coupleEffects.length; i++)
-                            DropdownMenuItem(
-                                value: i, child: Text(coupleEffects[i]))
-                        ],
-                        onChanged: (value) {
-                          if (value != null)
-                            setState(() {
-                              effect = value;
-                              scratchRevealed = false;
-                            });
-                        }),
-                    const SizedBox(height: 28),
-                    Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: _effect(memory, comments)),
-                    const SizedBox(height: 24),
-                    if (memory.mood.isNotEmpty)
-                      Text('${memory.author}的心情：${memory.mood}',
-                          style: const TextStyle(color: coupleRose)),
-                    if (memory.content.isNotEmpty &&
-                        effect != 1 &&
-                        (effect != 3 || scratchRevealed))
-                      Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          child: Text(memory.content,
-                              style: const TextStyle(
-                                  color: coupleInk, height: 1.8))),
-                    const Divider(height: 32),
-                    Wrap(spacing: 8, runSpacing: 6, children: [
-                      for (final emoji in ['❤️', '抱抱', '想你', '开心'])
-                        ChoiceChip(
-                            label: Text(emoji),
-                            selected: mine?['emoji'] == emoji,
-                            onSelected: busy
-                                ? null
-                                : (selected) => action(() async {
-                                      await api.react(
-                                          memory.id, selected ? emoji : null);
-                                      await reload();
-                                    }))
-                    ]),
-                    if (reactions.isNotEmpty)
-                      Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: Text(
-                              reactions
-                                  .map((r) =>
-                                      '${r['author_name']}：${r['emoji']}')
-                                  .join('  '),
-                              style: const TextStyle(
-                                  color: coupleRose, fontSize: 12))),
-                    const SizedBox(height: 24),
-                    const Text('照片背后的留言',
-                        style: TextStyle(fontSize: 18, color: coupleInk)),
-                    const SizedBox(height: 12),
-                    if (comments.isEmpty)
-                      const Text('还没有留言，给另一半留一句话吧。',
-                          style: TextStyle(color: Color(0xff877267))),
-                    for (final entry in comments)
-                      Card(
-                          color: couplePaper,
-                          child: Padding(
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(entry['author_name'] as String,
-                                        style: const TextStyle(
-                                            color: coupleRose, fontSize: 12)),
-                                    const SizedBox(height: 6),
-                                    Text(entry['content'] as String,
-                                        style: const TextStyle(height: 1.6)),
-                                  ]))),
-                    const SizedBox(height: 14),
-                    TextField(
-                        controller: comment,
-                        enabled: !busy,
-                        minLines: 2,
-                        maxLines: 5,
-                        maxLength: 1000,
-                        decoration: const InputDecoration(
-                            hintText: '想对你说…', border: OutlineInputBorder())),
-                    Align(
-                        alignment: Alignment.centerRight,
-                        child: FilledButton(
-                            onPressed: busy
-                                ? null
-                                : () => action(() async {
-                                      if (comment.text.trim().isEmpty)
-                                        throw const ApiException('请先写下留言');
-                                      await api.comment(memory.id, comment.text,
-                                          commentRequestId);
-                                      comment.clear();
-                                      commentRequestId = CoupleApi.requestId();
-                                      await reload();
-                                    }),
-                            child: Text(busy ? '保存中…' : '留下这句话'))),
-                    if (actionError != null)
-                      Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Text(actionError!,
-                              style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error))),
-                  ]));
+                : Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1000),
+                      child: ListView(
+                          padding: const EdgeInsets.all(20),
+                          children: [
+                            DropdownButtonFormField<int>(
+                                initialValue: effect,
+                                decoration: const InputDecoration(
+                                    labelText: '照片玩法',
+                                    border: OutlineInputBorder()),
+                                items: [
+                                  for (var i = 0; i < coupleEffects.length; i++)
+                                    DropdownMenuItem(
+                                        value: i, child: Text(coupleEffects[i]))
+                                ],
+                                onChanged: (value) {
+                                  if (value != null)
+                                    setState(() {
+                                      effect = value;
+                                      scratchRevealed = false;
+                                    });
+                                }),
+                            const SizedBox(height: 28),
+                            Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                child: _effect(memory, comments)),
+                            const SizedBox(height: 24),
+                            if (memory.mood.isNotEmpty)
+                              Text('${memory.author}的心情：${memory.mood}',
+                                  style: const TextStyle(color: coupleRose)),
+                            if (memory.content.isNotEmpty &&
+                                effect != 1 &&
+                                (effect != 3 || scratchRevealed))
+                              Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  child: Text(memory.content,
+                                      style: const TextStyle(
+                                          color: coupleInk, height: 1.8))),
+                            const Divider(height: 32),
+                            Wrap(spacing: 8, runSpacing: 6, children: [
+                              for (final emoji in ['❤️', '抱抱', '想你', '开心'])
+                                ChoiceChip(
+                                    label: Text(emoji),
+                                    selected: mine?['emoji'] == emoji,
+                                    onSelected: busy
+                                        ? null
+                                        : (selected) => action(() async {
+                                              await api.react(memory.id,
+                                                  selected ? emoji : null);
+                                              await reload();
+                                            }))
+                            ]),
+                            if (reactions.isNotEmpty)
+                              Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: Text(
+                                      reactions
+                                          .map((r) =>
+                                              '${r['author_name']}：${r['emoji']}')
+                                          .join('  '),
+                                      style: const TextStyle(
+                                          color: coupleRose, fontSize: 12))),
+                            const SizedBox(height: 24),
+                            const Text('照片背后的留言',
+                                style:
+                                    TextStyle(fontSize: 18, color: coupleInk)),
+                            const SizedBox(height: 12),
+                            if (comments.isEmpty)
+                              const Text('还没有留言，给另一半留一句话吧。',
+                                  style: TextStyle(color: Color(0xff877267))),
+                            for (final entry in comments)
+                              Card(
+                                  color: couplePaper,
+                                  child: Padding(
+                                      padding: const EdgeInsets.all(14),
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(entry['author_name'] as String,
+                                                style: const TextStyle(
+                                                    color: coupleRose,
+                                                    fontSize: 12)),
+                                            const SizedBox(height: 6),
+                                            Text(entry['content'] as String,
+                                                style: const TextStyle(
+                                                    height: 1.6)),
+                                          ]))),
+                            const SizedBox(height: 14),
+                            TextField(
+                                controller: comment,
+                                enabled: !busy,
+                                minLines: 2,
+                                maxLines: 5,
+                                maxLength: 1000,
+                                decoration: const InputDecoration(
+                                    hintText: '想对你说…',
+                                    border: OutlineInputBorder())),
+                            Align(
+                                alignment: Alignment.centerRight,
+                                child: FilledButton(
+                                    onPressed: busy
+                                        ? null
+                                        : () => action(() async {
+                                              if (comment.text.trim().isEmpty)
+                                                throw const ApiException(
+                                                    '请先写下留言');
+                                              await api.comment(
+                                                  memory.id,
+                                                  comment.text,
+                                                  commentRequestId);
+                                              comment.clear();
+                                              commentRequestId =
+                                                  CoupleApi.requestId();
+                                              await reload();
+                                            }),
+                                    child: Text(busy ? '保存中…' : '留下这句话'))),
+                            if (actionError != null)
+                              Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Text(actionError!,
+                                      style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .error))),
+                          ]),
+                    ),
+                  ));
   }
 }
 

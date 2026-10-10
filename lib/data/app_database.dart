@@ -164,6 +164,19 @@ class AppDatabase {
           date: dateFromKey(row['date'] as String),
           value: (row['millimeters'] as int) / 10))
       .toList();
+  Future<double?> getGoalWeight() async {
+    final settings = await _api.request('GET', 'body/settings') as Map;
+    final grams = settings['goal_weight_grams'] as int?;
+    return grams == null ? null : grams / 1000;
+  }
+
+  Future<void> saveGoalWeight(double? kilograms) async {
+    await _api.request('PUT', 'body/settings', body: {
+      'goal_weight_grams':
+          kilograms == null ? null : (kilograms * 1000).round(),
+    });
+  }
+
   Future<void> saveWeight(DateTime date, double kilograms) async {
     await _api.request('PUT', 'weights',
         body: {'date': dateKey(date), 'grams': (kilograms * 1000).round()});

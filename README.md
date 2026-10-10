@@ -30,6 +30,10 @@ Android 图标由 `flutter_launcher_icons.yaml` 生成，适配多种分辨率�
 
 女性健康接口与数据库变更需要与客户端一起部署；数据库结构统一由 Alembic 管理，部署脚本在重启服务前执行 `alembic upgrade head`，应用启动不再改表。迁移开发、已有数据库接管和回退说明见 [数据库迁移指南](docs/database-migrations.md)。
 
+### 浏览器 Web 端
+
+Web 端与 Android 共用 Flutter 代码，电脑本地启动方式、跨域设置、浏览器能力边界和发布配置见 [浏览器 Web 端指南](docs/web-development.md)。
+
 ### AI 与服务器配置
 
 AI 功能通过 DeepSeek OpenAI 兼容的 Chat Completions 接口生成内容。首次配置时将项目根目录 `.env.example` 复制为 `.env`，填写 `DEEPSEEK_API_KEY`；该文件已加入 Git 忽略规则，不要提交密钥。当前模型 ID 为 `deepseek-flash`；DeepSeek 文档说明，旧名 `deepseek-v4-flash` 仍会被接受，但会路由到 V4.1 Flash。

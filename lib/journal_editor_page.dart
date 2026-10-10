@@ -291,120 +291,131 @@ class _JournalEditorPageState extends State<JournalEditorPage> {
                         ]))
                       : Form(
                           key: _form,
-                          child: ListView(
-                              padding: const EdgeInsets.all(20),
-                              children: [
-                                Text(
-                                    _kind == 'diary'
-                                        ? '给这一天，留一点文字。'
-                                        : '把想法和安排，先记下来。',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineSmall),
-                                const SizedBox(height: 18),
-                                ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: const Icon(
-                                        Icons.calendar_today_outlined),
-                                    title: Text(dateKey(_date)),
-                                    trailing: const Text('修改日期'),
-                                    onTap: !_editable
-                                        ? null
-                                        : () async {
-                                            final selected =
-                                                await showDatePicker(
-                                                    context: context,
-                                                    initialDate: _date,
-                                                    firstDate:
-                                                        DateTime.utc(2000),
-                                                    lastDate: _kind == 'diary'
-                                                        ? journalToday()
-                                                        : journalLastDate());
-                                            if (selected != null &&
-                                                mounted &&
-                                                !_sessionChanged)
-                                              setState(() => _date =
-                                                  journalDate(selected));
-                                          }),
-                                TextFormField(
-                                    controller: _title,
-                                    enabled: _editable,
-                                    decoration: const InputDecoration(
-                                        labelText: '标题（可选）'),
-                                    validator: (text) =>
-                                        (text ?? '').runes.length > 100
-                                            ? '标题最多 100 个字符'
-                                            : null),
-                                const SizedBox(height: 18),
-                                TextFormField(
-                                    controller: _content,
-                                    enabled: _editable,
-                                    minLines: 10,
-                                    maxLines: null,
-                                    keyboardType: TextInputType.multiline,
-                                    decoration: InputDecoration(
-                                        labelText: _kind == 'diary'
-                                            ? '今天发生了什么？'
-                                            : '备忘内容',
-                                        alignLabelWithHint: true,
-                                        border: const OutlineInputBorder()),
-                                    validator: (text) {
-                                      if ((text ?? '').runes.length > 20000)
-                                        return '正文最多 20,000 个字符';
-                                      if ((text ?? '').trim().isEmpty &&
-                                          (_kind == 'diary' ||
-                                              _title.text.trim().isEmpty))
-                                        return _kind == 'diary'
-                                            ? '请填写日记正文'
-                                            : '标题或正文至少填写一项';
-                                      return null;
-                                    }),
-                                if (_kind == 'memo') ...[
-                                  SwitchListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      title: const Text('作为待办'),
-                                      subtitle: const Text('可以勾选完成；设置日期不会触发通知'),
-                                      value: _todo,
-                                      onChanged: !_editable
-                                          ? null
-                                          : (value) => setState(() {
-                                                _todo = value;
-                                                if (!value) _completed = false;
-                                              })),
-                                  if (_todo)
-                                    CheckboxListTile(
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 900),
+                              child: ListView(
+                                  padding: const EdgeInsets.all(20),
+                                  children: [
+                                    Text(
+                                        _kind == 'diary'
+                                            ? '给这一天，留一点文字。'
+                                            : '把想法和安排，先记下来。',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineSmall),
+                                    const SizedBox(height: 18),
+                                    ListTile(
                                         contentPadding: EdgeInsets.zero,
-                                        title: const Text('已完成'),
-                                        value: _completed,
-                                        onChanged: !_editable
+                                        leading: const Icon(
+                                            Icons.calendar_today_outlined),
+                                        title: Text(dateKey(_date)),
+                                        trailing: const Text('修改日期'),
+                                        onTap: !_editable
                                             ? null
-                                            : (value) => setState(
-                                                () => _completed = value!)),
-                                ],
-                                if (_error != null) ...[
-                                  const SizedBox(height: 14),
-                                  Text(_error!,
-                                      style: TextStyle(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .error)),
-                                  if (widget.id != null && !_uncertain)
-                                    Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: TextButton(
-                                            onPressed: _saving ? null : _latest,
-                                            child: const Text('查看服务器最新内容'))),
-                                ],
-                                const SizedBox(height: 20),
-                                FilledButton(
-                                    onPressed: _saving ? null : _save,
-                                    child: Text(_saving
-                                        ? '保存中…'
-                                        : _uncertain
-                                            ? '重试本次提交'
-                                            : '保存')),
-                                const SizedBox(height: 20),
-                              ])),
+                                            : () async {
+                                                final selected =
+                                                    await showDatePicker(
+                                                        context: context,
+                                                        initialDate: _date,
+                                                        firstDate:
+                                                            DateTime.utc(2000),
+                                                        lastDate: _kind ==
+                                                                'diary'
+                                                            ? journalToday()
+                                                            : journalLastDate());
+                                                if (selected != null &&
+                                                    mounted &&
+                                                    !_sessionChanged)
+                                                  setState(() => _date =
+                                                      journalDate(selected));
+                                              }),
+                                    TextFormField(
+                                        controller: _title,
+                                        enabled: _editable,
+                                        decoration: const InputDecoration(
+                                            labelText: '标题（可选）'),
+                                        validator: (text) =>
+                                            (text ?? '').runes.length > 100
+                                                ? '标题最多 100 个字符'
+                                                : null),
+                                    const SizedBox(height: 18),
+                                    TextFormField(
+                                        controller: _content,
+                                        enabled: _editable,
+                                        minLines: 10,
+                                        maxLines: null,
+                                        keyboardType: TextInputType.multiline,
+                                        decoration: InputDecoration(
+                                            labelText: _kind == 'diary'
+                                                ? '今天发生了什么？'
+                                                : '备忘内容',
+                                            alignLabelWithHint: true,
+                                            border: const OutlineInputBorder()),
+                                        validator: (text) {
+                                          if ((text ?? '').runes.length > 20000)
+                                            return '正文最多 20,000 个字符';
+                                          if ((text ?? '').trim().isEmpty &&
+                                              (_kind == 'diary' ||
+                                                  _title.text.trim().isEmpty))
+                                            return _kind == 'diary'
+                                                ? '请填写日记正文'
+                                                : '标题或正文至少填写一项';
+                                          return null;
+                                        }),
+                                    if (_kind == 'memo') ...[
+                                      SwitchListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          title: const Text('作为待办'),
+                                          subtitle:
+                                              const Text('可以勾选完成；设置日期不会触发通知'),
+                                          value: _todo,
+                                          onChanged: !_editable
+                                              ? null
+                                              : (value) => setState(() {
+                                                    _todo = value;
+                                                    if (!value)
+                                                      _completed = false;
+                                                  })),
+                                      if (_todo)
+                                        CheckboxListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            title: const Text('已完成'),
+                                            value: _completed,
+                                            onChanged: !_editable
+                                                ? null
+                                                : (value) => setState(
+                                                    () => _completed = value!)),
+                                    ],
+                                    if (_error != null) ...[
+                                      const SizedBox(height: 14),
+                                      Text(_error!,
+                                          style: TextStyle(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .error)),
+                                      if (widget.id != null && !_uncertain)
+                                        Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: TextButton(
+                                                onPressed:
+                                                    _saving ? null : _latest,
+                                                child:
+                                                    const Text('查看服务器最新内容'))),
+                                    ],
+                                    const SizedBox(height: 20),
+                                    FilledButton(
+                                        onPressed: _saving ? null : _save,
+                                        child: Text(_saving
+                                            ? '保存中…'
+                                            : _uncertain
+                                                ? '重试本次提交'
+                                                : '保存')),
+                                    const SizedBox(height: 20),
+                                  ]),
+                            ),
+                          ),
+                        ),
         ),
       );
 }

@@ -17,6 +17,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from psycopg.rows import dict_row
@@ -26,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, f
 from database import DSN
 from journal import create_journal_router
 from couple import create_couple_router, prepare_photo
+from travel import create_travel_router
 
 password_hasher = PasswordHasher()
 dummy_password_hash = password_hasher.hash(secrets.token_urlsafe(32))
@@ -61,8 +63,22 @@ def plain_ai_text(value):
     return value.strip()
 
 
-app = FastAPI(title='日常 API', version='1.3.6',
+app = FastAPI(title='日常 API', version='1.4.0',
               docs_url=None, redoc_url=None, openapi_url=None)
+
+web_origins = [
+    origin.strip()
+    for origin in os.environ.get('WEB_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+if web_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=web_origins,
+        allow_credentials=False,
+        allow_methods=['GET', 'POST', 'PUT', 'DELETE'],
+        allow_headers=['Accept', 'Authorization', 'Content-Type'],
+    )
 
 
 @app.middleware('http')
@@ -123,6 +139,7 @@ User = Annotated[dict, Depends(current_user)]
 
 app.include_router(create_journal_router(connect, current_user))
 app.include_router(create_couple_router(connect, current_user))
+app.include_router(create_travel_router(current_user))
 
 
 def public_user(user):
@@ -556,6 +573,29 @@ def heights(user: User):
 def save_height(body: Height, user: User):
     with connect() as db:
         upsert(db, 'height_entries', user['id'], body.model_dump(), ['date'])
+    return {'ok': True}
+
+
+class BodySettingsInput(Input):
+    goal_weight_grams: int | None = Field(
+        ..., ge=20000, le=300000, strict=True)
+
+
+@app.get('/body/settings')
+def body_settings(user: User):
+    with connect() as db:
+        settings = db.execute(
+            'SELECT goal_weight_grams FROM body_settings WHERE user_id=%s',
+            (user['id'],)).fetchone()
+    return settings or {'goal_weight_grams': None}
+
+
+@app.put('/body/settings')
+def save_body_settings(body: BodySettingsInput, user: User):
+    with connect() as db:
+        db.execute('''INSERT INTO body_settings(user_id,goal_weight_grams) VALUES (%s,%s)
+            ON CONFLICT(user_id) DO UPDATE SET goal_weight_grams=EXCLUDED.goal_weight_grams''',
+            (user['id'], body.goal_weight_grams))
     return {'ok': True}
 
 

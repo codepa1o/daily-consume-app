@@ -487,119 +487,133 @@ class _FemaleHealthPageState extends State<FemaleHealthPage> {
     if (_data == null) return const SizedBox.shrink();
     final data = _data!;
     final prediction = HealthPrediction(data, healthToday());
-    return SafeArea(
+    return LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 1050;
+      return SafeArea(
         child: RefreshIndicator(
             onRefresh: _reload,
             color: _rose,
             child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                children: [
-                  Row(children: [
-                    const AppLogo(),
-                    const SizedBox(width: 10),
-                    const Text('DAY BY DAY',
-                        style: TextStyle(
-                            fontSize: 11,
-                            letterSpacing: 1.8,
-                            fontWeight: FontWeight.w700)),
-                    const Spacer(),
-                    IconButton(
-                        tooltip: '周期设置',
-                        onPressed: _settings,
-                        icon: const Icon(Icons.tune_rounded, color: _rose))
-                  ]),
-                  const SizedBox(height: 16),
-                  const Text('女性健康',
+              padding:
+                  EdgeInsets.fromLTRB(wide ? 36 : 20, 22, wide ? 36 : 20, 32),
+              children: [
+                Row(children: [
+                  const AppLogo(),
+                  const SizedBox(width: 10),
+                  const Text('DAY BY DAY',
                       style: TextStyle(
-                          fontFamily: 'serif', fontSize: 32, color: _ink)),
-                  const SizedBox(height: 6),
-                  const Text('记录身体的节奏，也照顾每一天的感受。',
-                      style: TextStyle(fontSize: 13, color: _muted)),
-                  const SizedBox(height: 20),
-                  Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                          color: _roseSoft,
-                          borderRadius: BorderRadius.circular(18)),
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('你的周期',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: _rose,
-                                    fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 10),
-                            Text(_summary(prediction),
+                          fontSize: 11,
+                          letterSpacing: 1.8,
+                          fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  IconButton(
+                      tooltip: '周期设置',
+                      onPressed: _settings,
+                      icon: const Icon(Icons.tune_rounded, color: _rose))
+                ]),
+                const SizedBox(height: 16),
+                Text('女性健康',
+                    style: TextStyle(
+                        fontFamily: 'serif',
+                        fontSize: wide ? 36 : 32,
+                        color: _ink)),
+                const SizedBox(height: 6),
+                const Text('记录身体的节奏，也照顾每一天的感受。',
+                    style: TextStyle(fontSize: 13, color: _muted)),
+                const SizedBox(height: 20),
+                Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                        color: _roseSoft,
+                        borderRadius: BorderRadius.circular(18)),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('你的周期',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: _rose,
+                                  fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 10),
+                          Text(_summary(prediction),
+                              style: const TextStyle(
+                                  fontSize: 20, height: 1.35, color: _ink)),
+                          if (prediction.nextStart != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                                '预计开始 ${dateKey(prediction.nextStart!)}${prediction.nextEnd == null ? '' : ' · 预计持续至 ${healthDateLabel(prediction.nextEnd!)}'}',
                                 style: const TextStyle(
-                                    fontSize: 20, height: 1.35, color: _ink)),
-                            if (prediction.nextStart != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                  '预计开始 ${dateKey(prediction.nextStart!)}${prediction.nextEnd == null ? '' : ' · 预计持续至 ${healthDateLabel(prediction.nextEnd!)}'}',
-                                  style: const TextStyle(
-                                      fontSize: 12, color: _rose)),
-                              const SizedBox(height: 8),
-                              Text(prediction.basis,
-                                  style: const TextStyle(
-                                      fontSize: 11, color: _muted)),
-                            ] else ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                  data.settings.paused
-                                      ? '实际记录和历史仍会保留。'
-                                      : '先记录最近一次经期，再填写通常的周期长度。',
-                                  style: const TextStyle(
-                                      fontSize: 12, color: _muted)),
-                            ],
-                            const SizedBox(height: 16),
-                            Wrap(spacing: 10, runSpacing: 8, children: [
-                              FilledButton.icon(
-                                  style: FilledButton.styleFrom(
-                                      backgroundColor: _rose),
-                                  onPressed: () => _editPeriod(),
-                                  icon: const Icon(Icons.add, size: 18),
-                                  label: const Text('经期开始 / 补录')),
-                              if (data.ongoing != null)
-                                OutlinedButton(
-                                    onPressed: () => _editPeriod(
-                                        existing: data.ongoing, finish: true),
-                                    child: const Text('经期结束')),
-                              if (data.periods.isEmpty ||
-                                  prediction.nextStart == null)
-                                TextButton(
-                                    onPressed: _settings,
-                                    child: const Text('设置周期')),
-                            ]),
-                          ])),
-                  const SizedBox(height: 20),
+                                    fontSize: 12, color: _rose)),
+                            const SizedBox(height: 8),
+                            Text(prediction.basis,
+                                style: const TextStyle(
+                                    fontSize: 11, color: _muted)),
+                          ] else ...[
+                            const SizedBox(height: 8),
+                            Text(
+                                data.settings.paused
+                                    ? '实际记录和历史仍会保留。'
+                                    : '先记录最近一次经期，再填写通常的周期长度。',
+                                style: const TextStyle(
+                                    fontSize: 12, color: _muted)),
+                          ],
+                          const SizedBox(height: 16),
+                          Wrap(spacing: 10, runSpacing: 8, children: [
+                            FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                    backgroundColor: _rose),
+                                onPressed: () => _editPeriod(),
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const Text('经期开始 / 补录')),
+                            if (data.ongoing != null)
+                              OutlinedButton(
+                                  onPressed: () => _editPeriod(
+                                      existing: data.ongoing, finish: true),
+                                  child: const Text('经期结束')),
+                            if (data.periods.isEmpty ||
+                                prediction.nextStart == null)
+                              TextButton(
+                                  onPressed: _settings,
+                                  child: const Text('设置周期')),
+                          ]),
+                        ])),
+                const SizedBox(height: 20),
+                if (wide)
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(flex: 6, child: _calendar(prediction)),
+                    const SizedBox(width: 18),
+                    Expanded(flex: 5, child: _dayDetails(prediction)),
+                  ])
+                else ...[
                   _calendar(prediction),
                   const SizedBox(height: 16),
                   _dayDetails(prediction),
-                  const SizedBox(height: 24),
-                  _history(prediction),
-                  const SizedBox(height: 20),
-                  const Text('经期、易孕期和排卵日为估计，仅供日常记录参考，不能作为避孕或诊断依据。漏记会影响预测。',
-                      style:
-                          TextStyle(fontSize: 12, height: 1.6, color: _muted)),
-                  const SizedBox(height: 10),
-                  const Text('健康记录随账号保存在服务器。更改性别只隐藏入口；可在下方独立删除数据。',
-                      style:
-                          TextStyle(fontSize: 12, height: 1.6, color: _muted)),
-                  const SizedBox(height: 12),
-                  Wrap(spacing: 8, children: [
-                    TextButton(
-                        onPressed: () => _confirmDelete(
-                            '删除全部经期和每日记录，保留周期设置。此操作无法撤销。',
-                            () => _store.clear(resetSettings: false)),
-                        child: const Text('删除全部记录')),
-                    TextButton(
-                        onPressed: () => _confirmDelete(
-                            '删除全部女性健康记录，并重置周期设置。此操作无法撤销。',
-                            () => _store.clear(resetSettings: true)),
-                        child: const Text('删除数据并重置')),
-                  ]),
-                ])));
+                ],
+                const SizedBox(height: 24),
+                _history(prediction),
+                const SizedBox(height: 20),
+                const Text('经期、易孕期和排卵日为估计，仅供日常记录参考，不能作为避孕或诊断依据。漏记会影响预测。',
+                    style: TextStyle(fontSize: 12, height: 1.6, color: _muted)),
+                const SizedBox(height: 10),
+                const Text('健康记录随账号保存在服务器。更改性别只隐藏入口；可在下方独立删除数据。',
+                    style: TextStyle(fontSize: 12, height: 1.6, color: _muted)),
+                const SizedBox(height: 12),
+                Wrap(spacing: 8, children: [
+                  TextButton(
+                      onPressed: () => _confirmDelete(
+                          '删除全部经期和每日记录，保留周期设置。此操作无法撤销。',
+                          () => _store.clear(resetSettings: false)),
+                      child: const Text('删除全部记录')),
+                  TextButton(
+                      onPressed: () => _confirmDelete(
+                          '删除全部女性健康记录，并重置周期设置。此操作无法撤销。',
+                          () => _store.clear(resetSettings: true)),
+                      child: const Text('删除数据并重置')),
+                ]),
+              ],
+            )),
+      );
+    });
   }
 
   Widget _calendar(HealthPrediction prediction) => Container(

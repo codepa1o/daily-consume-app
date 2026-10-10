@@ -1,12 +1,13 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'data/api_client.dart';
 import 'data/legacy_migration.dart';
-import 'update/app_updates.dart';
+import 'update/app_updates_platform.dart';
 import 'couple_page.dart';
 
 Future<bool> serverAction(
@@ -454,8 +455,18 @@ class _MyPageState extends State<MyPage> {
       final picked = await ImagePicker().pickImage(
         source: ImageSource.gallery,
         requestFullMetadata: false,
+        maxWidth: kIsWeb ? 512 : null,
+        maxHeight: kIsWeb ? 512 : null,
+        imageQuality: kIsWeb ? 85 : null,
       );
       if (picked == null || !mounted) return;
+      if (kIsWeb) {
+        await serverAction(
+          context,
+          () async => ApiClient.instance.saveAvatar(await picked.readAsBytes()),
+        );
+        return;
+      }
       final cropped = await ImageCropper().cropImage(
         sourcePath: picked.path,
         maxWidth: 512,

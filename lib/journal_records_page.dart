@@ -44,8 +44,19 @@ class JournalRecordTile extends StatelessWidget {
             style: TextStyle(
                 decoration:
                     entry.completed ? TextDecoration.lineThrough : null)),
-        subtitle: Text(
-            '${showDate ? '${dateKey(entry.date)} · ' : ''}${entry.label}${entry.overdue ? ' · 已逾期' : ''}${entry.title.isNotEmpty && entry.content.isNotEmpty ? '\n${entry.content}' : ''}',
+        subtitle: Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                  text:
+                      '${showDate ? '${dateKey(entry.date)} · ' : ''}${entry.label}${entry.overdue ? ' · 已逾期' : ''}'),
+              if (entry.title.isNotEmpty && entry.content.isNotEmpty)
+                TextSpan(
+                    text: '\n${entry.content}',
+                    style: TextStyle(
+                        decoration: entry.completed
+                            ? TextDecoration.lineThrough
+                            : null)),
+            ]),
             maxLines: 3,
             overflow: TextOverflow.ellipsis),
         trailing: onLocate == null
@@ -163,68 +174,76 @@ class _JournalRecordsPageState extends State<JournalRecordsPage> {
             ? const Center(child: Text('账号已切换，请返回后重新打开'))
             : RefreshIndicator(
                 onRefresh: _load,
-                child: ListView(
-                    padding: const EdgeInsets.all(20),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      TextField(
-                          controller: _search,
-                          onChanged: _searchChanged,
-                          maxLength: 100,
-                          decoration: const InputDecoration(
-                              hintText: '搜索所有日期的标题和正文',
-                              prefixIcon: Icon(Icons.search),
-                              counterText: '',
-                              border: OutlineInputBorder()),
-                          onSubmitted: (_) {
-                            _debounce?.cancel();
-                            _load();
-                          }),
-                      const SizedBox(height: 12),
-                      Wrap(spacing: 8, children: [
-                        for (final option in <String?, String>{
-                          null: '全部',
-                          'diary': '日记',
-                          'memo': '备忘'
-                        }.entries)
-                          ChoiceChip(
-                              label: Text(option.value),
-                              selected: _kind == option.key,
-                              onSelected: (_) {
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 920),
+                    child: ListView(
+                        padding: const EdgeInsets.all(20),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          TextField(
+                              controller: _search,
+                              onChanged: _searchChanged,
+                              maxLength: 100,
+                              decoration: const InputDecoration(
+                                  hintText: '搜索所有日期的标题和正文',
+                                  prefixIcon: Icon(Icons.search),
+                                  counterText: '',
+                                  border: OutlineInputBorder()),
+                              onSubmitted: (_) {
                                 _debounce?.cancel();
-                                setState(() => _kind = option.key);
                                 _load();
                               }),
-                      ]),
-                      const SizedBox(height: 18),
-                      Text('$_total 条记录',
-                          style: Theme.of(context).textTheme.labelLarge),
-                      for (final entry in _items)
-                        JournalRecordTile(
-                            entry: entry,
-                            showDate: true,
-                            onTap: () => _edit(entry),
-                            onLocate: () => Navigator.pop(context, entry.date)),
-                      if (_loading)
-                        const Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Center(child: CircularProgressIndicator())),
-                      if (!_loading && _error == null && _items.isEmpty)
-                        const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 36),
-                            child: Text('没有找到记录，试试其他关键词。',
-                                textAlign: TextAlign.center)),
-                      if (_error != null) ...[
-                        Text(_error!, textAlign: TextAlign.center),
-                        TextButton(
-                            onPressed: () => _load(append: _items.isNotEmpty),
-                            child: const Text('重试')),
-                      ],
-                      if (_more && !_loading && _error == null)
-                        TextButton(
-                            onPressed: () => _load(append: true),
-                            child: const Text('加载更多')),
-                    ]),
+                          const SizedBox(height: 12),
+                          Wrap(spacing: 8, children: [
+                            for (final option in <String?, String>{
+                              null: '全部',
+                              'diary': '日记',
+                              'memo': '备忘'
+                            }.entries)
+                              ChoiceChip(
+                                  label: Text(option.value),
+                                  selected: _kind == option.key,
+                                  onSelected: (_) {
+                                    _debounce?.cancel();
+                                    setState(() => _kind = option.key);
+                                    _load();
+                                  }),
+                          ]),
+                          const SizedBox(height: 18),
+                          Text('$_total 条记录',
+                              style: Theme.of(context).textTheme.labelLarge),
+                          for (final entry in _items)
+                            JournalRecordTile(
+                                entry: entry,
+                                showDate: true,
+                                onTap: () => _edit(entry),
+                                onLocate: () =>
+                                    Navigator.pop(context, entry.date)),
+                          if (_loading)
+                            const Padding(
+                                padding: EdgeInsets.all(24),
+                                child:
+                                    Center(child: CircularProgressIndicator())),
+                          if (!_loading && _error == null && _items.isEmpty)
+                            const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 36),
+                                child: Text('没有找到记录，试试其他关键词。',
+                                    textAlign: TextAlign.center)),
+                          if (_error != null) ...[
+                            Text(_error!, textAlign: TextAlign.center),
+                            TextButton(
+                                onPressed: () =>
+                                    _load(append: _items.isNotEmpty),
+                                child: const Text('重试')),
+                          ],
+                          if (_more && !_loading && _error == null)
+                            TextButton(
+                                onPressed: () => _load(append: true),
+                                child: const Text('加载更多')),
+                        ]),
+                  ),
+                ),
               ),
       );
 }
