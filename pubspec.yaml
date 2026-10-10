@@ -1,7 +1,7 @@
 name: daily_consume
 description: Account-based Flutter app for server-stored body, meal, spending and workout records.
 publish_to: none
-version: 1.4.0+14
+version: 1.4.0+15
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
