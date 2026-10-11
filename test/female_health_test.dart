@@ -159,7 +159,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('My page drawer and female navigation follow account gender',
+  testWidgets('Female entry follows account gender and selection resets safely',
       (tester) async {
     final api = ApiClient.instance;
     Account account(String gender) => Account(
@@ -173,27 +173,34 @@ void main() {
     await tester.pumpAndSettle();
     NavigationBar bar() =>
         tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(bar().destinations.length, 3);
-    await tester.tap(find.byTooltip('打开我的'));
+    expect(bar().destinations.length, 2);
+    expect(find.byKey(const ValueKey('daily-module-female')), findsNothing);
+    await tester.tap(find.byTooltip('我的账户与设置'));
     await tester.pumpAndSettle();
     expect(find.text('个人资料'), findsOneWidget);
     api.account = account('female');
     api.dataImported();
     await tester.pumpAndSettle();
-    expect(bar().destinations.length, 4);
+    expect(bar().destinations.length, 2);
     expect(bar().selectedIndex, 0);
+    expect(find.byKey(const ValueKey('daily-module-female')), findsOneWidget);
     expect(find.text('个人资料'), findsOneWidget);
     final screenWidth =
         tester.view.physicalSize.width / tester.view.devicePixelRatio;
     await tester.tapAt(Offset(screenWidth - 1, 20));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('女性健康').last);
+    final entry = find.byKey(const ValueKey('daily-module-female'));
+    await tester.ensureVisible(entry);
+    await tester.tap(entry);
     await tester.pump();
     api.account = account('male');
     api.dataImported();
     await tester.pumpAndSettle();
-    expect(bar().destinations.length, 3);
+    expect(bar().destinations.length, 2);
     expect(bar().selectedIndex, 0);
+    expect(find.byKey(const ValueKey('daily-module-female')), findsNothing);
+    expect(find.byType(FemaleHealthPage, skipOffstage: false), findsNothing);
+    expect(find.byType(BodyPage), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     api.account = null;

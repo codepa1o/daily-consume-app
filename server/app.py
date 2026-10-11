@@ -544,10 +544,23 @@ class Height(DatedInput):
     millimeters: int = Field(ge=800, le=2500, strict=True)
 
 
+class MealItemInput(Input):
+    name: str = Field(min_length=1, max_length=80)
+    expense_cents: int = Field(ge=0, le=10000000000, strict=True)
+
+    @field_validator('name')
+    @classmethod
+    def nonempty_name(cls, value):
+        if not value.strip():
+            raise ValueError('食物名称不能为空')
+        return value.strip()
+
+
 class Meal(DatedInput):
     meal_type: Literal['早餐', '午餐', '晚餐']
     foods: str = Field(min_length=1, max_length=2000)
     expense_cents: int = Field(ge=0, le=10000000000, strict=True)
+    items: list[MealItemInput] | None = Field(default=None, max_length=20)
 
     @field_validator('foods')
     @classmethod
@@ -555,6 +568,14 @@ class Meal(DatedInput):
         if not value.strip():
             raise ValueError('餐食内容不能为空')
         return value.strip()
+
+    @model_validator(mode='after')
+    def meal_item_total(self):
+        if self.items:
+            total = sum(item.expense_cents for item in self.items)
+            if total > 10000000000 or total != self.expense_cents:
+                raise ValueError('餐食总金额与明细金额不一致')
+        return self
 
 
 class OtherExpenseInput(DatedInput):
@@ -632,14 +653,16 @@ def meals(user: User, start: date, end: date):
     if start > end:
         raise HTTPException(422, '日期范围不正确')
     with connect() as db:
-        return db.execute('''SELECT date,meal_type,foods,expense_cents FROM meal_entries
+        return db.execute('''SELECT date,meal_type,foods,expense_cents,items FROM meal_entries
             WHERE user_id=%s AND date BETWEEN %s AND %s ORDER BY date,meal_type''', (user['id'], start, end)).fetchall()
 
 
 @app.put('/meals')
 def save_meal(body: Meal, user: User):
     with connect() as db:
-        upsert(db, 'meal_entries', user['id'], body.model_dump(), ['date', 'meal_type'])
+        row = body.model_dump(exclude={'items'}, exclude_none=True)
+        row['items'] = [item.model_dump() for item in body.items or []]
+        upsert(db, 'meal_entries', user['id'], row, ['date', 'meal_type'])
     return {'ok': True}
 
 
@@ -719,8 +742,22 @@ class LogMuscle(Input):
     color: int = Field(ge=0, le=4294967295, strict=True)
 
 
+class WorkoutActionInput(Input):
+    name: str = Field(min_length=1, max_length=60)
+    sets: int = Field(ge=1, le=100, strict=True)
+    reps: int = Field(ge=1, le=1000, strict=True)
+
+    @field_validator('name')
+    @classmethod
+    def nonempty_name(cls, value):
+        if not value.strip():
+            raise ValueError('动作名称不能为空')
+        return value.strip()
+
+
 class WorkoutLogInput(DatedInput):
     muscles: list[LogMuscle] = Field(min_length=1, max_length=100)
+    actions: list[WorkoutActionInput] = Field(default_factory=list, max_length=20)
 
 
 @app.get('/workout/muscles')
@@ -803,21 +840,22 @@ def workout_logs(user: User, start: date, end: date):
     if start > end:
         raise HTTPException(422, '日期范围不正确')
     with connect() as db:
-        return db.execute('''SELECT date,muscles FROM workout_logs WHERE user_id=%s
+        return db.execute('''SELECT date,muscles,actions FROM workout_logs WHERE user_id=%s
             AND date BETWEEN %s AND %s ORDER BY date''', (user['id'], start, end)).fetchall()
 
 
 @app.post('/workout/logs', status_code=201)
 def check_in(body: WorkoutLogInput, user: User):
-    if body.date != datetime.now(ZoneInfo('Asia/Shanghai')).date():
-        raise HTTPException(422, '只能为今天打卡')
+    today = datetime.now(ZoneInfo('Asia/Shanghai')).date()
+    if body.date < date(2000, 1, 1) or body.date > today:
+        raise HTTPException(422, '打卡日期范围无效')
     try:
         with connect() as db:
             db.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (user['id'],))
             plan = db.execute('SELECT is_rest FROM workout_plans WHERE user_id=%s AND weekday=%s',
                               (user['id'], body.date.isoweekday())).fetchone()
-            if plan and plan['is_rest']:
-                raise HTTPException(409, '休息日不能打卡')
+            if body.date == today and plan and plan['is_rest']:
+                raise HTTPException(409, '今天是休息日，不能打卡')
             names = [m.name for m in body.muscles]
             owned = db.execute('SELECT name,color_value FROM workout_muscles WHERE user_id=%s AND name=ANY(%s)',
                                (user['id'], names)).fetchall()
@@ -825,9 +863,12 @@ def check_in(body: WorkoutLogInput, user: User):
                 raise HTTPException(422, '训练部位不存在或重复')
             colors = {r['name']: r['color_value'] for r in owned}
             muscles = [{'name': name, 'color': colors[name]} for name in names]
-            db.execute('INSERT INTO workout_logs VALUES (%s,%s,%s)', (user['id'], body.date, Jsonb(muscles)))
+            actions = [action.model_dump() for action in body.actions]
+            db.execute('''INSERT INTO workout_logs(user_id,date,muscles,actions)
+                VALUES (%s,%s,%s,%s)''',
+                       (user['id'], body.date, Jsonb(muscles), Jsonb(actions)))
     except psycopg.errors.UniqueViolation:
-        raise HTTPException(409, '今天已经打卡')
+        raise HTTPException(409, '这一天已经打卡')
     return {'ok': True}
 
 
@@ -1117,10 +1158,10 @@ def save_pomodoro_session(body: PomodoroSessionInput, user: User):
 IMPORT_TABLES = {
     'weight_entries': (['date', 'grams'], ['date']),
     'height_entries': (['date', 'millimeters'], ['date']),
-    'meal_entries': (['date', 'meal_type', 'foods', 'expense_cents'], ['date', 'meal_type']),
+    'meal_entries': (['date', 'meal_type', 'foods', 'expense_cents', 'items'], ['date', 'meal_type']),
     'workout_muscles': (['name', 'color_value', 'built_in'], ['name']),
     'workout_plans': (['weekday', 'muscles', 'is_rest'], ['weekday']),
-    'workout_logs': (['date', 'muscles'], ['date']),
+    'workout_logs': (['date', 'muscles', 'actions'], ['date']),
     'workout_settings': (['weekly_goal'], []),
 }
 
@@ -1138,15 +1179,18 @@ def validated_legacy_row(table, original):
             raise ValueError('设置编号不正确')
         if type(row.get('weekly_goal')) is not int or not 1 <= row['weekly_goal'] <= 7:
             raise ValueError('训练目标不正确')
-    if 'muscles' in row and isinstance(row['muscles'], str):
-        row['muscles'] = json.loads(row['muscles'])
+    for field in ('muscles', 'actions'):
+        if field in row and isinstance(row[field], str):
+            row[field] = json.loads(row[field])
     if table == 'weight_entries':
         row = Weight.model_validate(row).model_dump()
     elif table == 'height_entries':
         row = Height.model_validate(row).model_dump()
     elif table == 'meal_entries':
+        row.setdefault('items', [])
         row = Meal.model_validate(row).model_dump()
     elif table == 'workout_logs':
+        row.setdefault('actions', [])
         row = WorkoutLogInput.model_validate(row).model_dump(mode='json')
         row['date'] = date.fromisoformat(row['date'])
     elif table == 'workout_plans':

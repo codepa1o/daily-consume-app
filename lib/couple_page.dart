@@ -22,8 +22,9 @@ Future<void> recoverCouplePhoto() async {
 }
 
 class CouplePage extends StatefulWidget {
-  const CouplePage({super.key, this.api});
+  const CouplePage({super.key, this.api, this.embedded = false});
   final CoupleApi? api;
+  final bool embedded;
   @override
   State<CouplePage> createState() => _CouplePageState();
 }
@@ -207,6 +208,7 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
   Widget build(BuildContext context) => Scaffold(
       backgroundColor: const Color(0xfff6f0e6),
       appBar: AppBar(
+          automaticallyImplyLeading: !widget.embedded,
           title: const Text('情侣空间'),
           backgroundColor: couplePaper,
           actions: [

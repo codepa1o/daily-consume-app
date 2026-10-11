@@ -27,10 +27,10 @@ python -m uvicorn app:app --app-dir server --host 127.0.0.1 --port 8091
 再在终端 B 从仓库根目录启动 Web 客户端：
 
 ```powershell
-flutter run -d chrome --web-port 8080
+.\scripts\build_flutter.ps1 -Target run-web
 ```
 
-然后打开 `http://127.0.0.1:8080`。也可以将 `chrome` 换成 `edge`。调试 Web 默认请求 `http://127.0.0.1:8091/`；本地 Uvicorn 直接提供 FastAPI 路由，线上 Nginx 才负责去掉 `/api/v1/` 前缀。后端只允许 `WEB_ALLOWED_ORIGINS` 中列出的浏览器来源，未设置时不开放跨域访问。
+然后打开 `http://127.0.0.1:8080`。调试 Web 默认请求 `http://127.0.0.1:8091/`；本地 Uvicorn 直接提供 FastAPI 路由，线上 Nginx 才负责去掉 `/api/v1/` 前缀。后端只允许 `WEB_ALLOWED_ORIGINS` 中列出的浏览器来源，未设置时不开放跨域访问。
 
 ## 使用远端服务器 API
 

@@ -25,14 +25,15 @@ Python 服务依赖已列入 `server/requirements.txt`。部署时继续按原�
 
 ## 客户端地图配置
 
-地图使用高德 JavaScript API。分别为 Web 域名及 Android 应用配置受限的 JavaScript Key，并在构建时注入：
+地图使用高德 JavaScript API。为 Web 域名及 Android 应用配置受限的 JavaScript Key，将 `AMAP_WEB_JS_KEY` 写入项目根目录本机 `.env` 后，通过项目构建脚本注入：
 
 ```powershell
-flutter build apk --release --dart-define=AMAP_WEB_JS_KEY=你的高德JSKey
-flutter build web --release --dart-define=AMAP_WEB_JS_KEY=你的高德JSKey
+.\scripts\build_flutter.ps1 -Target apk
+.\scripts\build_flutter.ps1 -Target web
+.\scripts\build_flutter.ps1 -Target run-web
 ```
 
-如高德控制台为该 Key 配置了安全密钥，再通过 `--dart-define=AMAP_WEB_JS_SECURITY_CODE=...` 注入。客户端构建产物中的 JS Key 可被提取，必须在高德控制台限制可用域名或应用；`AMAP_API_KEY` 保留在服务端，不能作为客户端地图 Key 使用。
+如高德控制台为该 Key 配置了安全密钥，再把 `AMAP_WEB_JS_SECURITY_CODE` 写入根目录 `.env`，构建脚本会一并注入。客户端构建产物中的 JS Key 可被提取，必须在高德控制台限制可用域名或应用；`AMAP_API_KEY` 保留在服务端，不能作为客户端地图 Key 使用。
 
 ## API 与请求时限
 

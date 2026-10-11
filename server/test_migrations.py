@@ -21,7 +21,7 @@ from psycopg.conninfo import make_conninfo
 
 SERVER = Path(__file__).resolve().parent
 BASELINE_SQL = (SERVER / 'migrations/versions/0001_schema.sql').read_text(encoding='utf-8')
-HEAD_REVISION = '0010_skill_agent'
+HEAD_REVISION = '0012_workout_actions'
 MIGRATION_TABLES = set(re.findall(r'CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(\w+)', BASELINE_SQL))
 for migration in (SERVER / 'migrations/versions').glob('*.py'):
     MIGRATION_TABLES.update(re.findall(
@@ -69,7 +69,8 @@ class MigrationTests(unittest.TestCase):
         self.install_legacy_schema()
         self.execute("INSERT INTO users(username,username_key,password_hash,nickname) "
                      "VALUES ('old','old','hash','旧账号') RETURNING id")
-        self.execute("INSERT INTO meal_entries VALUES (1,'2024-02-29','午餐','米饭',1200) RETURNING user_id")
+        self.execute("INSERT INTO meal_entries(user_id,date,meal_type,foods,expense_cents) "
+                     "VALUES (1,'2024-02-29','午餐','米饭',1200) RETURNING user_id")
         self.execute("INSERT INTO menstrual_periods(user_id,start_date,bleeding_dates) "
                      "VALUES (1,'2024-02-29','[\"2024-02-29\"]') RETURNING id")
         with psycopg.connect(self.dsn) as db:
@@ -90,7 +91,8 @@ class MigrationTests(unittest.TestCase):
         command.upgrade(self.config, 'head')
         command.upgrade(self.config, 'head')
         for table, rows in before.items():
-            self.assertEqual(self.execute(f'SELECT * FROM {table}'), rows)
+            expected = [(*row, []) for row in rows] if table in {'meal_entries', 'workout_logs'} else rows
+            self.assertEqual(self.execute(f'SELECT * FROM {table}'), expected)
         self.assertEqual(self.execute("INSERT INTO users(username,username_key,password_hash,nickname) "
                                      "VALUES ('next','next','hash','新账号') RETURNING id"), [(2,)])
 

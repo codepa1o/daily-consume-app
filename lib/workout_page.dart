@@ -8,7 +8,6 @@ import 'data/app_database.dart';
 import 'data/api_client.dart';
 import 'account_pages.dart';
 import 'workout_check_in_button.dart';
-import 'widgets/app_logo.dart';
 
 const _paper = Color(0xfff6f5ef);
 const _surface = Color(0xfffffefa);
@@ -44,9 +43,11 @@ class _WorkoutPageState extends State<WorkoutPage> {
   _WorkoutPeriod _period = _WorkoutPeriod.week;
   List<WorkoutMuscle> _muscles = [];
   List<WorkoutLog> _logs = [];
+  List<_WorkoutActionDraft> _selectedActions = [];
   Map<int, WorkoutDayPlan> _plans = {};
   Set<String> _selectedMuscles = {};
   int _weeklyGoal = 3;
+  int _nextActionDraftId = 0;
   bool _loading = true;
   String? _loadError;
   bool _saving = false;
@@ -90,6 +91,9 @@ class _WorkoutPageState extends State<WorkoutPage> {
   @override
   void dispose() {
     _rewardTimer?.cancel();
+    for (final action in _selectedActions) {
+      action.dispose();
+    }
     super.dispose();
   }
 
@@ -129,6 +133,17 @@ class _WorkoutPageState extends State<WorkoutPage> {
                       !(plan?.isRest ?? false)
                   ? (plan?.muscles.toSet() ?? <String>{})
                   : <String>{});
+          final oldActions = _selectedActions;
+          _selectedActions = [
+            for (final action in log?.actions ?? const <WorkoutAction>[])
+              _WorkoutActionDraft.fromAction(
+                  id: _nextActionDraftId++, action: action),
+          ];
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            for (final action in oldActions) {
+              action.dispose();
+            }
+          });
         }
       });
     } catch (error) {
@@ -145,6 +160,38 @@ class _WorkoutPageState extends State<WorkoutPage> {
       if (_sameDate(log.date, date)) return log;
     }
     return null;
+  }
+
+  void _addWorkoutAction() {
+    setState(() => _selectedActions.add(
+        _WorkoutActionDraft(id: _nextActionDraftId++)));
+  }
+
+  void _removeWorkoutAction(int id) {
+    final index = _selectedActions.indexWhere((action) => action.id == id);
+    if (index < 0) return;
+    final removed = _selectedActions[index];
+    setState(() => _selectedActions.removeAt(index));
+    WidgetsBinding.instance.addPostFrameCallback((_) => removed.dispose());
+  }
+
+  List<WorkoutAction>? _workoutActionsToSave() {
+    final actions = <WorkoutAction>[];
+    for (final draft in _selectedActions) {
+      final name = draft.name.text.trim();
+      final sets = int.tryParse(draft.sets.text);
+      final reps = int.tryParse(draft.reps.text);
+      if (name.isEmpty ||
+          name.length > 60 ||
+          sets == null ||
+          sets < 1 ||
+          sets > 100 ||
+          reps == null ||
+          reps < 1 ||
+          reps > 1000) return null;
+      actions.add(WorkoutAction(name: name, sets: sets, reps: reps));
+    }
+    return actions;
   }
 
   Future<void> _selectDate(DateTime date) async {
@@ -168,13 +215,21 @@ class _WorkoutPageState extends State<WorkoutPage> {
   }
 
   Future<void> _checkIn() async {
-    if (_selectedMuscles.isEmpty || _isRestDay || !_isToday) return;
+    if (_selectedMuscles.isEmpty ||
+        (_isToday && _isRestDay) ||
+        _selectedDate.isAfter(_dateOnly(DateTime.now()))) return;
+    final actions = _workoutActionsToSave();
+    if (actions == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('请填写完整动作名称、组数和每组次数，或删除该动作。')));
+      return;
+    }
     setState(() => _saving = true);
     final selected = _muscles
         .where((muscle) => _selectedMuscles.contains(muscle.name))
         .toList();
     try {
-      await _db.saveWorkoutLog(_selectedDate, selected);
+      await _db.saveWorkoutLog(_selectedDate, selected, actions: actions);
     } catch (_) {
       if (mounted) {
         setState(() => _saving = false);
@@ -426,8 +481,7 @@ class _WorkoutPageState extends State<WorkoutPage> {
     final selectedLog = _selectedLog;
     final weekLogs = _weekLogs;
     final plannedRest = _isRestDay;
-    final canCheckIn = _isToday &&
-        !plannedRest &&
+    final canCheckIn = (!_isToday || !plannedRest) &&
         selectedLog == null &&
         _selectedMuscles.isNotEmpty;
     return LayoutBuilder(builder: (context, constraints) {
@@ -438,6 +492,10 @@ class _WorkoutPageState extends State<WorkoutPage> {
           _selectedDateHeader(),
           const SizedBox(height: 10),
           _musclePicker(selectedLog),
+          if (selectedLog == null) ...[
+            const SizedBox(height: 12),
+            _actionEditor(),
+          ],
           const SizedBox(height: 14),
           if (selectedLog != null)
             _checkedInPanel(selectedLog)
@@ -459,8 +517,6 @@ class _WorkoutPageState extends State<WorkoutPage> {
             padding:
                 EdgeInsets.fromLTRB(wide ? 36 : 20, 22, wide ? 36 : 20, 32),
             children: [
-              const _WorkoutTopLine(),
-              const SizedBox(height: 24),
               const Text('训练记录',
                   style: TextStyle(
                       color: _sage,
@@ -729,12 +785,18 @@ class _WorkoutPageState extends State<WorkoutPage> {
             ],
           ),
           const SizedBox(height: 7),
-          if (_isRestDay && log == null)
-            Text(_isToday ? '今天安排了休息，无法打卡。' : '这一天安排了休息，无法打卡。',
-                style: const TextStyle(color: _muted, fontSize: 11))
-          else if (availableMuscles.isEmpty || (!_isToday && log == null))
-            Text(_isToday ? '选择今天训练的部位，可多选。' : '这天没有训练记录。',
-                style: const TextStyle(color: _muted, fontSize: 11))
+          if (!_isToday && _isRestDay && log == null)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 7),
+              child: Text('这一天原计划休息，实际训练仍可补打卡。',
+                  style: TextStyle(color: _muted, fontSize: 11)),
+            ),
+          if (_isToday && _isRestDay && log == null)
+            const Text('今天安排了休息，无法打卡。',
+                style: TextStyle(color: _muted, fontSize: 11))
+          else if (availableMuscles.isEmpty && log == null)
+            const Text('请先添加训练部位。',
+                style: TextStyle(color: _muted, fontSize: 11))
           else
             Wrap(
               spacing: 7,
@@ -775,7 +837,7 @@ class _WorkoutPageState extends State<WorkoutPage> {
                 return FilterChip(
                   selected: checked,
                   showCheckmark: false,
-                  onSelected: log != null || !_isToday || _isRestDay
+                  onSelected: log != null || (_isToday && _isRestDay)
                       ? null
                       : (value) => setState(() {
                             if (value) {
@@ -808,13 +870,11 @@ class _WorkoutPageState extends State<WorkoutPage> {
                 );
               }).toList(),
             ),
-          if (log == null &&
-              !_isRestDay &&
-              _isToday &&
-              _selectedMuscles.isNotEmpty)
+          if (log == null && _selectedMuscles.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 5),
-              child: Text('${_selectedMuscles.length} 个训练部位已选择',
+              child: Text(
+                  '${_selectedMuscles.length} 个训练部位已选择${_isToday ? '' : '，可补打卡'}',
                   style: const TextStyle(color: _sage, fontSize: 10)),
             ),
         ],
@@ -823,30 +883,137 @@ class _WorkoutPageState extends State<WorkoutPage> {
   }
 
   Widget _checkedInPanel(WorkoutLog log) => _Card(
-        child: Row(
-          children: [
-            Container(
-              width: 39,
-              height: 39,
-              decoration:
-                  const BoxDecoration(color: _sageSoft, shape: BoxShape.circle),
-              child: const Icon(Icons.check_rounded, color: _sage),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_isToday ? '今天已完成训练' : '该日已完成训练',
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 3),
-                  Text(log.muscles.map((muscle) => muscle.name).join(' · '),
-                      style: const TextStyle(color: _muted, fontSize: 10)),
-                ],
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(
+            children: [
+              Container(
+                width: 39,
+                height: 39,
+                decoration: const BoxDecoration(
+                    color: _sageSoft, shape: BoxShape.circle),
+                child: const Icon(Icons.check_rounded, color: _sage),
               ),
-            ),
-            TextButton(onPressed: _undoCheckIn, child: const Text('撤销')),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_isToday ? '今天已完成训练' : '该日已完成训练',
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 3),
+                    Text(log.muscles.map((muscle) => muscle.name).join(' · '),
+                        style: const TextStyle(color: _muted, fontSize: 10)),
+                  ],
+                ),
+              ),
+              TextButton(onPressed: _undoCheckIn, child: const Text('撤销')),
+            ],
+          ),
+          if (log.actions.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 9),
+            for (final action in log.actions)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 5, left: 50),
+                child: Row(children: [
+                  Expanded(
+                      child: Text(action.name,
+                          style: const TextStyle(fontSize: 12))),
+                  Text('${action.sets} 组 × ${action.reps} 次',
+                      style: const TextStyle(color: _muted, fontSize: 11)),
+                ]),
+              ),
+          ],
+        ]),
+      );
+
+  Widget _actionEditor() => _Card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Expanded(
+                  child: Text('动作（选填）',
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+              TextButton.icon(
+                onPressed:
+                    _selectedActions.length >= 20 ? null : _addWorkoutAction,
+                icon: const Icon(Icons.add_rounded, size: 17),
+                label: const Text('添加动作'),
+                style: TextButton.styleFrom(
+                    foregroundColor: _sage,
+                    visualDensity: VisualDensity.compact),
+              ),
+            ]),
+            if (_selectedActions.isEmpty)
+              const Text('可添加多个动作，并填写组数和每组次数。',
+                  style: TextStyle(color: _muted, fontSize: 11)),
+            for (var index = 0; index < _selectedActions.length; index++) ...[
+              if (index > 0) const Divider(height: 16),
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    key: ValueKey(
+                        'workout-action-${_selectedActions[index].id}-name'),
+                    controller: _selectedActions[index].name,
+                    maxLength: 60,
+                    decoration: const InputDecoration(
+                      labelText: '动作名称',
+                      hintText: '例如：卧推',
+                      counterText: '',
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '删除动作',
+                  onPressed: () =>
+                      _removeWorkoutAction(_selectedActions[index].id),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                ),
+              ]),
+              const SizedBox(height: 4),
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    key: ValueKey(
+                        'workout-action-${_selectedActions[index].id}-sets'),
+                    controller: _selectedActions[index].sets,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 3,
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(
+                      labelText: '组数',
+                      suffixText: '组',
+                      counterText: '',
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    key: ValueKey(
+                        'workout-action-${_selectedActions[index].id}-reps'),
+                    controller: _selectedActions[index].reps,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 4,
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(
+                      labelText: '每组次数',
+                      suffixText: '次',
+                      counterText: '',
+                      isDense: true,
+                    ),
+                  ),
+                ),
+              ]),
+            ],
           ],
         ),
       );
@@ -854,15 +1021,19 @@ class _WorkoutPageState extends State<WorkoutPage> {
   Widget _checkInPanel(bool canCheckIn) => Column(
         children: [
           WorkoutCheckInButton(
-              enabled: canCheckIn && !_saving, onCheckIn: _checkIn),
+              enabled: canCheckIn && !_saving,
+              actionLabel: _isToday ? '打卡' : '补打卡',
+              onCheckIn: _checkIn),
           const SizedBox(height: 9),
           Text(
-            _isRestDay
-                ? '这一天是休息日'
+            _isToday && _isRestDay
+                ? '今天安排了休息，无法打卡。'
                 : !_isToday
-                    ? '只能为今天打卡'
+                    ? _selectedMuscles.isEmpty
+                        ? '选择当日训练部位后，可补打卡。'
+                        : '确认这一天确实完成了训练，再补打卡。'
                     : _selectedMuscles.isEmpty
-                        ? '先选择今天训练的部位'
+                        ? '选择今天训练的部位，可多选。'
                         : kIsWeb
                             ? '选择训练部位后，点击完成打卡'
                             : '训练完成后，长按按钮打卡',
@@ -926,7 +1097,9 @@ class _WorkoutPageState extends State<WorkoutPage> {
                   log != null
                       ? '已完成打卡'
                       : _isRestDay
-                          ? '计划休息'
+                          ? _isToday
+                              ? '计划休息'
+                              : '计划休息 · 可补打卡'
                           : '尚未打卡',
                   style: const TextStyle(
                       fontSize: 12, fontWeight: FontWeight.w600)),
@@ -1374,35 +1547,6 @@ class _WorkoutPeriodSelector extends StatelessWidget {
       );
 }
 
-class _WorkoutTopLine extends StatelessWidget {
-  const _WorkoutTopLine();
-
-  @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          const AppLogo(),
-          const SizedBox(width: 10),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('DAY BY DAY',
-                  style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.8)),
-              SizedBox(height: 2),
-              Text('身体 · 饮食 · 健身',
-                  style: TextStyle(fontSize: 9, color: _muted)),
-            ],
-          ),
-          const Spacer(),
-          const Icon(Icons.cloud_done_outlined, color: _sage, size: 16),
-          const SizedBox(width: 4),
-          const Text('账号记录', style: TextStyle(fontSize: 10, color: _sage)),
-        ],
-      );
-}
-
 class _Card extends StatelessWidget {
   const _Card({required this.child});
   final Widget child;
@@ -1495,6 +1639,31 @@ class _FlowerReward extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _WorkoutActionDraft {
+  _WorkoutActionDraft({required this.id})
+      : name = TextEditingController(),
+        sets = TextEditingController(),
+        reps = TextEditingController();
+
+  _WorkoutActionDraft.fromAction({
+    required this.id,
+    required WorkoutAction action,
+  })  : name = TextEditingController(text: action.name),
+        sets = TextEditingController(text: '${action.sets}'),
+        reps = TextEditingController(text: '${action.reps}');
+
+  final int id;
+  final TextEditingController name;
+  final TextEditingController sets;
+  final TextEditingController reps;
+
+  void dispose() {
+    name.dispose();
+    sets.dispose();
+    reps.dispose();
+  }
 }
 
 DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);

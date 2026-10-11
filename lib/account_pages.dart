@@ -59,9 +59,8 @@ class AccountAvatar extends StatelessWidget {
         radius: radius,
         backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
         backgroundImage: bytes == null ? null : MemoryImage(bytes!),
-        child: bytes == null
-            ? Icon(Icons.person_outline, size: radius + 4)
-            : null,
+        child:
+            bytes == null ? Icon(Icons.person_outline, size: radius + 4) : null,
       );
 }
 
@@ -425,7 +424,8 @@ class _LegacyImportPageState extends State<LegacyImportPage> {
 }
 
 class MyPage extends StatefulWidget {
-  const MyPage({super.key});
+  const MyPage({super.key, this.onOpenCouple});
+  final VoidCallback? onOpenCouple;
   @override
   State<MyPage> createState() => _MyPageState();
 }
@@ -701,8 +701,12 @@ class _MyPageState extends State<MyPage> {
                   enabled: !_busy,
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => const CouplePage()));
+                    if (widget.onOpenCouple != null) {
+                      widget.onOpenCouple!();
+                      return;
+                    }
+                    Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const CouplePage()));
                   })),
           Card(
               child: ListTile(

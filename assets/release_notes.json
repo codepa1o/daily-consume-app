@@ -1,11 +1,14 @@
 {
+  "versionName": "1.4.2",
+  "versionCode": 17,
   "releaseNotes": [
-    "新增技能实验室，支持按 Skill 创建多轮对话、实时流式回答和单次运行。",
-    "新增个人知识库，支持上传 Markdown、TXT、PDF 并在回答中引用资料来源。",
-    "新增评测中心，可运行基础版与增强版对照评测并查看 Judge 评分报告。",
-    "对话、知识库与评测数据按登录账号隔离。"
+    "饮食消费支持在一顿饭中添加多项食物，并分别记录金额。",
+    "首页重排为“日常”，顶部使用圆形图标入口，手机端每行展示四个模块。",
+    "女性健康入口仅对女生账号显示，男生及未设置性别的账号自动隐藏。",
+    "各模块可在日常页面内切换，默认展示身体数据，并保留已打开模块的状态。",
+    "生活日历（日记与备忘录）和专注时刻（番茄钟）调整为独立模块。",
+    "身高、体重信息与对应记录按钮整合到同一张卡片，适配手机和宽屏。",
+    "修复窄屏和大字体下生活日历日期及节假日标记的显示溢出。"
   ],
-  "versionName": "1.4.1",
-  "updateManifestUrl": "https://github.com/codepa1o/daily-consume-app/releases/latest/download/latest.json",
-  "versionCode": 16
+  "updateManifestUrl": "https://github.com/codepa1o/daily-consume-app/releases/latest/download/latest.json"
 }

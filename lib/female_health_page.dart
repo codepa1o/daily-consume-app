@@ -4,7 +4,6 @@ import 'account_pages.dart';
 import 'data/api_client.dart';
 import 'data/app_database.dart' show dateKey;
 import 'data/female_health.dart';
-import 'widgets/app_logo.dart';
 
 const _rose = Color(0xffa34f68);
 const _roseSoft = Color(0xfff7e6ec);
@@ -498,25 +497,18 @@ class _FemaleHealthPageState extends State<FemaleHealthPage> {
                   EdgeInsets.fromLTRB(wide ? 36 : 20, 22, wide ? 36 : 20, 32),
               children: [
                 Row(children: [
-                  const AppLogo(),
-                  const SizedBox(width: 10),
-                  const Text('DAY BY DAY',
-                      style: TextStyle(
-                          fontSize: 11,
-                          letterSpacing: 1.8,
-                          fontWeight: FontWeight.w700)),
-                  const Spacer(),
+                  Expanded(
+                    child: Text('女性健康',
+                        style: TextStyle(
+                            fontFamily: 'serif',
+                            fontSize: wide ? 36 : 32,
+                            color: _ink)),
+                  ),
                   IconButton(
                       tooltip: '周期设置',
                       onPressed: _settings,
                       icon: const Icon(Icons.tune_rounded, color: _rose))
                 ]),
-                const SizedBox(height: 16),
-                Text('女性健康',
-                    style: TextStyle(
-                        fontFamily: 'serif',
-                        fontSize: wide ? 36 : 32,
-                        color: _ink)),
                 const SizedBox(height: 6),
                 const Text('记录身体的节奏，也照顾每一天的感受。',
                     style: TextStyle(fontSize: 13, color: _muted)),

@@ -269,10 +269,10 @@ void main() {
     expect(find.byType(TextFormField), findsNothing);
   });
 
-  testWidgets('Body failure leaves the life calendar mounted', (tester) async {
+  testWidgets('Body data no longer contains the life calendar', (tester) async {
     await tester.pumpWidget(app(const Scaffold(body: BodyPage())));
     await tester.pumpAndSettle();
-    expect(find.byType(LifeCalendar), findsOneWidget);
+    expect(find.byType(LifeCalendar), findsNothing);
     expect(find.text('身体记录'), findsOneWidget);
   });
 

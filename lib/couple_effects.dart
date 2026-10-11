@@ -113,14 +113,17 @@ class CoupleAlbumViewer extends StatefulWidget {
 
 class _CoupleAlbumViewerState extends State<CoupleAlbumViewer> {
   late Future<List<Uint8List>> previews;
-  late final PageController pageController = PageController();
+  late final PageController pageController =
+      PageController(viewportFraction: .78);
   int current = 0;
 
   CoupleApi get api => widget.api ?? CoupleApi.instance;
   @override
   void initState() {
     super.initState();
-    previews = widget.compact || widget.memory.photoCount <= 1
+    previews = widget.compact ||
+            widget.memory.photoCount <= 1 ||
+            widget.memory.displayMode != 'grid'
         ? Future.value(const <Uint8List>[])
         : api.thumbnails(widget.memory.id);
   }
@@ -133,7 +136,9 @@ class _CoupleAlbumViewerState extends State<CoupleAlbumViewer> {
         oldWidget.memory.displayMode != widget.memory.displayMode ||
         oldWidget.api != widget.api ||
         oldWidget.compact != widget.compact) {
-      previews = widget.compact || widget.memory.photoCount <= 1
+      previews = widget.compact ||
+              widget.memory.photoCount <= 1 ||
+              widget.memory.displayMode != 'grid'
           ? Future.value(const <Uint8List>[])
           : api.thumbnails(widget.memory.id);
       current = 0;
@@ -162,13 +167,21 @@ class _CoupleAlbumViewerState extends State<CoupleAlbumViewer> {
     if (!widget.memory.hasPhoto)
       return CouplePhoto(memory: widget.memory, api: api);
     if (widget.memory.photoCount == 1) {
-      return CouplePhoto(
-          memory: widget.memory,
-          api: api,
-          thumbnail: widget.compact,
-          height: widget.compact ? 220 : 286);
+      return Semantics(
+        label: '查看照片',
+        button: true,
+        child: InkWell(
+          onTap: () => openPhoto(0),
+          child: CouplePhoto(
+              memory: widget.memory,
+              api: api,
+              thumbnail: widget.compact,
+              height: widget.compact ? 220 : 286),
+        ),
+      );
     }
     if (widget.compact) return _cover();
+    if (widget.memory.displayMode == 'slide') return _slideshow();
     return FutureBuilder<List<Uint8List>>(
       future: previews,
       builder: (context, snapshot) {
@@ -189,84 +202,93 @@ class _CoupleAlbumViewerState extends State<CoupleAlbumViewer> {
                   child: CircularProgressIndicator(strokeWidth: 2)));
         }
         final images = snapshot.data!;
-        if (widget.memory.displayMode == 'grid') {
-          final columns = images.length == 2 || images.length == 4 ? 2 : 3;
-          return GridView.builder(
-            shrinkWrap: true,
-            primary: false,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: images.length,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: 4,
-              mainAxisSpacing: 4,
+        final columns = images.length == 2 || images.length == 4 ? 2 : 3;
+        return GridView.builder(
+          shrinkWrap: true,
+          primary: false,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: images.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: 4,
+            mainAxisSpacing: 4,
+          ),
+          itemBuilder: (context, index) => Semantics(
+            label: '查看第 ${index + 1} 张照片，共 ${images.length} 张',
+            button: true,
+            child: InkWell(
+              onTap: () => openPhoto(index),
+              child: ClipRRect(
+                  borderRadius: BorderRadius.circular(5),
+                  child: Image.memory(images[index], fit: BoxFit.cover)),
             ),
-            itemBuilder: (context, index) => Semantics(
-              label: '查看第 ${index + 1} 张照片，共 ${images.length} 张',
-              button: true,
-              child: InkWell(
-                onTap: () => openPhoto(index),
-                child: ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: Image.memory(images[index], fit: BoxFit.cover)),
-              ),
-            ),
-          );
-        }
-        return SizedBox(
-          height: 286,
-          child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                for (var layer = 2; layer >= 1; layer--)
-                  if (images.length > layer)
-                    Positioned(
-                        left: 8.0 * layer,
-                        right: 8.0 * layer,
-                        top: 5.0 * layer,
-                        bottom: 5.0 * layer,
-                        child: Transform.rotate(
-                            angle: layer * .018,
-                            child: Container(
-                                color: couplePaper,
-                                padding: const EdgeInsets.all(5),
-                                child: Image.memory(
-                                    images[(current + layer) % images.length],
-                                    fit: BoxFit.cover)))),
-                PageView.builder(
-                  controller: pageController,
-                  itemCount: images.length,
-                  onPageChanged: (value) => setState(() => current = value),
-                  itemBuilder: (_, index) => Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 18),
-                    child: CouplePhoto(
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _slideshow() => SizedBox(
+        height: 286,
+        child: PageView.builder(
+          controller: pageController,
+          itemCount: widget.memory.photoCount,
+          clipBehavior: Clip.none,
+          onPageChanged: (index) => setState(() => current = index),
+          itemBuilder: (context, index) => AnimatedBuilder(
+            animation: pageController,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 18),
+              child: Semantics(
+                label: '查看第 ${index + 1} 张照片，共 ${widget.memory.photoCount} 张',
+                button: true,
+                child: InkWell(
+                  onTap: () => openPhoto(index),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: couplePaper,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xffeadfd0)),
+                      boxShadow: const [
+                        BoxShadow(
+                            color: Color(0x24473522),
+                            blurRadius: 18,
+                            offset: Offset(0, 9)),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(5),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CouplePhoto(
                         memory: widget.memory,
                         api: api,
                         position: index,
                         cover: false,
                         thumbnail: false,
-                        height: 264),
+                        height: 236,
+                      ),
+                    ),
                   ),
                 ),
-                Positioned(
-                    right: 20,
-                    bottom: 24,
-                    child: DecoratedBox(
-                        decoration: BoxDecoration(
-                            color: const Color(0xcc292621),
-                            borderRadius: BorderRadius.circular(20)),
-                        child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 5),
-                            child: Text('${current + 1} / ${images.length}',
-                                style: const TextStyle(
-                                    color: couplePaper, fontSize: 12))))),
-              ]),
-        );
-      },
-    );
-  }
+              ),
+            ),
+            builder: (context, child) {
+              final page = pageController.hasClients
+                  ? pageController.page ?? current.toDouble()
+                  : current.toDouble();
+              final distance = (page - index).abs().clamp(0.0, 1.0);
+              return Transform.translate(
+                offset: Offset((index - page) * 12, distance * 12),
+                child: Transform.scale(
+                  scale: 1 - distance * .08,
+                  child: child,
+                ),
+              );
+            },
+          ),
+        ),
+      );
 
   Widget _cover() => SizedBox(
         height: 220,
@@ -322,13 +344,16 @@ class _CouplePhotoGalleryState extends State<_CouplePhotoGallery> {
           itemCount: widget.memory.photoCount,
           onPageChanged: (index) => setState(() => current = index),
           itemBuilder: (_, index) => Center(
-              child: CouplePhoto(
-                  memory: widget.memory,
-                  api: widget.api,
-                  position: index,
-                  cover: false,
-                  thumbnail: false,
-                  height: MediaQuery.sizeOf(context).height * .78)),
+              child: InteractiveViewer(
+                  minScale: .8,
+                  maxScale: 4,
+                  child: CouplePhoto(
+                      memory: widget.memory,
+                      api: widget.api,
+                      position: index,
+                      cover: false,
+                      thumbnail: false,
+                      height: MediaQuery.sizeOf(context).height * .78))),
         ),
       );
 }

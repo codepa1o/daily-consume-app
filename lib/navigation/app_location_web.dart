@@ -3,7 +3,17 @@ import 'dart:js_interop';
 
 import 'package:web/web.dart' as web;
 
-const _pages = {'body', 'diary', 'workout', 'travel', 'skill-agent', 'female'};
+const _pages = {
+  'body',
+  'calendar',
+  'focus',
+  'diary',
+  'female',
+  'couple',
+  'workout',
+  'travel',
+  'skill-agent',
+};
 final _pageChanges = StreamController<String?>.broadcast();
 bool _listening = false;
 

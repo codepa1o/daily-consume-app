@@ -64,7 +64,8 @@ $releaseNotes = @{ versionName = $VersionName; versionCode = $VersionCode; updat
 [System.IO.File]::WriteAllText((Join-Path $projectRoot 'assets/release_notes.json'), $releaseNotes, $utf8)
 Push-Location $projectRoot
 try {
-    & $Flutter build apk --release "--dart-define=UPDATE_MANIFEST_URL=$manifestUrl"
+    & (Join-Path $PSScriptRoot 'build_flutter.ps1') `
+        -Target apk -Flutter $Flutter -Repository $Repository
     if ($LASTEXITCODE -ne 0) { throw 'APK build failed. Version and release notes remain saved for correction/rebuild.' }
     Write-Output 'APK ready: build/app/outputs/flutter-apk/app-release.apk'
     Write-Output "Publish with: python scripts/publish_github_release.py --repo $Repository"

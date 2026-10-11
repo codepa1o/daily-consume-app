@@ -87,7 +87,14 @@ Android 首次更新可能要求允许本应用“安装未知应用”；点击
 -Flutter 'E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter\bin\flutter.bat'
 ```
 
-脚本同步更新 `pubspec.yaml`、当前版本说明和版本历史（从公开 Releases Atom feed 刷新），然后构建 APK。应用内“我的 → 更新日志”按发布时间倒序展示已发布版本；无网络时沿用 APK 中已有的历史记录。`VersionCode` 必须递增。重建当前版本直接执行 `flutter build apk --release`。如使用其他公开发布仓库，构建和发布两个脚本都传入对应的 `OWNER/REPO`：构建参数为 `-Repository`，发布参数为 `--repo`。
+脚本同步更新 `pubspec.yaml`、当前版本说明和版本历史（从公开 Releases Atom feed 刷新），然后调用 `scripts/build_flutter.ps1` 构建 APK。该脚本从根目录 `.env` 读取 `AMAP_WEB_JS_KEY`，只把客户端地图 Key 和更新清单 URL 传给 Flutter，不传入服务端 `AMAP_API_KEY`。应用内“我的 → 更新日志”按发布时间倒序展示已发布版本；无网络时沿用 APK 中已有的历史记录。`VersionCode` 必须递增。重建当前 APK 或构建 Web 使用：
+
+```powershell
+.\scripts\build_flutter.ps1 -Target apk
+.\scripts\build_flutter.ps1 -Target web
+```
+
+如使用其他公开发布仓库，构建和发布两个脚本都传入对应的 `OWNER/REPO`：构建参数为 `-Repository`，发布参数为 `--repo`。
 
 ### 2. 配置发布环境
 

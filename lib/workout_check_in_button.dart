@@ -5,10 +5,14 @@ import 'package:flutter/material.dart';
 /// Web 端使用点击打卡；触控端保留两秒长按确认。
 class WorkoutCheckInButton extends StatefulWidget {
   const WorkoutCheckInButton(
-      {super.key, required this.enabled, required this.onCheckIn});
+      {super.key,
+      required this.enabled,
+      required this.onCheckIn,
+      this.actionLabel = '打卡'});
 
   final bool enabled;
   final Future<void> Function() onCheckIn;
+  final String actionLabel;
 
   @override
   State<WorkoutCheckInButton> createState() => _WorkoutCheckInButtonState();
@@ -64,7 +68,11 @@ class _WorkoutCheckInButtonState extends State<WorkoutCheckInButton>
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white))
               : const Icon(Icons.fitness_center_rounded),
-          label: Text(_saving ? '正在保存…' : '完成今天打卡'),
+          label: Text(_saving
+              ? '正在保存…'
+              : widget.actionLabel == '补打卡'
+                  ? '完成补打卡'
+                  : '完成今天打卡'),
           style: FilledButton.styleFrom(
             backgroundColor: _sage,
             foregroundColor: Colors.white,
@@ -78,7 +86,7 @@ class _WorkoutCheckInButtonState extends State<WorkoutCheckInButton>
     return Semantics(
         button: true,
         enabled: widget.enabled,
-        label: '长按两秒完成健身打卡',
+        label: '长按两秒${widget.actionLabel}',
         onLongPress: widget.enabled ? _finish : null,
         child: RawGestureDetector(
           excludeFromSemantics: true,
@@ -153,7 +161,7 @@ class _WorkoutCheckInButtonState extends State<WorkoutCheckInButton>
                         Text(
                             _progress.value > 0
                                 ? '${(_progress.value * 100).round()}%'
-                                : '打卡',
+                                : widget.actionLabel,
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontFamily: 'serif',

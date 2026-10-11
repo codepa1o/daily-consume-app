@@ -263,6 +263,7 @@ class _LifeCalendarState extends State<LifeCalendar> {
   Widget build(BuildContext context) {
     if (_sessionChanged) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
+    final textScaler = MediaQuery.textScalerOf(context);
     final previous = DateTime.utc(_month.year, _month.month - 1);
     final next = DateTime.utc(_month.year, _month.month + 1);
     return LayoutBuilder(builder: (context, constraints) {
@@ -306,12 +307,17 @@ class _LifeCalendarState extends State<LifeCalendar> {
                     crossAxisSpacing: 3,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    childAspectRatio:
-                        MediaQuery.textScalerOf(context).scale(1) > 1.3
-                            ? 0.55
-                            : wide
-                                ? 1.2
-                                : 0.72,
+                    // 窄屏保留日期、农历及记录标记所需高度。
+                    mainAxisExtent: constraints.maxWidth < 480
+                        ? textScaler.scale(18) * 1.4 +
+                            textScaler.scale(10) * 1.4 +
+                            28
+                        : null,
+                    childAspectRatio: textScaler.scale(1) > 1.3
+                        ? 0.5
+                        : wide
+                            ? 1.2
+                            : 0.72,
                     children: [
                       for (final date in journalMonthCells(_month))
                         if (date == null)
@@ -446,16 +452,15 @@ class _LifeCalendarState extends State<LifeCalendar> {
         ),
       );
 
-  Widget _dayCell(DateTime date, ColorScheme scheme,
-      {required bool compact}) {
+  Widget _dayCell(DateTime date, ColorScheme scheme, {required bool compact}) {
     final summary = _days[date];
     final today = date == journalToday();
     final selected = date == _selected;
     final solarDay = SolarDay.fromYmd(date.year, date.month, date.day);
     final lunarDay = solarDay.getLunarDay();
     final holiday = _officialHoliday(date);
-    final previousHoliday = _officialHoliday(DateTime.utc(
-        date.year, date.month, date.day - 1));
+    final previousHoliday =
+        _officialHoliday(DateTime.utc(date.year, date.month, date.day - 1));
     final holidayLabel = holiday != null &&
             !holiday.isWork() &&
             (previousHoliday == null ||
@@ -510,24 +515,27 @@ class _LifeCalendarState extends State<LifeCalendar> {
               child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      Text('${date.day}',
-                          style: TextStyle(
-                              color: selected || holiday?.isWork() == true
-                                  ? scheme.onSurface
-                                  : holiday != null
-                                      ? scheme.onSurfaceVariant
-                                      : scheme.onSurface,
-                              fontSize: compact ? 18 : 24,
-                              fontWeight: today || selected
-                                  ? FontWeight.bold
-                                  : FontWeight.w500)),
-                      if (holiday != null) ...[
-                        const SizedBox(width: 2),
-                        _statusBadge(scheme, holiday.isWork(),
-                            size: compact ? 14 : 18),
-                      ],
-                    ]),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text('${date.day}',
+                            style: TextStyle(
+                                color: selected || holiday?.isWork() == true
+                                    ? scheme.onSurface
+                                    : holiday != null
+                                        ? scheme.onSurfaceVariant
+                                        : scheme.onSurface,
+                                fontSize: compact ? 18 : 24,
+                                fontWeight: today || selected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500)),
+                        if (holiday != null) ...[
+                          const SizedBox(width: 2),
+                          _statusBadge(scheme, holiday.isWork(),
+                              size: compact ? 14 : 18),
+                        ],
+                      ]),
+                    ),
                     const SizedBox(height: 2),
                     Text(secondaryLabel,
                         maxLines: 1,

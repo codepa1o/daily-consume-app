@@ -18,27 +18,60 @@ class BodyEntry {
   final double value;
 }
 
+class MealItem {
+  const MealItem({required this.name, required this.expenseCents});
+
+  final String name;
+  final int expenseCents;
+
+  factory MealItem.fromMap(Map<String, Object?> row) => MealItem(
+        name: row['name']! as String,
+        expenseCents: row['expense_cents']! as int,
+      );
+
+  Map<String, Object> toMap() => {
+        'name': name,
+        'expense_cents': expenseCents,
+      };
+}
+
 class MealEntry {
   const MealEntry({
     required this.date,
     required this.mealType,
     required this.foods,
     required this.expenseCents,
+    this.items = const [],
   });
 
   final DateTime date;
   final String mealType;
   final String foods;
   final int expenseCents;
+  final List<MealItem> items;
 
   double get expense => expenseCents / 100;
 
-  factory MealEntry.fromMap(Map<String, Object?> row) => MealEntry(
-        date: dateFromKey(row['date']! as String),
-        mealType: row['meal_type']! as String,
-        foods: row['foods']! as String,
-        expenseCents: row['expense_cents']! as int,
-      );
+  factory MealEntry.fromMap(Map<String, Object?> row) {
+    final foods = row['foods']! as String;
+    final expenseCents = row['expense_cents']! as int;
+    final rawItems = row['items'];
+    final items = rawItems is List
+        ? rawItems
+            .map((item) =>
+                MealItem.fromMap(Map<String, Object?>.from(item as Map)))
+            .toList()
+        : <MealItem>[];
+    return MealEntry(
+      date: dateFromKey(row['date']! as String),
+      mealType: row['meal_type']! as String,
+      foods: foods,
+      expenseCents: expenseCents,
+      items: items.isEmpty
+          ? [MealItem(name: foods, expenseCents: expenseCents)]
+          : items,
+    );
+  }
 }
 
 class OtherExpenseEntry {
@@ -78,23 +111,60 @@ class WorkoutMuscle {
       );
 }
 
+class WorkoutAction {
+  const WorkoutAction({
+    required this.name,
+    required this.sets,
+    required this.reps,
+  });
+
+  final String name;
+  final int sets;
+  final int reps;
+
+  factory WorkoutAction.fromMap(Map<String, Object?> row) => WorkoutAction(
+        name: row['name']! as String,
+        sets: row['sets']! as int,
+        reps: row['reps']! as int,
+      );
+
+  Map<String, Object> toMap() => {
+        'name': name,
+        'sets': sets,
+        'reps': reps,
+      };
+}
+
 class WorkoutLog {
-  const WorkoutLog({required this.date, required this.muscles});
+  const WorkoutLog(
+      {required this.date,
+      required this.muscles,
+      this.actions = const []});
 
   final DateTime date;
   final List<WorkoutMuscle> muscles;
+  final List<WorkoutAction> actions;
 
-  factory WorkoutLog.fromMap(Map<String, Object?> row) => WorkoutLog(
-        date: dateFromKey(row['date']! as String),
-        muscles: (row['muscles'] is String
-                ? jsonDecode(row['muscles']! as String) as List<dynamic>
-                : row['muscles'] as List<dynamic>)
-            .map((item) => WorkoutMuscle(
-                  name: item['name'] as String,
-                  colorValue: item['color'] as int,
-                ))
-            .toList(),
-      );
+  factory WorkoutLog.fromMap(Map<String, Object?> row) {
+    final rawActions = row['actions'];
+    return WorkoutLog(
+      date: dateFromKey(row['date']! as String),
+      muscles: (row['muscles'] is String
+              ? jsonDecode(row['muscles']! as String) as List<dynamic>
+              : row['muscles'] as List<dynamic>)
+          .map((item) => WorkoutMuscle(
+                name: item['name'] as String,
+                colorValue: item['color'] as int,
+              ))
+          .toList(),
+      actions: (rawActions is String
+              ? jsonDecode(rawActions) as List<dynamic>
+              : rawActions as List<dynamic>? ?? const [])
+          .map((item) => WorkoutAction.fromMap(
+              Map<String, Object?>.from(item as Map)))
+          .toList(),
+    );
+  }
 }
 
 class WorkoutDayPlan {
@@ -219,11 +289,16 @@ class AppDatabase {
           .map(MealEntry.fromMap)
           .toList();
   Future<void> saveMeal(MealEntry meal) async {
+    final items = meal.items.isEmpty
+        ? [MealItem(name: meal.foods, expenseCents: meal.expenseCents)]
+        : meal.items;
     await _api.request('PUT', 'meals', body: {
       'date': dateKey(meal.date),
       'meal_type': meal.mealType,
-      'foods': meal.foods,
-      'expense_cents': meal.expenseCents,
+      'foods': items.map((item) => item.name).join('、'),
+      'expense_cents':
+          items.fold<int>(0, (sum, item) => sum + item.expenseCents),
+      'items': items.map((item) => item.toMap()).toList(),
     });
   }
 
@@ -304,13 +379,15 @@ class AppDatabase {
           .map(WorkoutLog.fromMap)
           .toList();
   Future<void> saveWorkoutLog(
-      DateTime date, List<WorkoutMuscle> muscles) async {
+      DateTime date, List<WorkoutMuscle> muscles,
+      {List<WorkoutAction> actions = const []}) async {
     await _api.request('POST', 'workout/logs', body: {
       'date': dateKey(date),
       'muscles': [
         for (final muscle in muscles)
           {'name': muscle.name, 'color': muscle.colorValue},
-      ]
+      ],
+      'actions': [for (final action in actions) action.toMap()],
     });
   }
 

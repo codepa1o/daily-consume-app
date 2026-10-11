@@ -18,6 +18,8 @@
 - `server/migrations/versions/0008_other_expenses.py`：新增账号专属的其他消费记录表；1.3.7 部署后为当前 head，共 24 张业务表。
 - `server/migrations/versions/0009_body_weight_goal.py`：新增账号专属身体设置表，保存可选目标体重（20–300 kg）；1.4.0 部署后为当前 head，共 25 张业务表。
 - `server/migrations/versions/0010_skill_agent.py`：新增技能实验室的账号隔离对话、运行记录、知识库文档与切片、评测套件与结果及后台任务共 10 张表；1.4.1 部署后共 35 张业务表。回退会删除技能实验室数据。
+- `server/migrations/versions/0011_meal_items.py`：为餐食记录添加 JSONB 明细字段，支持每项食物单独记录金额；旧记录保持原总金额，客户端兼容为一项明细。回退前如有明细数据会拒绝删除。
+- `server/migrations/versions/0012_workout_actions.py`：为每日健身记录添加可选动作明细，保存动作名称、组数和每组次数；旧打卡保持为空动作列表。回退前如有动作数据会拒绝删除。
 
 `DATABASE_URL` 接受 psycopg/libpq 的连接字符串或 PostgreSQL URI，不必转换为 SQLAlchemy URL。未设置时，使用 `dbname=daily_consume user=daily_consume host=/var/run/postgresql`，由系统用户 `daily-consume` 通过 peer 映射认证。不要将数据库密码提交到仓库。迁移使用连接的 `current_schema()`，版本表也位于同一 schema；本地测试通过独立 `search_path` 隔离。
 

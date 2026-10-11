@@ -38,13 +38,13 @@
 | weights | GET / PUT | 返回日期与 grams；保存 date、grams |
 | heights | GET / PUT | 返回日期与 millimeters；保存 date、millimeters |
 | body/settings | GET / PUT | 读取或保存目标体重 `goal_weight_grams`，20–300 kg |
-| meals | GET / PUT / DELETE | 查询 start/end；保存 date、meal_type、foods、expense_cents；删除 date/meal_type |
+| meals | GET / PUT / DELETE | 查询 start/end；保存 date、meal_type、foods、expense_cents 与可选 items 数组（每项含 name、expense_cents）；删除 date/meal_type |
 | other-expenses | GET / POST / PUT / DELETE | 查询 start/end；保存或更新 date、category、expense_cents；按 id 删除当前账号记录 |
 | workout/muscles | GET / POST / PUT / DELETE | 查询部位；新增或改色 name/color_value；删除 name，仅允许自定义部位 |
 | workout/settings | GET | 返回 weekly_goal |
 | workout/plans | GET | 返回 weekday、muscles、is_rest |
 | workout/schedule | PUT | weekly_goal 与完整的七天 plans，事务保存 |
-| workout/logs | GET / POST / DELETE | 查询 start/end；当天打卡 date/muscles；删除 date；禁止休息日和重复打卡 |
+| workout/logs | GET / POST / DELETE | 查询 start/end；打卡 date/muscles，可选 actions（每项含 name、sets、reps，最多 20 项）；允许补录 2000-01-01 至今天的未打卡日期，重复日期冲突；仅当天计划休息时禁止打卡；删除 date |
 | pomodoro/settings | GET / PUT | 读取或保存账号的专注、短休息、长休息时长和长休息轮数 |
 | pomodoro/tasks | GET / POST / DELETE | 读取、添加或按 id 删除当前账号的专注事项；标题忽略大小写去重 |
 | pomodoro/sessions | GET / POST | 按日期查询已完成专注；提交记录时校验所属任务并按 client_request_id 去重 |
