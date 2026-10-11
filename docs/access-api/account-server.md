@@ -61,7 +61,7 @@ SQLite 仅作为只读的旧数据来源保留，不再新建或升级本地业�
 
 `scripts/server_admin.py` 使用 Paramiko，通过 `DAILY_SSH_PASSWORD`、可选的 `DAILY_SSH_USER` 和 `DAILY_SSH_HOST` 连接；服务端不使用 SSH 密码连接数据库。主机密钥保存在电脑用户目录 `.ssh/daily-consume-known-hosts`，后续变更会被拒绝。
 
-初次运行 `server/bootstrap.sh` 创建数据库、专用用户和 TLS 证书。上传 app.py、journal.py、couple.py、database.py、travel.py、完整的 travel_planner_core/、alembic.ini、完整 migrations/ 目录、prompts/ 目录、requirements.txt、requirements.lock、deploy.sh、daily-consume.service、nginx.conf 后运行 `server/deploy.sh`。脚本以应用系统用户执行 Alembic 迁移，成功后才重启服务；首次接管已有数据库会核对基线 13 张表的结构，不一致则中止，再执行增量迁移。不要覆盖服务器 `.env` 或重新生成已有服务器私钥。操作说明见 [数据库迁移指南](../database-migrations.md)、[生活日历说明](journal.md) 和 [情侣空间说明](couple-space.md)。
+初次运行 `server/bootstrap.sh` 创建数据库、专用用户和 TLS 证书。上传 app.py、journal.py、couple.py、database.py、travel.py、完整的 travel_planner_core/、skill_agent/、alembic.ini、完整 migrations/ 目录、prompts/ 目录、requirements.txt、requirements.lock、deploy.sh、daily-consume.service、nginx.conf 后运行 `server/deploy.sh`。脚本以应用系统用户执行 Alembic 迁移，成功后才重启服务；首次接管已有数据库会核对基线 13 张表的结构，不一致则中止，再执行增量迁移。不要覆盖服务器 `.env` 或重新生成已有服务器私钥。操作说明见 [数据库迁移指南](../database-migrations.md)、[生活日历说明](journal.md) 和 [情侣空间说明](couple-space.md)。
 
 真实接口检查（服务器上，以应用用户运行）：
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -257,6 +258,78 @@ class ApiClient extends ChangeNotifier {
       throw const ApiException('连接超时，请检查网络后重试');
     } on http.ClientException catch (_) {
       throw const ApiException('无法连接服务器，请检查网络后重试');
+    }
+  }
+
+  Stream<Map<String, dynamic>> streamJsonEvents(
+      String path, Object body) async* {
+    await _prepare();
+    final token = _token;
+    if (token == null) throw const ApiException('请先登录', statusCode: 401);
+    final base = _base.path.endsWith('/')
+        ? _base
+        : _base.replace(path: '${_base.path}/');
+    final uri = base.resolve(path);
+    try {
+      final outgoing = http.Request('POST', uri)
+        ..followRedirects = false
+        ..headers['accept'] = 'text/event-stream'
+        ..headers['content-type'] = 'application/json'
+        ..headers['authorization'] = 'Bearer $token'
+        ..body = jsonEncode(body);
+      final response = await _client!
+          .send(outgoing)
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final bytes = await response.stream.toBytes();
+        if (token != _token) throw const ApiException('账号已切换，请重新加载');
+        final text = utf8.decode(bytes, allowMalformed: true);
+        dynamic decoded;
+        try {
+          decoded = text.isEmpty ? null : jsonDecode(text);
+        } on FormatException catch (_) {}
+        if (response.statusCode == 401 && token == _token) {
+          message = '登录已过期，请重新登录';
+          await _clearSession(token);
+        }
+        final detail = decoded is Map ? decoded['detail'] : null;
+        throw ApiException(detail is String ? detail : '请求失败，请重试',
+            statusCode: response.statusCode);
+      }
+      var eventName = 'message';
+      final dataLines = <String>[];
+      await for (final line in response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .timeout(const Duration(minutes: 12))) {
+        if (token != _token) throw const ApiException('账号已切换，请重新加载');
+        if (line.isEmpty) {
+          if (dataLines.isNotEmpty) {
+            final decoded = jsonDecode(dataLines.join('\n'));
+            if (decoded is Map) {
+              yield Map<String, dynamic>.from(decoded)..['event'] = eventName;
+            }
+          }
+          eventName = 'message';
+          dataLines.clear();
+        } else if (line.startsWith('event:')) {
+          eventName = line.substring(6).trim();
+        } else if (line.startsWith('data:')) {
+          dataLines.add(line.substring(5).trimLeft());
+        }
+      }
+      if (dataLines.isNotEmpty) {
+        final decoded = jsonDecode(dataLines.join('\n'));
+        if (decoded is Map) {
+          yield Map<String, dynamic>.from(decoded)..['event'] = eventName;
+        }
+      }
+    } on TimeoutException catch (_) {
+      throw const ApiException('连接超时，请检查网络后重试');
+    } on http.ClientException catch (_) {
+      throw const ApiException('无法连接服务器，请检查网络后重试');
+    } on FormatException catch (_) {
+      throw const ApiException('服务器返回的流式数据格式无效');
     }
   }
 }

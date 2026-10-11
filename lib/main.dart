@@ -19,6 +19,7 @@ import 'couple_page.dart' show recoverCouplePhoto;
 import 'navigation/app_location.dart';
 import 'pomodoro_card.dart';
 import 'widgets/app_logo.dart';
+import 'skill_agent_page.dart';
 
 const paper = Color(0xfff6f5ef);
 const surface = Color(0xfffffefa);
@@ -153,6 +154,7 @@ class _AppShellState extends State<AppShell> {
           'diary',
           'workout',
           'travel',
+          'skill-agent',
           if (female) 'female'
         ];
         if (!tabs.contains(selected)) selected = 'body';
@@ -164,6 +166,7 @@ class _AppShellState extends State<AppShell> {
             const DiaryPage(key: ValueKey('diary')),
             const WorkoutPage(key: ValueKey('workout')),
             const TravelPlannerPage(key: ValueKey('travel')),
+            const SkillAgentPage(key: ValueKey('skill-agent')),
             if (female) const FemaleHealthPage(key: ValueKey('female')),
           ],
         );
@@ -250,6 +253,9 @@ class _AppShellState extends State<AppShell> {
                                 const NavigationRailDestination(
                                     icon: Icon(Icons.travel_explore_rounded),
                                     label: Text('旅游规划')),
+                                const NavigationRailDestination(
+                                    icon: Icon(Icons.psychology_alt_rounded),
+                                    label: Text('技能实验室')),
                                 if (female)
                                   const NavigationRailDestination(
                                       icon: Icon(Icons.local_florist_outlined),
@@ -350,6 +356,9 @@ class _AppShellState extends State<AppShell> {
                           const NavigationDestination(
                               icon: Icon(Icons.travel_explore_rounded),
                               label: '旅游规划'),
+                          const NavigationDestination(
+                              icon: Icon(Icons.psychology_alt_rounded),
+                              label: '技能'),
                           if (female)
                             const NavigationDestination(
                                 icon: Icon(Icons.local_florist_outlined),

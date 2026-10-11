@@ -11,21 +11,26 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.lang.ref.WeakReference
 
 class MainActivity : FlutterActivity() {
     private lateinit var retainedUpdateChannel: MethodChannel
     private var pendingNotificationPermission: MethodChannel.Result? = null
+    private var pendingSkillAgentFileResult: MethodChannel.Result? = null
 
     companion object {
         var updateChannel: WeakReference<MethodChannel>? = null
         private const val notificationPermissionRequest = 1333
+        private const val skillAgentFileRequest = 1341
+        private const val skillAgentMaxFileBytes = 10 * 1024 * 1024
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -109,6 +114,85 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "daily_consume/skill_agent_files")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "pickDocument" -> pickSkillAgentDocument(result)
+                    "openUrl" -> openSkillAgentUrl(call.arguments as? String, result)
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun openSkillAgentUrl(value: String?, result: MethodChannel.Result) {
+        try {
+            val uri = Uri.parse(requireNotNull(value))
+            require(uri.scheme == "https" || uri.scheme == "http")
+            startActivity(Intent(Intent.ACTION_VIEW, uri))
+            result.success(null)
+        } catch (_: Exception) {
+            result.error("OPEN_URL", "无法打开该链接", null)
+        }
+    }
+
+    private fun pickSkillAgentDocument(result: MethodChannel.Result) {
+        if (pendingSkillAgentFileResult != null) {
+            result.error("PICKER_BUSY", "已有文件选择窗口打开", null)
+            return
+        }
+        try {
+            pendingSkillAgentFileResult = result
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
+                    "text/markdown", "text/plain", "application/pdf", "application/octet-stream"
+                ))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivityForResult(intent, skillAgentFileRequest)
+        } catch (_: Exception) {
+            pendingSkillAgentFileResult = null
+            result.error("PICKER", "无法打开系统文件选择器", null)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != skillAgentFileRequest) return
+        val result = pendingSkillAgentFileResult ?: return
+        pendingSkillAgentFileResult = null
+        val uri = data?.data
+        if (resultCode != android.app.Activity.RESULT_OK || uri == null) {
+            result.success(null)
+            return
+        }
+        Thread {
+            try {
+                val filename = contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (column >= 0 && cursor.moveToFirst()) cursor.getString(column) else null
+                } ?: "资料文件"
+                val bytes = contentResolver.openInputStream(uri)?.use { input ->
+                    val output = ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    var count = input.read(buffer)
+                    while (count != -1) {
+                        if (output.size() + count > skillAgentMaxFileBytes) {
+                            throw IllegalArgumentException("文件不能超过 10 MB")
+                        }
+                        output.write(buffer, 0, count)
+                        count = input.read(buffer)
+                    }
+                    output.toByteArray()
+                } ?: throw IllegalArgumentException("无法读取所选文件")
+                runOnUiThread { result.success(mapOf("name" to filename, "bytes" to bytes)) }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    result.error("PICKER", error.message ?: "无法读取所选文件", null)
+                }
+            }
+        }.start()
     }
 
     private fun shareTravelFiles(call: io.flutter.plugin.common.MethodCall, result: MethodChannel.Result) {

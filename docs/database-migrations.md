@@ -17,6 +17,7 @@
 - `server/migrations/versions/0007_profile_age.py`：为 `users` 增加可选年龄字段，限制为 1–120 岁；不新增业务表。1.3.5 与 1.3.6 部署后为当前 head，共 23 张业务表。
 - `server/migrations/versions/0008_other_expenses.py`：新增账号专属的其他消费记录表；1.3.7 部署后为当前 head，共 24 张业务表。
 - `server/migrations/versions/0009_body_weight_goal.py`：新增账号专属身体设置表，保存可选目标体重（20–300 kg）；1.4.0 部署后为当前 head，共 25 张业务表。
+- `server/migrations/versions/0010_skill_agent.py`：新增技能实验室的账号隔离对话、运行记录、知识库文档与切片、评测套件与结果及后台任务共 10 张表；1.4.1 部署后共 35 张业务表。回退会删除技能实验室数据。
 
 `DATABASE_URL` 接受 psycopg/libpq 的连接字符串或 PostgreSQL URI，不必转换为 SQLAlchemy URL。未设置时，使用 `dbname=daily_consume user=daily_consume host=/var/run/postgresql`，由系统用户 `daily-consume` 通过 peer 映射认证。不要将数据库密码提交到仓库。迁移使用连接的 `current_schema()`，版本表也位于同一 schema；本地测试通过独立 `search_path` 隔离。
 
@@ -67,7 +68,7 @@ def downgrade():
 
 ## 服务器部署
 
-部署前备份数据库并核实可恢复。上传 `app.py`、`journal.py`、`couple.py`、`database.py`、`alembic.ini`、完整 `migrations/` 目录、依赖文件及更新后的 `deploy.sh`，同时保留现有 service 和 Nginx 配置。情侣邀请码预览及加入使用认证限流规则，须同步上传新 Nginx 配置。迁移目录中的 `.py`、`.sql`、`.mako` 都必须上传。
+部署前备份数据库并核实可恢复。上传 `app.py`、`journal.py`、`couple.py`、`database.py`、`skill_agent/`、`alembic.ini`、完整 `migrations/` 目录、依赖文件及更新后的 `deploy.sh`，同时保留现有 service 和 Nginx 配置。情侣邀请码预览及加入使用认证限流规则，须同步上传新 Nginx 配置。迁移目录中的 `.py`、`.sql`、`.mako` 都必须上传。
 
 服务器仍通过 `server/deploy.sh` 部署。脚本安装依赖后，从 `/opt/daily-consume` 执行：
 

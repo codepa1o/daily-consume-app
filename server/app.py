@@ -28,6 +28,11 @@ from database import DSN
 from journal import create_journal_router
 from couple import create_couple_router, prepare_photo
 from travel import create_travel_router
+from skill_agent.router import (
+    create_skill_agent_router,
+    start_worker as start_skill_agent_worker,
+    stop_worker as stop_skill_agent_worker,
+)
 
 password_hasher = PasswordHasher()
 dummy_password_hash = password_hasher.hash(secrets.token_urlsafe(32))
@@ -76,7 +81,7 @@ if web_origins:
         CORSMiddleware,
         allow_origins=web_origins,
         allow_credentials=False,
-        allow_methods=['GET', 'POST', 'PUT', 'DELETE'],
+        allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
         allow_headers=['Accept', 'Authorization', 'Content-Type'],
     )
 
@@ -140,6 +145,17 @@ User = Annotated[dict, Depends(current_user)]
 app.include_router(create_journal_router(connect, current_user))
 app.include_router(create_couple_router(connect, current_user))
 app.include_router(create_travel_router(current_user))
+app.include_router(create_skill_agent_router(connect, current_user))
+
+
+@app.on_event('startup')
+async def start_skill_agent_jobs():
+    start_skill_agent_worker()
+
+
+@app.on_event('shutdown')
+async def stop_skill_agent_jobs():
+    await stop_skill_agent_worker()
 
 
 def public_user(user):
