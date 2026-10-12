@@ -8,9 +8,9 @@ from typing import Literal
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.background import BackgroundTask
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from starlette.background import BackgroundTask
 
 logger = logging.getLogger(__name__)
 
