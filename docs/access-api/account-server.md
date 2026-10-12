@@ -58,6 +58,10 @@
 
 2026-10-12 随 1.4.4+19 部署，Alembic 已升级至 `0014_chatbot`，新增账号隔离的聊天对话与消息表。数据库备份 `/var/backups/daily-consume/daily-consume-pre-1.4.4-20261012T135525Z/daily_consume.dump` 的 SHA256 为 `71be8c8ac5e6cff19dbcdc57981aaee1325ad309ef071f1e8579f8a262ea6ac5`，代码备份 SHA256 为 `7e933f25b132cd7eaeac6191c0f0baac9aaf195c9c943d9950f2f9a830814269`；数据库归档通过 `pg_restore --list` 校验。部署修正 paperdl 下载路由的后台任务导入后，服务与 Nginx 均为 active，Alembic head 为 `0014_chatbot`，本机与公网 HTTPS health 返回正常；科研搜索和聊天路由的未认证请求均返回 401。完整记录见 [1.4.4 部署记录](../release-notes/1.4.4-deployment.json)。
 
+## 1.4.5 部署记录
+
+2026-10-12 随 1.4.5+20 部署 DeepSeek 配置修复；聊天机器人、技能代理与旅行规划统一读取 `DEEPSEEK_API_KEY`，默认模型 `deepseek-flash`。本次不涉及数据库结构，Alembic 保持 `0014_chatbot`。部署前代码备份 `/var/backups/daily-consume/daily-consume-pre-1.4.5-20261012T143845Z/server-code.tar.gz`（SHA256 `8b3074b93dc2848a2557c581111d21cdaf9c1781761764bb23bdc5babc1065d3`）。部署后服务与 Nginx 均为 active，DeepSeek Key 已由 systemd 注入，内网 health 和带固定 CA 的公网 HTTPS health 正常，聊天路由未认证请求返回 401。完整记录见 [1.4.5 部署记录](../release-notes/1.4.5-deployment.json)。
+
 ## 旧记录导入
 
 SQLite 仅作为只读的旧数据来源保留，不再新建或升级本地业务数据库。新版登录后展示当前用户名，明确确认归属后才提交；也可暂缓，在“我的”继续。

@@ -1,0 +1,28 @@
+{
+  "version": "1.4.5+20",
+  "server_commit": "ace22b6",
+  "release": "https://github.com/codepa1o/daily-consume-app/releases/tag/v1.4.5%2B20",
+  "apk": {
+    "size": 68609280,
+    "sha256": "d1f762cf5caef7267a3e94c16ad07ce512bf71a9985e33c2ec905d49721da554",
+    "signing_certificate_sha256": "7c65743fc4742993301068fb1e95e15c3178f63de22705c224c58b9cf116a634"
+  },
+  "old_apk_removed": "v1.4.4+19/app-release.apk",
+  "migration": "0014_chatbot (unchanged)",
+  "backup": "/var/backups/daily-consume/daily-consume-pre-1.4.5-20261012T143845Z",
+  "code_backup_sha256": "8b3074b93dc2848a2557c581111d21cdaf9c1781761764bb23bdc5babc1065d3",
+  "service": "active",
+  "nginx": "active",
+  "deepseek": {
+    "key_configured": true,
+    "model": "deepseek-flash",
+    "base_url": "https://api.deepseek.com"
+  },
+  "https_checks": {
+    "passed": 2,
+    "checks": [
+      "Pinned-CA public HTTPS health returned 200",
+      "Unauthenticated chatbot route returned 401"
+    ]
+  }
+}
