@@ -1,10 +1,9 @@
 {
   "releaseNotes": [
-    "新增科研工具，支持七个学术来源的论文搜索、摘要查看、批量下载和 PDF 保存目录选择。",
-    "新增聊天机器人，支持账号专属对话、资料检索以及可配置的 MCP 工具。",
-    "旅行规划在 AI 生成失败时展示简化备用行程提示，并改进模型输出校验后的重试。"
+    "聊天机器人、技能代理和旅行规划统一读取服务器的 DEEPSEEK_API_KEY，默认模型为 deepseek-flash。",
+    "修复服务器已有 DeepSeek 配置无法被聊天机器人识别的问题。"
   ],
-  "versionName": "1.4.4",
+  "versionCode": 20,
   "updateManifestUrl": "https://github.com/codepa1o/daily-consume-app/releases/latest/download/latest.json",
-  "versionCode": 19
+  "versionName": "1.4.5"
 }

@@ -62,15 +62,14 @@ class Settings(BaseSettings):
     unsplash_access_key: str = ""
     unsplash_secret_key: str = ""
 
-    # LLM配置 (从环境变量读取,由HelloAgents管理)
-    openai_api_key: str = ""
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_model: str = "gpt-4"
+    # DeepSeek 配置
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-flash"
 
     # 个性化行程规划模型配置
     # 开启后仅最终 TripPlan 生成使用该模型，工具搜索/天气/酒店 Agent 仍使用默认 LLM。
     use_personalized_planner: bool = False
-    personalized_llm_api_key: str = ""
     personalized_llm_base_url: str = ""
     personalized_llm_model: str = ""
     personalized_llm_provider: str = "openai"
@@ -106,10 +105,9 @@ def validate_config():
     if not settings.amap_api_key:
         errors.append("AMAP_API_KEY未配置")
 
-    # HelloAgentsLLM会自动从LLM_API_KEY读取,不强制要求OPENAI_API_KEY
-    llm_api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+    llm_api_key = settings.deepseek_api_key or os.getenv("DEEPSEEK_API_KEY")
     if not llm_api_key:
-        warnings.append("LLM_API_KEY或OPENAI_API_KEY未配置,LLM功能可能无法使用")
+        warnings.append("DEEPSEEK_API_KEY未配置,LLM功能可能无法使用")
 
     if errors:
         error_msg = "配置错误:\n" + "\n".join(f"  - {e}" for e in errors)
@@ -132,14 +130,11 @@ def print_config():
     print(f"高德地图API Key: {'已配置' if settings.amap_api_key else '未配置'}")
 
     # 检查LLM配置
-    llm_api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
-    llm_base_url = os.getenv("LLM_BASE_URL") or settings.openai_base_url
-    llm_model = os.getenv("LLM_MODEL_ID") or settings.openai_model
     personalized_model = os.getenv("PERSONALIZED_LLM_MODEL_ID") or settings.personalized_llm_model
 
-    print(f"LLM API Key: {'已配置' if llm_api_key else '未配置'}")
-    print(f"LLM Base URL: {llm_base_url}")
-    print(f"LLM Model: {llm_model}")
+    print(f"DeepSeek API Key: {'已配置' if settings.deepseek_api_key else '未配置'}")
+    print(f"DeepSeek Base URL: {settings.deepseek_base_url}")
+    print(f"DeepSeek Model: {settings.deepseek_model}")
     print(f"Personalized Planner: {'启用' if settings.use_personalized_planner else '关闭'}")
     if settings.use_personalized_planner:
         print(f"Personalized Planner Base URL: {settings.personalized_llm_base_url or '未配置'}")

@@ -19,7 +19,7 @@ DEEPSEEK_MODEL=deepseek-flash
 UNSPLASH_ACCESS_KEY=可选，景点照片查询
 ```
 
-旅行规划默认沿用现有 `DEEPSEEK_*` 配置，也可以设置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL_ID` 单独覆盖。个性化规划模型使用 `USE_PERSONALIZED_PLANNER`、`PERSONALIZED_LLM_API_KEY`、`PERSONALIZED_LLM_BASE_URL` 和 `PERSONALIZED_LLM_MODEL_ID`。
+旅行规划、聊天机器人和技能代理统一使用 `DEEPSEEK_API_KEY`；接口地址和模型默认分别为 `https://api.deepseek.com` 与 `deepseek-flash`，需要时可用 `DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL` 覆盖。个性化规划仍可通过 `USE_PERSONALIZED_PLANNER`、`PERSONALIZED_LLM_BASE_URL` 和 `PERSONALIZED_LLM_MODEL_ID` 单独指定接口与模型，但凭证仍使用 `DEEPSEEK_API_KEY`。
 
 Python 服务依赖已列入 `server/requirements.txt`。部署时继续按原流程安装该文件；不需要数据库迁移。
 

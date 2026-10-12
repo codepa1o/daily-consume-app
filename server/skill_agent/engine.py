@@ -10,7 +10,8 @@ import httpx
 from openai import AsyncOpenAI, OpenAI, OpenAIError
 
 
-DEFAULT_MODEL = 'gpt-5.5'
+DEFAULT_MODEL = 'deepseek-flash'
+DEFAULT_BASE_URL = 'https://api.deepseek.com'
 SKILL_TIMEOUT = httpx.Timeout(20, connect=10)
 SEARCH_KEYWORDS = (
     '学校', '大学', '学院', '院校', '专业', '就业', '分数线', '录取', '位次',
@@ -44,10 +45,10 @@ def setting(name: str, default: str = '') -> str:
 
 def runtime_config() -> dict[str, str]:
     return {
-        'model': setting('OPENAI_MODEL', DEFAULT_MODEL),
-        'api_mode': setting('OPENAI_API_MODE', 'responses'),
-        'base_url': setting('OPENAI_BASE_URL'),
-        'reasoning_effort': setting('OPENAI_REASONING_EFFORT', 'low'),
+        'model': setting('DEEPSEEK_MODEL', DEFAULT_MODEL),
+        'api_mode': setting('DEEPSEEK_API_MODE', 'chat_completions'),
+        'base_url': setting('DEEPSEEK_BASE_URL', DEFAULT_BASE_URL),
+        'reasoning_effort': setting('DEEPSEEK_REASONING_EFFORT', 'low'),
     }
 
 
@@ -107,32 +108,32 @@ def _instructions(skill: str, extra_context: str = '') -> str:
 
 
 def _model_client() -> OpenAI:
-    api_key = setting('OPENAI_API_KEY')
+    api_key = setting('DEEPSEEK_API_KEY')
     if not api_key:
-        raise SkillAgentError('服务端尚未配置 OPENAI_API_KEY。')
+        raise SkillAgentError('服务端尚未配置 DEEPSEEK_API_KEY。')
     try:
-        timeout = max(10, int(setting('OPENAI_TIMEOUT_SECONDS', '120')))
+        timeout = max(10, int(setting('DEEPSEEK_TIMEOUT_SECONDS', '120')))
     except ValueError:
         timeout = 120
-    return OpenAI(api_key=api_key, base_url=setting('OPENAI_BASE_URL') or None,
+    return OpenAI(api_key=api_key, base_url=runtime_config()['base_url'],
                   timeout=timeout)
 
 
 def _async_model_client(*, max_retries: int = 2) -> AsyncOpenAI:
-    api_key = setting('OPENAI_API_KEY')
+    api_key = setting('DEEPSEEK_API_KEY')
     if not api_key:
-        raise SkillAgentError('服务端尚未配置 OPENAI_API_KEY。')
+        raise SkillAgentError('服务端尚未配置 DEEPSEEK_API_KEY。')
     try:
-        timeout = max(10, int(setting('OPENAI_TIMEOUT_SECONDS', '120')))
+        timeout = max(10, int(setting('DEEPSEEK_TIMEOUT_SECONDS', '120')))
     except ValueError:
         timeout = 120
-    return AsyncOpenAI(api_key=api_key, base_url=setting('OPENAI_BASE_URL') or None,
+    return AsyncOpenAI(api_key=api_key, base_url=runtime_config()['base_url'],
                        timeout=timeout, max_retries=max_retries)
 
 
 def _output_limit() -> int:
     try:
-        return min(16000, max(256, int(setting('OPENAI_MAX_OUTPUT_TOKENS', '4096'))))
+        return min(16000, max(256, int(setting('DEEPSEEK_MAX_OUTPUT_TOKENS', '4096'))))
     except ValueError:
         return 4096
 
@@ -167,14 +168,14 @@ def complete_answer(skill: str, messages: list[dict[str, str]], extra_context: s
     instructions = _instructions(skill, extra_context)
     history = _model_payload(messages)
     if config['api_mode'] not in {'responses', 'chat_completions'}:
-        raise SkillAgentError('OPENAI_API_MODE 必须是 responses 或 chat_completions。')
+        raise SkillAgentError('DEEPSEEK_API_MODE 必须是 responses 或 chat_completions。')
     for attempt in range(3):
         try:
             if config['api_mode'] == 'responses':
                 options = {
                     'model': config['model'], 'instructions': instructions,
                     'input': history, 'max_output_tokens': _output_limit(),
-                    'store': setting('OPENAI_DISABLE_RESPONSE_STORAGE', 'true').lower() not in {'1', 'true', 'yes', 'on'},
+                    'store': setting('DEEPSEEK_DISABLE_RESPONSE_STORAGE', 'true').lower() not in {'1', 'true', 'yes', 'on'},
                 }
                 if config['reasoning_effort']:
                     options['reasoning'] = {'effort': config['reasoning_effort']}
@@ -213,7 +214,7 @@ async def stream_answer(skill: str, messages: list[dict[str, str]], extra_contex
             options = {
                 'model': config['model'], 'instructions': instructions, 'input': history,
                 'max_output_tokens': _output_limit(),
-                'store': setting('OPENAI_DISABLE_RESPONSE_STORAGE', 'true').lower() not in {'1', 'true', 'yes', 'on'},
+                'store': setting('DEEPSEEK_DISABLE_RESPONSE_STORAGE', 'true').lower() not in {'1', 'true', 'yes', 'on'},
                 'stream': True,
             }
             if config['reasoning_effort']:
@@ -238,7 +239,7 @@ async def stream_answer(skill: str, messages: list[dict[str, str]], extra_contex
                 if event.choices and event.choices[0].delta.content:
                     yield event.choices[0].delta.content
         else:
-            raise SkillAgentError('OPENAI_API_MODE 必须是 responses 或 chat_completions。')
+            raise SkillAgentError('DEEPSEEK_API_MODE 必须是 responses 或 chat_completions。')
     except SkillAgentError:
         raise
     except OpenAIError as error:
@@ -258,7 +259,7 @@ Agent 回答：{answer}'''
     result = complete_answer(
         '你是严谨的评测模型，只输出要求的 JSON。',
         [{'role': 'user', 'content': prompt}],
-        model_override=setting('OPENAI_REVIEW_MODEL', runtime_config()['model']),
+        model_override=setting('DEEPSEEK_REVIEW_MODEL', runtime_config()['model']),
     )
     cleaned = result.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip()
     try:

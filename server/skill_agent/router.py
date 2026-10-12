@@ -411,9 +411,9 @@ def create_skill_agent_router(connect, current_user):
         config = runtime_config()
         return {
             'model': config['model'], 'api_mode': config['api_mode'],
-            'review_model': os.getenv('OPENAI_REVIEW_MODEL', '').strip() or config['model'],
+            'review_model': os.getenv('DEEPSEEK_REVIEW_MODEL', '').strip() or config['model'],
             'reasoning_effort': config['reasoning_effort'],
-            'llm_configured': bool(os.getenv('OPENAI_API_KEY')),
+            'llm_configured': bool(os.getenv('DEEPSEEK_API_KEY')),
             'search_configured': bool(os.getenv('TAVILY_API_KEY')),
             'search_enabled': os.getenv('SEARCH_ENABLED', 'true').lower() not in {'0', 'false', 'no', 'off'},
             'embedding_configured': bool(os.getenv('DASHSCOPE_API_KEY')),

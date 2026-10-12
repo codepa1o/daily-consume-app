@@ -92,10 +92,8 @@ def create_travel_router(current_user):
         if not (settings.amap_api_key or os.getenv("AMAP_MAPS_API_KEY")):
             raise HTTPException(503, "旅行规划服务尚未配置高德地图")
         if not (
-            os.getenv("LLM_API_KEY")
-            or os.getenv("DEEPSEEK_API_KEY")
-            or os.getenv("OPENAI_API_KEY")
-            or settings.openai_api_key
+            os.getenv("DEEPSEEK_API_KEY")
+            or settings.deepseek_api_key
         ):
             raise HTTPException(503, "旅行规划服务尚未配置 LLM")
         try:
@@ -121,10 +119,8 @@ def create_travel_router(current_user):
     def travel_health():
         settings = get_settings()
         has_llm = bool(
-            os.getenv("LLM_API_KEY")
-            or os.getenv("DEEPSEEK_API_KEY")
-            or os.getenv("OPENAI_API_KEY")
-            or settings.openai_api_key
+            os.getenv("DEEPSEEK_API_KEY")
+            or settings.deepseek_api_key
         )
         return {
             "status": "ready" if settings.amap_api_key and has_llm else "configuration_required",

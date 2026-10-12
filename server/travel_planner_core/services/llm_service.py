@@ -166,17 +166,16 @@ def get_llm() -> HelloAgentsLLM:
     if _llm_instance is None:
         settings = get_settings()
 
-        # 旅行规划复用日常 App 已有的 DeepSeek 配置，也兼容 HelloAgents 的环境变量名。
-        defaults = {
-            key: value
-            for key, value in {
-                "LLM_API_KEY": os.getenv("DEEPSEEK_API_KEY") or settings.openai_api_key,
-                "LLM_BASE_URL": os.getenv("DEEPSEEK_BASE_URL") or settings.openai_base_url,
-                "LLM_MODEL_ID": os.getenv("DEEPSEEK_MODEL") or settings.openai_model,
-            }.items()
-            if not os.getenv(key)
+        # 旅行规划复用日常 App 的 DeepSeek 配置，并映射到 HelloAgents 的内部配置名。
+        api_key = os.getenv("DEEPSEEK_API_KEY") or settings.deepseek_api_key
+        if not api_key:
+            raise RuntimeError("服务端尚未配置 DEEPSEEK_API_KEY")
+        llm_config = {
+            "LLM_API_KEY": api_key,
+            "LLM_BASE_URL": os.getenv("DEEPSEEK_BASE_URL") or settings.deepseek_base_url,
+            "LLM_MODEL_ID": os.getenv("DEEPSEEK_MODEL") or settings.deepseek_model,
         }
-        with _temporary_env(defaults):
+        with _temporary_env(llm_config):
             _llm_instance = RobustHelloAgentsLLM()
 
         print(f"✅ LLM服务初始化成功")
@@ -202,7 +201,9 @@ def get_planner_llm() -> HelloAgentsLLM:
     if _planner_llm_instance is None:
         model = os.getenv("PERSONALIZED_LLM_MODEL_ID") or settings.personalized_llm_model
         base_url = settings.personalized_llm_base_url
-        api_key = settings.personalized_llm_api_key or "EMPTY"
+        api_key = os.getenv("DEEPSEEK_API_KEY") or settings.deepseek_api_key
+        if not api_key:
+            raise RuntimeError("服务端尚未配置 DEEPSEEK_API_KEY")
         provider = settings.personalized_llm_provider or "openai"
 
         if not model or not base_url:
@@ -211,11 +212,8 @@ def get_planner_llm() -> HelloAgentsLLM:
 
         overrides = {
             "LLM_API_KEY": api_key,
-            "OPENAI_API_KEY": api_key,
             "LLM_BASE_URL": base_url,
-            "OPENAI_BASE_URL": base_url,
             "LLM_MODEL_ID": model,
-            "OPENAI_MODEL": model,
             "LLM_PROVIDER": provider,
         }
         with _temporary_env(overrides):

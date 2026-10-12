@@ -1,0 +1,2 @@
+聊天机器人、技能代理和旅行规划统一读取服务器的 DEEPSEEK_API_KEY，默认模型为 deepseek-flash。
+修复服务器已有 DeepSeek 配置无法被聊天机器人识别的问题。
