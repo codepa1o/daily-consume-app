@@ -63,7 +63,7 @@ APK 默认输出到 build/app/outputs/flutter-apk/app-release.apk。
 
 当前发布版本为 `1.4.4+19`，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.4.4%2B19)。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧 SQLite，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
 
-生活日历、情侣空间、番茄钟和聊天数据均按账号保存在服务器；1.4.4 的聊天接口依赖迁移 `0014_chatbot`，须完成后端部署后才能使用。科研工具由服务端调用 paperdl 搜索和下载论文。客户端发版不会自动更新业务服务器。接口、验证与部署清单见 [生活日历说明](docs/access-api/journal.md)、[情侣空间说明](docs/access-api/couple-space.md) 和 [GitHub Release 发布教程](docs/github-release-guide.md)。
+生活日历、情侣空间、番茄钟和聊天数据均按账号保存在服务器；1.4.4 后端已升级至 `0014_chatbot`。科研工具由服务端调用 paperdl 搜索和下载论文。客户端发版不会自动更新业务服务器。接口、验证与部署清单见 [生活日历说明](docs/access-api/journal.md)、[情侣空间说明](docs/access-api/couple-space.md) 和 [GitHub Release 发布教程](docs/github-release-guide.md)。
 
 默认更新地址：
 

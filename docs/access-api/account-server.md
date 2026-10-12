@@ -54,6 +54,10 @@
 
 2026-10-12 随 1.4.3+18 部署，Alembic 已升级至 `0013_couple_conflicts`，新增争执记录、个人反思与评论三张表。迁移前后原有 36 张表（含 Alembic 版本表）行数一致；服务和 Nginx 为 active，8 组真实 HTTPS 检查通过，临时检查账号及空间已清理。数据库和代码备份位于 `/var/backups/daily-consume/daily-consume-pre-1.4.3-20261012T075947Z`，数据库 SHA256 为 `c2f24f3b83fe3da69d2d9c4a85894c467448c821a6e94d238f8b29e93477f677`，已通过 `pg_restore --list` 校验。完整记录见 [1.4.3 部署记录](../release-notes/1.4.3-deployment.json)。
 
+## 1.4.4 部署记录
+
+2026-10-12 随 1.4.4+19 部署，Alembic 已升级至 `0014_chatbot`，新增账号隔离的聊天对话与消息表。数据库备份 `/var/backups/daily-consume/daily-consume-pre-1.4.4-20261012T135525Z/daily_consume.dump` 的 SHA256 为 `71be8c8ac5e6cff19dbcdc57981aaee1325ad309ef071f1e8579f8a262ea6ac5`，代码备份 SHA256 为 `7e933f25b132cd7eaeac6191c0f0baac9aaf195c9c943d9950f2f9a830814269`；数据库归档通过 `pg_restore --list` 校验。部署修正 paperdl 下载路由的后台任务导入后，服务与 Nginx 均为 active，Alembic head 为 `0014_chatbot`，本机与公网 HTTPS health 返回正常；科研搜索和聊天路由的未认证请求均返回 401。完整记录见 [1.4.4 部署记录](../release-notes/1.4.4-deployment.json)。
+
 ## 旧记录导入
 
 SQLite 仅作为只读的旧数据来源保留，不再新建或升级本地业务数据库。新版登录后展示当前用户名，明确确认归属后才提交；也可暂缓，在“我的”继续。

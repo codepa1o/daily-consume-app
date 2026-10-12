@@ -1,0 +1,18 @@
+{
+  "version": "1.4.4+19",
+  "server_commit": "fa16c9f",
+  "migration": "0014_chatbot",
+  "backup": "/var/backups/daily-consume/daily-consume-pre-1.4.4-20261012T135525Z",
+  "service": "active",
+  "nginx": "active",
+  "database_sha256": "71be8c8ac5e6cff19dbcdc57981aaee1325ad309ef071f1e8579f8a262ea6ac5",
+  "code_sha256": "7e933f25b132cd7eaeac6191c0f0baac9aaf195c9c943d9950f2f9a830814269",
+  "https_checks": {
+    "passed": 3,
+    "checks": [
+      "Health endpoint through public HTTPS using the pinned CA",
+      "Unauthenticated research and chatbot routes return 401",
+      "Alembic current reports 0014_chatbot (head)"
+    ]
+  }
+}
