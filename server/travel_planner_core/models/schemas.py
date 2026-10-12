@@ -197,6 +197,7 @@ class TripPlan(BaseModel):
 class TripPlanResponse(BaseModel):
     """旅行计划响应"""
     success: bool = Field(..., description="是否成功")
+    fallback: bool = Field(default=False, description="是否为备用行程")
     message: str = Field(default="", description="消息")
     data: Optional[TripPlan] = Field(default=None, description="旅行计划数据")
 

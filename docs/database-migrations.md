@@ -1,6 +1,6 @@
 # PostgreSQL 数据库迁移
 
-日期：2026-10-06。本项目使用 Alembic 管理服务器 PostgreSQL 表结构，业务查询仍使用 psycopg 和手写 SQL。应用启动不执行建表或改表；数据库迁移在部署时独立执行。
+日期：2026-10-12。本项目使用 Alembic 管理服务器 PostgreSQL 表结构，业务查询仍使用 psycopg 和手写 SQL。应用启动不执行建表或改表；数据库迁移在部署时独立执行。
 
 ## 文件与连接配置
 
@@ -21,6 +21,7 @@
 - `server/migrations/versions/0011_meal_items.py`：为餐食记录添加 JSONB 明细字段，支持每项食物单独记录金额；旧记录保持原总金额，客户端兼容为一项明细。回退前如有明细数据会拒绝删除。
 - `server/migrations/versions/0012_workout_actions.py`：为每日健身记录添加可选动作明细，保存动作名称、组数和每组次数；旧打卡保持为空动作列表。回退前如有动作数据会拒绝删除。
 - `server/migrations/versions/0013_couple_conflicts.py`：新增情侣争执日历、双方各自的反思草稿/发布记录与共同评论；记录属于已有共享空间。存在记录时拒绝回退丢弃反思内容。
+- `server/migrations/versions/0014_chatbot.py`：新增账号隔离的聊天对话与消息表，支持消息状态、元数据、长期记忆摘要和单对话流式回答唯一约束；存在聊天记录时拒绝回退删表。
 
 `DATABASE_URL` 接受 psycopg/libpq 的连接字符串或 PostgreSQL URI，不必转换为 SQLAlchemy URL。未设置时，使用 `dbname=daily_consume user=daily_consume host=/var/run/postgresql`，由系统用户 `daily-consume` 通过 peer 映射认证。不要将数据库密码提交到仓库。迁移使用连接的 `current_schema()`，版本表也位于同一 schema；本地测试通过独立 `search_path` 隔离。
 

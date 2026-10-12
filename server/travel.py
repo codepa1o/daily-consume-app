@@ -104,7 +104,13 @@ def create_travel_router(current_user):
                 agent = get_trip_planner_agent()
                 plan = agent.plan_trip(request)
                 message = agent.last_generation_message or "旅行计划生成完成"
-            return TripPlanResponse(success=True, message=message, data=plan)
+                fallback = agent.last_generation_status == "fallback_success"
+            return TripPlanResponse(
+                success=True,
+                fallback=fallback,
+                message=message,
+                data=plan,
+            )
         except Exception as error:
             logger.exception("旅行规划生成失败")
             if "AMAP_API_KEY" in str(error) or "LLM" in str(error):

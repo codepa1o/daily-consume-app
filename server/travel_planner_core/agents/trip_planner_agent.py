@@ -226,8 +226,7 @@ class MultiAgentTripPlanner:
     ) -> TripPlan:
         """Generate and parse a TripPlan with clean retries.
 
-        这里故意不把上一次失败输出拼回下一次请求。PlannerContext 已经很长，
-        修复式重试会快速放大上下文，并且容易把错误格式再次强化给模型。
+        重试只反馈简短的后端校验错误，不回放整段无效回复，避免放大上下文。
         """
         last_error = None
         failures: List[Dict[str, Any]] = []
@@ -243,6 +242,7 @@ class MultiAgentTripPlanner:
             else 1
         )
         valid_candidates: List[tuple[int, TripPlan]] = []
+        last_validation_error = None
 
         if rerank_enabled:
             print(
@@ -265,12 +265,19 @@ class MultiAgentTripPlanner:
             print(f"{label} 第 {attempt} 次max_tokens: {max_output_tokens}", flush=True)
             print(f"{label} 第 {attempt} 次temperature: {temperature:.2f}", flush=True)
             try:
+                attempt_query = planner_query
+                if last_validation_error is not None:
+                    attempt_query += (
+                        "\n\n上一轮输出未通过后端校验，错误信息："
+                        f"{str(last_validation_error)[:500]}。请修正后只输出完整的 JSON 对象。"
+                    )
                 planner_response = self._run_agent_stateless(
                     agent,
-                    planner_query,
+                    attempt_query,
                     max_tokens=max_output_tokens,
                     temperature=temperature,
                     timeout=PLANNER_REQUEST_TIMEOUT,
+                    response_format={"type": "json_object"},
                 )
             except Exception as error:
                 call_failures += 1
@@ -307,7 +314,7 @@ class MultiAgentTripPlanner:
                 continue
 
             self._log_timer(f"{label} 第 {attempt} 次LLM调用", call_started_at)
-            print(f"{label} 输出: {planner_response[:300]}...\n", flush=True)
+            print(f"{label} 收到模型回复，字符数={len(planner_response)}", flush=True)
 
             parse_started_at = time.perf_counter()
             try:
@@ -335,6 +342,7 @@ class MultiAgentTripPlanner:
             except Exception as error:
                 self._log_timer(f"{label} 第 {attempt} 次解析校验失败耗时", parse_started_at)
                 last_error = error
+                last_validation_error = error
                 failure = build_failure_row(
                     label=label,
                     attempt=attempt,

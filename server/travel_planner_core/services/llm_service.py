@@ -34,7 +34,7 @@ class RobustHelloAgentsLLM(HelloAgentsLLM):
 
         try:
             response = self._client.chat.completions.create(**payload)
-            return self._extract_text(response)
+            return self._extract_and_log(response)
         except TypeError as error:
             if "max_tokens" not in str(error):
                 raise
@@ -43,9 +43,31 @@ class RobustHelloAgentsLLM(HelloAgentsLLM):
             if max_tokens is not None:
                 retry_payload["max_completion_tokens"] = max_tokens
             response = self._client.chat.completions.create(**retry_payload)
-            return self._extract_text(response)
+            return self._extract_and_log(response)
         except Exception as error:
             raise HelloAgentsException(f"LLM调用失败: {error}") from error
+
+    def _extract_and_log(self, response: Any) -> str:
+        text = self._extract_text(response)
+        choices = self._field(response, "choices", []) or []
+        choice = choices[0] if choices else None
+        usage = self._field(response, "usage", None)
+        print(
+            "LLM响应元数据: "
+            f"model={self.model}, "
+            f"finish_reason={self._field(choice, 'finish_reason', 'unknown')}, "
+            f"prompt_tokens={self._field(usage, 'prompt_tokens', 'unknown')}, "
+            f"completion_tokens={self._field(usage, 'completion_tokens', 'unknown')}, "
+            f"content_chars={len(text)}",
+            flush=True,
+        )
+        return text
+
+    @staticmethod
+    def _field(value: Any, name: str, default: Any = None) -> Any:
+        if isinstance(value, dict):
+            return value.get(name, default)
+        return getattr(value, name, default) if value is not None else default
 
     def _extract_text(self, response: Any) -> str:
         if isinstance(response, str):

@@ -15,9 +15,11 @@ List<TravelJson> travelJsonList(Object? value) => value is List
     : <TravelJson>[];
 
 class TravelPlan {
-  TravelPlan(TravelJson data) : data = _copy(data);
+  TravelPlan(TravelJson data, {this.isFallback = false})
+      : data = _copy(data);
 
   final TravelJson data;
+  final bool isFallback;
 
   static TravelJson _copy(TravelJson value) =>
       Map<String, dynamic>.from(jsonDecode(jsonEncode(value)) as Map);
@@ -31,7 +33,7 @@ class TravelPlan {
   TravelJson? get budget =>
       data['budget'] is Map ? travelJson(data['budget']) : null;
 
-  TravelPlan copy() => TravelPlan(data);
+  TravelPlan copy() => TravelPlan(data, isFallback: isFallback);
 }
 
 class TravelMapPoint {
@@ -136,7 +138,10 @@ class TravelPlannerApi {
     if (response['success'] != true || data is! Map) {
       throw ApiException(response['message'] as String? ?? '行程生成失败');
     }
-    return TravelPlan(travelJson(data));
+    return TravelPlan(
+      travelJson(data),
+      isFallback: response['fallback'] == true,
+    );
   }
 
   Future<List<TravelJson>> searchPois(

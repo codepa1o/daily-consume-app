@@ -13,6 +13,8 @@ const _pages = {
   'workout',
   'travel',
   'skill-agent',
+  'research-tools',
+  'chatbot',
 };
 final _pageChanges = StreamController<String?>.broadcast();
 bool _listening = false;

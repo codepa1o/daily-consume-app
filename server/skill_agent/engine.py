@@ -118,7 +118,7 @@ def _model_client() -> OpenAI:
                   timeout=timeout)
 
 
-def _async_model_client() -> AsyncOpenAI:
+def _async_model_client(*, max_retries: int = 2) -> AsyncOpenAI:
     api_key = setting('OPENAI_API_KEY')
     if not api_key:
         raise SkillAgentError('服务端尚未配置 OPENAI_API_KEY。')
@@ -127,7 +127,7 @@ def _async_model_client() -> AsyncOpenAI:
     except ValueError:
         timeout = 120
     return AsyncOpenAI(api_key=api_key, base_url=setting('OPENAI_BASE_URL') or None,
-                       timeout=timeout)
+                       timeout=timeout, max_retries=max_retries)
 
 
 def _output_limit() -> int:

@@ -1,14 +1,10 @@
 {
-  "updateManifestUrl": "https://github.com/codepa1o/daily-consume-app/releases/latest/download/latest.json",
-  "versionCode": 18,
-  "versionName": "1.4.3",
   "releaseNotes": [
-    "情侣空间新增吵架反思入口，可在日历补记争执，分别保存私密草稿、发布反思并发表评论。",
-    "双方可确认共同约定并设置回访日期；约定或反思更新后重新确认，避免旧页面覆盖对方的新内容。",
-    "修复多张滑动相册进入回忆详情后图片不显示的问题，支持左右滑动和点击放大。",
-    "日常标题与模块入口随页面内容滚动，取消固定在顶部。",
-    "身体数据改用人体轮廓图标，“旅游规划”更名为“旅行规划”，使用飞机启程图标。",
-    "旅行目的地新增热门城市、中文、拼音和首字母搜索，出发与返回日期可在同一个日历中选择。",
-    "旅行生成页面新增预估进度与动画，收到行程结果后完成进度展示。"
-  ]
+    "新增科研工具，支持七个学术来源的论文搜索、摘要查看、批量下载和 PDF 保存目录选择。",
+    "新增聊天机器人，支持账号专属对话、资料检索以及可配置的 MCP 工具。",
+    "旅行规划在 AI 生成失败时展示简化备用行程提示，并改进模型输出校验后的重试。"
+  ],
+  "versionName": "1.4.4",
+  "updateManifestUrl": "https://github.com/codepa1o/daily-consume-app/releases/latest/download/latest.json",
+  "versionCode": 19
 }

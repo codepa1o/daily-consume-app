@@ -125,6 +125,10 @@ class _TravelResultViewState extends State<TravelResultView> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (_plan.isFallback) ...[
+                      _fallbackNotice(),
+                      const SizedBox(height: 12),
+                    ],
                     RepaintBoundary(key: _overviewKey, child: _overviewCard()),
                     const SizedBox(height: 14),
                     _mapCard(allPoints, visiblePoints, days),
@@ -253,6 +257,28 @@ class _TravelResultViewState extends State<TravelResultView> {
       ),
     );
   }
+
+  Widget _fallbackNotice() => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xfffff4e5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xffead2a8)),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xff946b26)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'AI 规划暂未成功，当前显示的是简化备用行程。建议稍后重新生成。',
+                style: TextStyle(color: Color(0xff725522), height: 1.45),
+              ),
+            ),
+          ],
+        ),
+      );
 
   Widget _mapCard(
     List<TravelMapPoint> allPoints,

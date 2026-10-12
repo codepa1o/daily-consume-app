@@ -23,6 +23,8 @@ import 'widgets/app_logo.dart';
 import 'widgets/body_data_icon.dart';
 import 'widgets/travel_planning_icon.dart';
 import 'skill_agent_page.dart';
+import 'research_tools_page.dart';
+import 'chatbot_page.dart';
 
 const paper = Color(0xfff6f5ef);
 const surface = Color(0xfffffefa);
@@ -34,12 +36,12 @@ const sageSoft = Color(0xffe9eee4);
 const mealTypes = ['早餐', '午餐', '晚餐'];
 const _dailyModules = [
   (id: 'body', label: '身体数据', icon: BodyDataIcon()),
+  (id: 'diary', label: '饮食消费', icon: Icon(Icons.restaurant_menu_rounded)),
+  (id: 'workout', label: '健身', icon: Icon(Icons.fitness_center_rounded)),
   (id: 'calendar', label: '生活日历', icon: Icon(Icons.calendar_month_outlined)),
   (id: 'focus', label: '专注时刻', icon: Icon(Icons.timer_outlined)),
-  (id: 'diary', label: '饮食消费', icon: Icon(Icons.restaurant_menu_rounded)),
   (id: 'female', label: '女性健康', icon: Icon(Icons.local_florist_outlined)),
   (id: 'couple', label: '情侣空间', icon: Icon(Icons.favorite_border)),
-  (id: 'workout', label: '健身', icon: Icon(Icons.fitness_center_rounded)),
   (id: 'travel', label: '旅行规划', icon: TravelPlanningIcon()),
 ];
 
@@ -98,13 +100,19 @@ class _AppShellState extends State<AppShell> {
     super.initState();
     final initial = initialAppPage;
     selected = initial == 'skill-agent' ||
+            initial == 'research-tools' ||
+            initial == 'chatbot' ||
             _dailyModules.any((module) => module.id == initial)
         ? initial
         : 'body';
     if (selected == 'female' && ApiClient.instance.account?.isFemale != true) {
       selected = 'body';
     }
-    if (selected != 'skill-agent') _dailyModule = selected;
+    if (selected != 'skill-agent' &&
+        selected != 'research-tools' &&
+        selected != 'chatbot') {
+      _dailyModule = selected;
+    }
     _openedPages.add(selected);
     _pageSubscription = appPageChanges.listen((page) {
       if (page != null && mounted) _setPage(page, updateLocation: false);
@@ -123,14 +131,27 @@ class _AppShellState extends State<AppShell> {
       page = 'body';
     }
     if (page != 'skill-agent' &&
+        page != 'research-tools' &&
+        page != 'chatbot' &&
         !_dailyModules.any((module) => module.id == page)) return;
     setState(() {
       selected = page;
       _openedPages.add(page);
-      if (page != 'skill-agent') _dailyModule = page;
+      if (page != 'skill-agent' &&
+          page != 'research-tools' &&
+          page != 'chatbot') {
+        _dailyModule = page;
+      }
     });
     if (updateLocation) pushAppPage(page);
   }
+
+  void _selectTopLevel(int index) => _setPage(switch (index) {
+        0 => _dailyModule,
+        1 => 'research-tools',
+        2 => 'skill-agent',
+        _ => 'chatbot',
+      });
 
   Widget _timerBanner() => AnimatedBuilder(
         animation: _pomodoroTimer,
@@ -192,8 +213,15 @@ class _AppShellState extends State<AppShell> {
           if (_dailyModule == 'female') _dailyModule = 'body';
           if (selected == 'female') selected = 'body';
         }
+        final selectedTopLevel = selected == 'research-tools'
+            ? 1
+            : selected == 'skill-agent'
+                ? 2
+                : selected == 'chatbot'
+                    ? 3
+                    : 0;
         final pageStack = IndexedStack(
-          index: selected == 'skill-agent' ? 1 : 0,
+          index: selectedTopLevel,
           children: [
             IndexedStack(
               index: modules.indexWhere((m) => m.id == _dailyModule),
@@ -239,8 +267,16 @@ class _AppShellState extends State<AppShell> {
                   ),
               ],
             ),
+            if (_openedPages.contains('research-tools'))
+              const ResearchToolsPage(key: ValueKey('research-tools'))
+            else
+              const SizedBox.shrink(),
             if (_openedPages.contains('skill-agent'))
               const SkillAgentPage(key: ValueKey('skill-agent'))
+            else
+              const SizedBox.shrink(),
+            if (_openedPages.contains('chatbot'))
+              const ChatbotPage(key: ValueKey('chatbot'))
             else
               const SizedBox.shrink(),
           ],
@@ -303,9 +339,8 @@ class _AppShellState extends State<AppShell> {
                             ),
                           Expanded(
                             child: NavigationRail(
-                              selectedIndex: selected == 'skill-agent' ? 1 : 0,
-                              onDestinationSelected: (index) => _setPage(
-                                  index == 0 ? _dailyModule : 'skill-agent'),
+                              selectedIndex: selectedTopLevel,
+                              onDestinationSelected: _selectTopLevel,
                               extended: extendedRail,
                               labelType: extendedRail
                                   ? NavigationRailLabelType.none
@@ -320,8 +355,14 @@ class _AppShellState extends State<AppShell> {
                                     icon: Icon(Icons.home_outlined),
                                     label: Text('日常')),
                                 const NavigationRailDestination(
+                                    icon: Icon(Icons.science_outlined),
+                                    label: Text('科研工具')),
+                                const NavigationRailDestination(
                                     icon: Icon(Icons.psychology_alt_rounded),
                                     label: Text('技能实验室')),
+                                const NavigationRailDestination(
+                                    icon: Icon(Icons.chat_bubble_outline_rounded),
+                                    label: Text('聊天机器人')),
                               ],
                             ),
                           ),
@@ -400,17 +441,22 @@ class _AppShellState extends State<AppShell> {
                     children: [
                       _timerBanner(),
                       NavigationBar(
-                        selectedIndex: selected == 'skill-agent' ? 1 : 0,
-                        onDestinationSelected: (index) =>
-                            _setPage(index == 0 ? _dailyModule : 'skill-agent'),
+                        selectedIndex: selectedTopLevel,
+                        onDestinationSelected: _selectTopLevel,
                         backgroundColor: surface,
                         indicatorColor: sageSoft,
                         destinations: [
                           const NavigationDestination(
                               icon: Icon(Icons.home_outlined), label: '日常'),
                           const NavigationDestination(
+                              icon: Icon(Icons.science_outlined),
+                              label: '科研工具'),
+                          const NavigationDestination(
                               icon: Icon(Icons.psychology_alt_rounded),
                               label: '技能'),
+                          const NavigationDestination(
+                              icon: Icon(Icons.chat_bubble_outline_rounded),
+                              label: '聊天'),
                         ],
                       ),
                     ],
@@ -439,16 +485,17 @@ class _DailyModuleSelector extends StatelessWidget {
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Expanded(
-                child: Text('日常',
-                    style:
-                        TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-              ),
               IconButton(
                 tooltip: '我的账户与设置',
                 onPressed: () => Scaffold.of(context).openDrawer(),
                 icon: AccountAvatar(
                     bytes: ApiClient.instance.account?.avatarBytes, radius: 17),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('日常',
+                    style:
+                        TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
               ),
             ]),
             const SizedBox(height: 8),

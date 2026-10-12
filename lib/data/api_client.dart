@@ -261,6 +261,88 @@ class ApiClient extends ChangeNotifier {
     }
   }
 
+  Future<void> requestPdf(
+    String method,
+    String path, {
+    Object? body,
+    Duration timeout = const Duration(seconds: 120),
+    required Future<void> Function(Uint8List chunk) onChunk,
+    void Function(int received, int? total)? onProgress,
+  }) async {
+    await _prepare();
+    final token = _token;
+    if (token == null) throw const ApiException('请先登录', statusCode: 401);
+    final base = _base.path.endsWith('/')
+        ? _base
+        : _base.replace(path: '${_base.path}/');
+    final outgoing = http.Request(method, base.resolve(path))
+      ..followRedirects = false
+      ..headers['accept'] = 'application/pdf'
+      ..headers['authorization'] = 'Bearer $token';
+    if (body != null) {
+      outgoing.headers['content-type'] = 'application/json';
+      outgoing.body = jsonEncode(body);
+    }
+
+    try {
+      final response = await _client!.send(outgoing).timeout(timeout);
+      final total = int.tryParse(response.headers['content-length'] ?? '');
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final bytes = await response.stream.toBytes().timeout(timeout);
+        if (token != _token) throw const ApiException('账号已切换，请重新加载');
+        final text = utf8.decode(bytes, allowMalformed: true);
+        dynamic decoded;
+        try {
+          decoded = text.isEmpty ? null : jsonDecode(text);
+        } on FormatException catch (_) {}
+        if (response.statusCode == 401 && token == _token) {
+          message = '登录已过期，请重新登录';
+          await _clearSession(token);
+        }
+        final detail = decoded is Map ? decoded['detail'] : null;
+        throw ApiException(detail is String ? detail : 'PDF 下载失败，请重试',
+            statusCode: response.statusCode);
+      }
+      final contentType = response.headers['content-type'] ?? '';
+      if (!contentType.toLowerCase().startsWith('application/pdf')) {
+        throw const ApiException('服务器返回的内容不是 PDF');
+      }
+
+      final prefix = BytesBuilder(copy: false);
+      var checkedPdfHeader = false;
+      var received = 0;
+      await for (final chunk in response.stream.timeout(timeout)) {
+        if (token != _token) throw const ApiException('账号已切换，请重新加载');
+        if (!checkedPdfHeader) {
+          prefix.add(chunk);
+          if (prefix.length < 5) continue;
+          final firstChunk = prefix.takeBytes();
+          if (!ascii
+              .decode(firstChunk.take(5).toList(), allowInvalid: true)
+              .startsWith('%PDF-')) {
+            throw const ApiException('服务器返回的内容不是有效 PDF');
+          }
+          checkedPdfHeader = true;
+          await onChunk(firstChunk);
+          received += firstChunk.length;
+        } else {
+          final bytes = Uint8List.fromList(chunk);
+          await onChunk(bytes);
+          received += bytes.length;
+        }
+        onProgress?.call(received, total);
+      }
+      if (!checkedPdfHeader) {
+        throw const ApiException('服务器返回的内容不是有效 PDF');
+      }
+      if (token != _token) throw const ApiException('账号已切换，请重新加载');
+    } on TimeoutException catch (_) {
+      throw const ApiException('下载超时，请检查网络后重试');
+    } on http.ClientException catch (_) {
+      throw const ApiException('无法连接服务器，请检查网络后重试');
+    }
+  }
+
   Stream<Map<String, dynamic>> streamJsonEvents(
       String path, Object body) async* {
     await _prepare();

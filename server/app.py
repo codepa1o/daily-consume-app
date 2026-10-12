@@ -28,6 +28,8 @@ from database import DSN
 from journal import create_journal_router
 from couple import create_couple_router, prepare_photo
 from travel import create_travel_router
+from research import create_research_router
+from chatbot import create_chatbot_router
 from skill_agent.router import (
     create_skill_agent_router,
     start_worker as start_skill_agent_worker,
@@ -68,7 +70,7 @@ def plain_ai_text(value):
     return value.strip()
 
 
-app = FastAPI(title='日常 API', version='1.4.3',
+app = FastAPI(title='日常 API', version='1.4.4',
               docs_url=None, redoc_url=None, openapi_url=None)
 
 web_origins = [
@@ -145,7 +147,9 @@ User = Annotated[dict, Depends(current_user)]
 app.include_router(create_journal_router(connect, current_user))
 app.include_router(create_couple_router(connect, current_user))
 app.include_router(create_travel_router(current_user))
+app.include_router(create_research_router(current_user))
 app.include_router(create_skill_agent_router(connect, current_user))
+app.include_router(create_chatbot_router(connect, current_user))
 
 
 @app.on_event('startup')
