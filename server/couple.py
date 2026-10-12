@@ -6,7 +6,7 @@ import io
 import json
 import re
 import secrets
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
@@ -29,7 +29,8 @@ class Input(BaseModel):
     def trim(cls, value):
         return value.strip() if isinstance(value, str) else value
 
-    @field_validator('since_date', 'memory_date', mode='before', check_fields=False)
+    @field_validator('since_date', 'memory_date', 'conflict_date',
+                     mode='before', check_fields=False)
     @classmethod
     def date_string(cls, value):
         if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
@@ -102,6 +103,55 @@ class ReactionInput(Input):
     emoji: Literal['❤️', '抱抱', '想你', '开心'] | None = None
 
 
+class ConflictInput(Input):
+    conflict_date: date
+    title: str = Field(min_length=1, max_length=120)
+    summary: str = Field(default='', max_length=3000)
+    client_request_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+
+    @field_validator('conflict_date')
+    @classmethod
+    def valid_conflict_date(cls, value):
+        if not date(2000, 1, 1) <= value <= today():
+            raise ValueError('争执日期超出范围')
+        return value
+
+    @field_validator('title')
+    @classmethod
+    def nonempty_title(cls, value):
+        if not value.strip():
+            raise ValueError('请填写争执主题')
+        return value.strip()
+
+
+class ConflictReflectionInput(Input):
+    observations: str = Field(default='', max_length=3000)
+    feelings: str = Field(default='', max_length=1000)
+    needs: str = Field(default='', max_length=2000)
+    my_part: str = Field(default='', max_length=2000)
+    request: str = Field(default='', max_length=2000)
+    published: bool = False
+
+    @model_validator(mode='after')
+    def has_content(self):
+        if not any((self.observations, self.feelings, self.needs, self.my_part, self.request)):
+            raise ValueError('请至少填写一项反思')
+        return self
+
+
+class ConflictAgreementInput(Input):
+    agreement: str = Field(min_length=1, max_length=2000)
+    follow_up_date: date | None = None
+    expected_version: int = Field(ge=0, strict=True)
+
+    @field_validator('agreement')
+    @classmethod
+    def nonempty_agreement(cls, value):
+        if not value.strip():
+            raise ValueError('请填写共同约定')
+        return value.strip()
+
+
 def prepare_photo(encoded):
     if encoded is None:
         return None, None
@@ -171,6 +221,181 @@ def create_couple_router(connect, current_user):
         if not row:
             raise HTTPException(404, '回忆不存在或无权访问')
         return row
+
+    def conflict_for(db, ident, user, *, lock=False):
+        row = db.execute('''SELECT c.id,c.space_id,c.conflict_date,c.title,c.summary,
+            c.created_by,c.status,c.agreement,c.follow_up_date,c.agreement_version,
+            c.agreement_confirmed_by,
+            c.created_at,c.updated_at FROM couple_conflicts c
+            JOIN couple_members member ON member.space_id=c.space_id
+            WHERE c.id=%s AND member.user_id=%s''' +
+            (' FOR UPDATE OF c' if lock else ''), (ident, user['id'])).fetchone()
+        if not row:
+            raise HTTPException(404, '争执记录不存在或无权访问')
+        return row
+
+    @router.get('/conflicts')
+    def list_conflicts(user: User, start: date, end: date):
+        if start > end or start < date(2000, 1, 1) or end - start > timedelta(days=366):
+            raise HTTPException(422, '日期范围不正确')
+        with connect() as db:
+            space = space_for(db, user)
+            return db.execute('''SELECT c.id,c.conflict_date,c.title,c.summary,c.created_by,
+                c.status,c.agreement,c.follow_up_date,c.agreement_version,
+                c.agreement_confirmed_by,c.created_at,c.updated_at,
+                (SELECT count(*)::integer FROM couple_conflict_reflections r
+                    WHERE r.conflict_id=c.id AND r.published) AS reflection_count
+                FROM couple_conflicts c WHERE c.space_id=%s
+                    AND c.conflict_date BETWEEN %s AND %s
+                ORDER BY c.conflict_date DESC,c.id DESC''',
+                (space['id'], start, end)).fetchall()
+
+    @router.post('/conflicts', status_code=201)
+    def create_conflict(body: ConflictInput, user: User):
+        fingerprint = hashlib.sha256(json.dumps({
+            'date': body.conflict_date.isoformat(),
+            'title': body.title,
+            'summary': body.summary,
+        }, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
+        with connect() as db:
+            space = space_for(db, user)
+            row = db.execute('''INSERT INTO couple_conflicts
+                (space_id,conflict_date,title,summary,created_by,client_request_id,request_hash)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT(created_by,client_request_id) DO NOTHING RETURNING id''',
+                (space['id'], body.conflict_date, body.title, body.summary,
+                 user['id'], body.client_request_id, fingerprint)).fetchone()
+            if not row:
+                row = db.execute('''SELECT id,request_hash FROM couple_conflicts
+                    WHERE created_by=%s AND client_request_id=%s''',
+                    (user['id'], body.client_request_id)).fetchone()
+                if not row or row['request_hash'] != fingerprint:
+                    raise HTTPException(409, '该记录请求已使用，请刷新后确认是否已保存')
+        return {'id': row['id']}
+
+    @router.get('/conflicts/{ident}')
+    def conflict_detail(ident: int, user: User):
+        with connect() as db:
+            conflict = conflict_for(db, ident, user)
+            reflections = db.execute('''SELECT r.id,r.author_id,u.nickname AS author_name,
+                r.observations,r.feelings,r.needs,r.my_part,r.request,r.published,
+                r.created_at,r.updated_at FROM couple_conflict_reflections r
+                JOIN users u ON u.id=r.author_id
+                WHERE r.conflict_id=%s AND (r.published OR r.author_id=%s)
+                ORDER BY r.created_at,r.id''', (ident, user['id'])).fetchall()
+            comments = db.execute('''SELECT c.id,c.author_id,u.nickname AS author_name,
+                c.content,c.created_at FROM couple_conflict_comments c
+                JOIN users u ON u.id=c.author_id WHERE c.conflict_id=%s
+                ORDER BY c.id''', (ident,)).fetchall()
+        conflict['reflections'] = reflections
+        conflict['comments'] = comments
+        return conflict
+
+    @router.put('/conflicts/{ident}/reflection')
+    def save_conflict_reflection(ident: int, body: ConflictReflectionInput, user: User):
+        values = (body.observations, body.feelings, body.needs,
+                  body.my_part, body.request, body.published)
+        with connect() as db:
+            conflict = conflict_for(db, ident, user, lock=True)
+            old = db.execute('''SELECT observations,feelings,needs,my_part,request,published
+                FROM couple_conflict_reflections WHERE conflict_id=%s AND author_id=%s
+                FOR UPDATE''', (ident, user['id'])).fetchone()
+            changed = old is None or any(
+                old[field] != value
+                for field, value in zip(
+                    ('observations', 'feelings', 'needs', 'my_part', 'request', 'published'),
+                    values,
+                )
+            )
+            db.execute('''INSERT INTO couple_conflict_reflections
+                (conflict_id,author_id,observations,feelings,needs,my_part,request,published)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT(conflict_id,author_id) DO UPDATE SET
+                    observations=excluded.observations, feelings=excluded.feelings,
+                    needs=excluded.needs, my_part=excluded.my_part, request=excluded.request,
+                    published=excluded.published, updated_at=now()''',
+                (ident, user['id'], *values))
+            count = db.execute('''SELECT count(*)::integer AS n
+                FROM couple_conflict_reflections WHERE conflict_id=%s AND published''',
+                (ident,)).fetchone()['n']
+            if count < 2:
+                status, confirmed = 'reflecting', []
+            elif conflict['status'] == 'agreed' and changed:
+                status, confirmed = 'talking', []
+            elif conflict['status'] == 'reflecting':
+                status, confirmed = 'talking', []
+            else:
+                status, confirmed = conflict['status'], conflict['agreement_confirmed_by']
+            invalidate = changed and bool(conflict['agreement_confirmed_by'])
+            if invalidate:
+                confirmed = []
+                if count >= 2:
+                    status = 'talking'
+            if status != conflict['status'] or confirmed != conflict['agreement_confirmed_by']:
+                db.execute('''UPDATE couple_conflicts SET status=%s,
+                    agreement_confirmed_by=%s::bigint[],
+                    agreement_version=agreement_version+%s,updated_at=now() WHERE id=%s''',
+                    (status, confirmed, int(invalidate), ident))
+        return {'saved': True, 'published': body.published}
+
+    @router.put('/conflicts/{ident}/agreement')
+    def save_conflict_agreement(ident: int, body: ConflictAgreementInput, user: User):
+        with connect() as db:
+            conflict = conflict_for(db, ident, user, lock=True)
+            members = {row['user_id'] for row in db.execute(
+                'SELECT user_id FROM couple_members WHERE space_id=%s',
+                (conflict['space_id'],)).fetchall()}
+            authors = {row['author_id'] for row in db.execute('''SELECT author_id
+                FROM couple_conflict_reflections WHERE conflict_id=%s AND published''',
+                (ident,)).fetchall()}
+            if len(members) != 2 or not members <= authors:
+                raise HTTPException(409, '双方发布反思后，再一起确认共同约定')
+            if body.expected_version != conflict['agreement_version']:
+                raise HTTPException(409, '共同约定已更新，请载入最新约定后再确认')
+            if body.follow_up_date and not conflict['conflict_date'] <= body.follow_up_date <= today() + timedelta(days=3650):
+                raise HTTPException(422, '回访日期不能早于争执日期，且应在未来十年内')
+            confirmed = set(conflict['agreement_confirmed_by'] or [])
+            changed = (body.agreement != conflict['agreement'] or
+                       body.follow_up_date != conflict['follow_up_date'])
+            if changed:
+                confirmed.clear()
+            confirmed.add(user['id'])
+            status = 'agreed' if members <= confirmed else 'talking'
+            db.execute('''UPDATE couple_conflicts SET agreement=%s,
+                follow_up_date=%s,agreement_confirmed_by=%s::bigint[],status=%s,
+                agreement_version=agreement_version+%s,updated_at=now() WHERE id=%s''',
+                (body.agreement, body.follow_up_date, sorted(confirmed), status,
+                 int(changed), ident))
+        return {'agreement': body.agreement, 'status': status,
+                'follow_up_date': body.follow_up_date,
+                'agreement_version': conflict['agreement_version'] + int(changed),
+                'agreement_confirmed_by': sorted(confirmed)}
+
+    @router.post('/conflicts/{ident}/comments', status_code=201)
+    def comment_conflict(ident: int, body: CommentInput, user: User):
+        with connect() as db:
+            conflict_for(db, ident, user)
+            row = db.execute('''INSERT INTO couple_conflict_comments
+                (conflict_id,author_id,content,client_request_id)
+                VALUES (%s,%s,%s,%s) ON CONFLICT(author_id,client_request_id)
+                DO NOTHING RETURNING id''',
+                (ident, user['id'], body.content, body.client_request_id)).fetchone()
+            if not row:
+                row = db.execute('''SELECT id,conflict_id,content FROM couple_conflict_comments
+                    WHERE author_id=%s AND client_request_id=%s''',
+                    (user['id'], body.client_request_id)).fetchone()
+                if not row or row['conflict_id'] != ident or row['content'] != body.content:
+                    raise HTTPException(409, '该留言请求已使用，请刷新后确认')
+        return {'id': row['id']}
+
+    @router.delete('/conflicts/{ident}')
+    def delete_conflict(ident: int, user: User):
+        with connect() as db:
+            conflict = conflict_for(db, ident, user, lock=True)
+            if conflict['created_by'] != user['id']:
+                raise HTTPException(403, '只能删除自己创建的争执记录')
+            db.execute('DELETE FROM couple_conflicts WHERE id=%s', (ident,))
+        return {'deleted': True}
 
     @router.get('/space')
     def get_space(user: User):

@@ -6,6 +6,7 @@ import 'package:daily_consume/main.dart';
 import 'package:daily_consume/pomodoro_card.dart';
 import 'package:daily_consume/travel_planner_page.dart';
 import 'package:daily_consume/workout_page.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -66,7 +67,7 @@ void main() {
               if (gender == 'female') '女性健康',
               '情侣空间',
               '健身',
-              '旅游规划'
+              '旅行规划'
             ]);
         if (gender == 'male') {
           expect(
@@ -118,6 +119,24 @@ void main() {
         expect(find.byType(WorkoutPage), findsOneWidget);
         await open('travel');
         expect(find.byType(TravelPlannerPage), findsOneWidget);
+        final travelEntry = find.byKey(const ValueKey('daily-module-travel'));
+        final entryTop = tester.getTopLeft(travelEntry).dy;
+        final travelScroll = find.descendant(
+            of: find.byType(TravelPlannerPage),
+            matching: find.byType(SingleChildScrollView));
+        if (width >= 840) {
+          await tester.sendEventToBinding(PointerScrollEvent(
+              position: tester.getCenter(travelScroll),
+              scrollDelta: const Offset(0, 700)));
+        } else {
+          await tester.drag(travelScroll, const Offset(0, -700));
+        }
+        await tester.pumpAndSettle();
+        expect(travelEntry.hitTestable(), findsNothing);
+        await tester.drag(travelScroll, const Offset(0, 1400));
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(travelEntry).dy, closeTo(entryTop, .5));
+        expect(tester.takeException(), isNull);
         await open('focus');
         expect(tester.state(find.byType(PomodoroCard)), same(timer));
         await open('calendar');

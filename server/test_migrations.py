@@ -21,7 +21,7 @@ from psycopg.conninfo import make_conninfo
 
 SERVER = Path(__file__).resolve().parent
 BASELINE_SQL = (SERVER / 'migrations/versions/0001_schema.sql').read_text(encoding='utf-8')
-HEAD_REVISION = '0012_workout_actions'
+HEAD_REVISION = '0013_couple_conflicts'
 MIGRATION_TABLES = set(re.findall(r'CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(\w+)', BASELINE_SQL))
 for migration in (SERVER / 'migrations/versions').glob('*.py'):
     MIGRATION_TABLES.update(re.findall(
@@ -91,7 +91,8 @@ class MigrationTests(unittest.TestCase):
         command.upgrade(self.config, 'head')
         command.upgrade(self.config, 'head')
         for table, rows in before.items():
-            expected = [(*row, []) for row in rows] if table in {'meal_entries', 'workout_logs'} else rows
+            defaults = {'users': (None, None), 'meal_entries': ([],), 'workout_logs': ([],)}
+            expected = [(*row, *defaults.get(table, ())) for row in rows]
             self.assertEqual(self.execute(f'SELECT * FROM {table}'), expected)
         self.assertEqual(self.execute("INSERT INTO users(username,username_key,password_hash,nickname) "
                                      "VALUES ('next','next','hash','新账号') RETURNING id"), [(2,)])

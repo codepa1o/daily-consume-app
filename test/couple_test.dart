@@ -56,6 +56,64 @@ void main() {
     expect(find.text('回忆1'), findsOneWidget);
   });
 
+  for (final width in [390.0, 1440.0]) {
+    testWidgets('swipe album detail shows and opens each photo at width $width',
+        (tester) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final row = {
+        ...testRow(1, 1),
+        'photo_count': 3,
+        'display_mode': 'swipe',
+      };
+      final album = CoupleMemory.fromJson(row);
+      final bytes = File('assets/branding/rem_logo.png').readAsBytesSync();
+      final requestedPhotos = <String>{};
+      final api = CoupleApi(
+          request: (method, path, {body, query, binary = false}) async {
+        if (path == 'couple/memories/1')
+          return {...row, 'comments': [], 'reactions': []};
+        if (path == 'couple/pair') return {'items': []};
+        if (RegExp(r'^couple/memories/1/photos/[0-2]$').hasMatch(path)) {
+          expect(binary, isTrue);
+          expect(query?['thumbnail'], 'false');
+          requestedPhotos.add(path);
+          return bytes;
+        }
+        fail('Unexpected request $method $path');
+      });
+      await tester.pumpWidget(MaterialApp(
+          home: CoupleDetail(memory: album, memories: [album], api: api)));
+      await tester.pumpAndSettle();
+      expect(find.byType(Image), findsWidgets);
+      expect(requestedPhotos, contains('couple/memories/1/photos/0'));
+      final albumPager = find.byType(PageView);
+      expect(albumPager, findsOneWidget);
+      await tester.drag(
+          albumPager, Offset(-tester.getSize(albumPager).width * .78, 0));
+      await tester.pumpAndSettle();
+      final secondPhoto = find.byWidgetPredicate((widget) =>
+          widget is Semantics && widget.properties.label == '查看第 2 张照片，共 3 张');
+      await tester.tap(secondPhoto);
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 3'), findsOneWidget);
+      expect(find.byType(InteractiveViewer), findsWidgets);
+      expect(requestedPhotos, contains('couple/memories/1/photos/1'));
+      final galleryPager = find.byType(PageView);
+      await tester.drag(
+          galleryPager, Offset(-tester.getSize(galleryPager).width * .8, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('3 / 3'), findsOneWidget);
+      expect(requestedPhotos, contains('couple/memories/1/photos/2'));
+      expect(find.byType(Image), findsWidgets);
+      expect(find.text('照片无法显示'), findsNothing);
+      expect(find.text('重试照片'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets(
       'failed save retains a draft and successful retry closes the editor',
       (tester) async {

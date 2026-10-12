@@ -4,38 +4,38 @@
 
 ## 本次版本
 
-- 应用显示版本：1.3.6。
-- 内部版本编号：13，即 `pubspec.yaml` 中的 `1.3.6+13`。
-- Release 标签：`v1.3.6+13`。
-- 更新日志原稿：`docs/release-notes/1.3.6.txt`，每行一条。
-- AI 报告页面使用结构化展示，后端依赖个人资料年龄迁移 `0007_profile_age` 和提示词文件；发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
+- 应用显示版本：1.4.3。
+- 内部版本编号：18，即 `pubspec.yaml` 中的 `1.4.3+18`。
+- Release 标签：`v1.4.3+18`。
+- 更新日志原稿：`docs/release-notes/1.4.3.txt`，每行一条。
+- 吵架反思依赖后端迁移 `0013_couple_conflicts`；发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
 
 ## 以后发布新版的推荐步骤
 
-以下以 **1.3.6+13** 为例。每次正式发布都应使用新的版本号和内部版本编号。
+以下以 **1.4.3+18** 为例。每次正式发布都应使用新的版本号和内部版本编号。
 
 ### 1. 验证代码
 
 在项目根目录打开 PowerShell：
 
 ```powershell
-Set-Location E:\my_project\daily-consume
-& 'E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter\bin\flutter.bat' analyze
-& 'E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter\bin\flutter.bat' test
+Set-Location C:\my_project\daily-consume-app
+& 'C:\dev_env\flutter\bin\flutter.bat' analyze
+& 'C:\dev_env\flutter\bin\flutter.bat' test
 ```
 
 涉及服务器功能时，先部署并验证兼容的新后端，再公开更新包。发布脚本本身只管理 GitHub Release，不会更新业务服务器。
 
 ### 2. 写日志并构建
 
-新建 UTF-8 文件 `docs/release-notes/1.3.6.txt`，每行一条给用户看的更新内容，然后执行：
+新建 UTF-8 文件 `docs/release-notes/1.4.3.txt`，每行一条给用户看的更新内容，然后执行：
 
 ```powershell
 .\scripts\build_release.ps1 `
-  -VersionName '1.3.6' `
-  -VersionCode 13 `
-  -NotesFile '.\docs\release-notes\1.3.6.txt' `
-  -Flutter 'E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter\bin\flutter.bat'
+  -VersionName '1.4.3' `
+  -VersionCode 18 `
+  -NotesFile '.\docs\release-notes\1.4.3.txt' `
+  -Flutter 'C:\dev_env\flutter\bin\flutter.bat'
 ```
 
 脚本同步更新 `pubspec.yaml` 和 APK 内置的 `assets/release_notes.json`，并生成 `build/app/outputs/flutter-apk/app-release.apk`。
@@ -43,14 +43,14 @@ Set-Location E:\my_project\daily-consume
 `VersionName` 是用户看到的版本，`VersionCode` 是应用比较新旧的编号，每次正式发布必须增加。构建脚本只允许增加编号；如果版本已写入但构建中断，修复后重新构建当前版本：
 
 ```powershell
-& 'E:\JAVAstudy\flutter_windows_3.47.5-stable\flutter\bin\flutter.bat' build apk --release
+.\scripts\build_flutter.ps1 -Target apk -Flutter 'C:\dev_env\flutter\bin\flutter.bat'
 ```
 
 保留本机 `android/key.properties` 与原签名密钥，不能更换签名，否则旧用户不能覆盖安装。它们保持在 Git 忽略列表中。
 
 ### 3. 提交并合并
 
-把版本、日志和功能代码提交到功能分支，推送并通过 Pull Request 合并到 `main`。发布脚本默认给 Release 绑定远程默认分支，所以先合并，再发布，确保标签对应本次更新代码。
+按仓库 AGENTS.md 在当前检出的分支上提交，保持在 `main`，随后推送。发布脚本默认给 Release 绑定远程默认分支，所以先推送代码，再发布，确保标签对应本次更新代码。
 
 ### 4. 检查权限和安装包
 
@@ -78,7 +78,7 @@ python scripts/publish_github_release.py
 
 成功后终端会显示 Release、Manifest 和 APK 地址。网络中断后可重试相同发布命令；相同附件会复用，不同内容不会被覆盖。一次只运行一个发布进程；正式发布后还要修改 APK 时，应增加 `VersionCode`，不要覆盖旧附件。
 
-生成的清单位于 `build/github-release/<VersionCode>/latest.json`，本次为 `build/github-release/13/latest.json`，无需手工编写。
+生成的清单位于 `build/github-release/<VersionCode>/latest.json`，本次为 `build/github-release/18/latest.json`，无需手工编写。
 
 ## 网页手动发布
 

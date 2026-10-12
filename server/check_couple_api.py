@@ -125,6 +125,37 @@ def main():
         request('DELETE', f'couple/memories/{ident}', token=a)
         request('GET', f'couple/memories/{ident}/photo', token=b, expected=404)
         passed('Two-author collage, partner comments, reactions and author-only deletion')
+        conflict = request('POST', 'couple/conflicts', {
+            'conflict_date': published_today, 'title': 'HTTPS reflection check',
+            'summary': 'Disposable release verification',
+            'client_request_id': secrets.token_hex(16)}, a, 201)
+        path = f"couple/conflicts/{conflict['id']}"
+        reflection = {'observations': 'We had different plans', 'feelings': 'Calmer now',
+                      'needs': 'Plan together', 'my_part': 'Ask earlier',
+                      'request': 'Agree on a time', 'published': False}
+        request('PUT', path + '/reflection', reflection, a)
+        assert request('GET', path, token=b)['reflections'] == []
+        request('GET', path, token=outsider, expected=404)
+        for token in (a, b):
+            request('PUT', path + '/reflection', reflection | {'published': True}, token)
+        agreement = {'agreement': 'Confirm plans together', 'expected_version': 0,
+                     'follow_up_date': published_today}
+        first = request('PUT', path + '/agreement', agreement, a)
+        assert first['status'] == 'talking'
+        request('PUT', path + '/agreement', agreement, b, 409)
+        agreed = request('PUT', path + '/agreement',
+                         agreement | {'expected_version': first['agreement_version']}, b)
+        assert agreed['status'] == 'agreed'
+        assert set(agreed['agreement_confirmed_by']) == {users[0][0], users[1][0]}
+        comment = {'content': 'Understood', 'client_request_id': secrets.token_hex(16)}
+        request('POST', path + '/comments', comment, b, 201)
+        assert len(request('GET', path, token=a)['comments']) == 1
+        calendar = request('GET', f'couple/conflicts?start={published_today}&end={published_today}', token=b)
+        assert any(row['id'] == conflict['id'] for row in calendar)
+        request('DELETE', path, token=b, expected=403)
+        request('DELETE', path, token=a)
+        request('GET', path, token=b, expected=404)
+        passed('Conflict calendar, private draft, comments, two-member agreement and stale-version protection')
         request('POST', 'journal/entries', {'entry_date': '2024-02-29', 'kind': 'diary',
             'content': 'Compatibility test', 'client_request_id': secrets.token_hex(16)}, a, 201)
         assert request('GET', 'journal/entries?date=2024-02-29', token=a)['total'] == 1

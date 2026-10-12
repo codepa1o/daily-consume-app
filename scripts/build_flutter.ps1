@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet('apk', 'web', 'run-web')][string]$Target = 'apk',
     [string]$Flutter = 'flutter',
     [string]$Repository = 'codepa1o/daily-consume-app'

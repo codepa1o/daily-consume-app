@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'couple_effects.dart';
+import 'couple_conflicts_page.dart';
 import 'data/api_client.dart';
 import 'data/app_database.dart' show dateKey;
 import 'data/couple.dart';
@@ -123,7 +124,7 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
           builder: (context) => AlertDialog(
                   title: const Text('邀请另一半'),
                   content: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('让对方在“我的 → 情侣空间”输入邀请码，确认加入。'),
+                    const Text('让对方在“日常 → 情侣空间”输入邀请码，确认加入。'),
                     const SizedBox(height: 20),
                     SelectableText(value['code'] as String,
                         style: const TextStyle(
@@ -215,7 +216,16 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
             IconButton(
                 onPressed: loading ? null : reload,
                 icon: const Icon(Icons.refresh),
-                tooltip: '刷新回忆')
+                tooltip: '刷新回忆'),
+            TextButton.icon(
+              onPressed: loading || space == null
+                  ? null
+                  : () => Navigator.of(context).push<void>(MaterialPageRoute(
+                        builder: (_) => CoupleConflictCalendarPage(api: api),
+                      )),
+              icon: const Icon(Icons.forum_outlined, size: 18),
+              label: const Text('吵架反思'),
+            ),
           ]),
       floatingActionButton: space == null || loading || error != null
           ? null

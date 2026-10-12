@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, LicenseEntryWithLineBreaks, LicenseRegistry;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/semantics.dart' show SemanticsBinding;
@@ -19,6 +20,8 @@ import 'couple_page.dart' show CouplePage, recoverCouplePhoto;
 import 'navigation/app_location.dart';
 import 'pomodoro_card.dart';
 import 'widgets/app_logo.dart';
+import 'widgets/body_data_icon.dart';
+import 'widgets/travel_planning_icon.dart';
 import 'skill_agent_page.dart';
 
 const paper = Color(0xfff6f5ef);
@@ -30,18 +33,21 @@ const sage = Color(0xff64765a);
 const sageSoft = Color(0xffe9eee4);
 const mealTypes = ['早餐', '午餐', '晚餐'];
 const _dailyModules = [
-  (id: 'body', label: '身体数据', icon: Icons.monitor_weight_outlined),
-  (id: 'calendar', label: '生活日历', icon: Icons.calendar_month_outlined),
-  (id: 'focus', label: '专注时刻', icon: Icons.timer_outlined),
-  (id: 'diary', label: '饮食消费', icon: Icons.restaurant_menu_rounded),
-  (id: 'female', label: '女性健康', icon: Icons.local_florist_outlined),
-  (id: 'couple', label: '情侣空间', icon: Icons.favorite_border),
-  (id: 'workout', label: '健身', icon: Icons.fitness_center_rounded),
-  (id: 'travel', label: '旅游规划', icon: Icons.travel_explore_rounded),
+  (id: 'body', label: '身体数据', icon: BodyDataIcon()),
+  (id: 'calendar', label: '生活日历', icon: Icon(Icons.calendar_month_outlined)),
+  (id: 'focus', label: '专注时刻', icon: Icon(Icons.timer_outlined)),
+  (id: 'diary', label: '饮食消费', icon: Icon(Icons.restaurant_menu_rounded)),
+  (id: 'female', label: '女性健康', icon: Icon(Icons.local_florist_outlined)),
+  (id: 'couple', label: '情侣空间', icon: Icon(Icons.favorite_border)),
+  (id: 'workout', label: '健身', icon: Icon(Icons.fitness_center_rounded)),
+  (id: 'travel', label: '旅行规划', icon: TravelPlanningIcon()),
 ];
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield const LicenseEntryWithLineBreaks(['Lucide Icons'], lucideIconLicense);
+  });
   if (kIsWeb) {
     SemanticsBinding.instance.ensureSemantics();
   }
@@ -189,21 +195,28 @@ class _AppShellState extends State<AppShell> {
         final pageStack = IndexedStack(
           index: selected == 'skill-agent' ? 1 : 0,
           children: [
-            Column(children: [
-              _DailyModuleSelector(
-                  modules: modules,
-                  selected: _dailyModule,
-                  onSelected: (page) => _setPage(page, updateLocation: false)),
-              Expanded(
-                child: IndexedStack(
-                  index: modules.indexWhere((m) => m.id == _dailyModule),
-                  children: [
-                    for (final module in modules)
-                      KeyedSubtree(
-                        key: ValueKey('daily-content-${module.id}'),
-                        child: !_openedPages.contains(module.id)
-                            ? const SizedBox.shrink()
-                            : switch (module.id) {
+            IndexedStack(
+              index: modules.indexWhere((m) => m.id == _dailyModule),
+              children: [
+                for (final module in modules)
+                  KeyedSubtree(
+                    key: ValueKey('daily-content-${module.id}'),
+                    child: !_openedPages.contains(module.id)
+                        ? const SizedBox.shrink()
+                        : SafeArea(
+                            bottom: false,
+                            child: NestedScrollView(
+                              headerSliverBuilder:
+                                  (context, innerBoxIsScrolled) => [
+                                SliverToBoxAdapter(
+                                  child: _DailyModuleSelector(
+                                      modules: modules,
+                                      selected: _dailyModule,
+                                      onSelected: (page) => _setPage(page,
+                                          updateLocation: false)),
+                                ),
+                              ],
+                              body: switch (module.id) {
                                 'body' => const BodyPage(),
                                 'calendar' => const _DailySectionPage(
                                     title: '生活日历',
@@ -221,11 +234,11 @@ class _AppShellState extends State<AppShell> {
                                 'travel' => const TravelPlannerPage(),
                                 _ => const SizedBox.shrink(),
                               },
-                      ),
-                  ],
-                ),
-              ),
-            ]),
+                            ),
+                          ),
+                  ),
+              ],
+            ),
             if (_openedPages.contains('skill-agent'))
               const SkillAgentPage(key: ValueKey('skill-agent'))
             else
@@ -238,7 +251,7 @@ class _AppShellState extends State<AppShell> {
           return Scaffold(
             drawer: Drawer(
               backgroundColor: paper,
-              child: MyPage(onOpenCouple: () => _setPage('couple')),
+              child: const MyPage(),
             ),
             body: desktop
                 ? SafeArea(
@@ -412,7 +425,7 @@ class _DailyModuleSelector extends StatelessWidget {
       {required this.modules,
       required this.selected,
       required this.onSelected});
-  final List<({String id, String label, IconData icon})> modules;
+  final List<({String id, String label, Widget icon})> modules;
   final String selected;
   final ValueChanged<String> onSelected;
 
@@ -479,11 +492,13 @@ class _DailyModuleSelector extends StatelessWidget {
                                         color: selected == module.id
                                             ? sage
                                             : sageSoft),
-                                    child: Icon(module.icon,
-                                        size: 26,
-                                        color: selected == module.id
-                                            ? Colors.white
-                                            : sage),
+                                    child: IconTheme(
+                                        data: IconThemeData(
+                                            size: 26,
+                                            color: selected == module.id
+                                                ? Colors.white
+                                                : sage),
+                                        child: Center(child: module.icon)),
                                   ),
                                   const SizedBox(height: 9),
                                   Text(module.label,

@@ -18,7 +18,10 @@ from psycopg.conninfo import make_conninfo
 from pydantic import ValidationError
 
 import app as api
-from couple import CommentInput, InviteInput, MemoryInput, SpaceInput, prepare_photo, today
+from couple import (
+    CommentInput, ConflictInput, ConflictReflectionInput, ConflictAgreementInput,
+    InviteInput, MemoryInput, SpaceInput, prepare_photo, today,
+)
 
 
 def photo_input():
@@ -30,6 +33,21 @@ def photo_input():
 
 
 class CoupleValidationTests(unittest.TestCase):
+    def test_conflict_input_boundaries(self):
+        body = dict(conflict_date=today().isoformat(), title=' 周末安排 ',
+                    client_request_id='a' * 32)
+        self.assertEqual(ConflictInput(**body).title, '周末安排')
+        for changes in [dict(conflict_date=(today() + timedelta(days=1)).isoformat()),
+                        dict(conflict_date=1759536000), dict(title=' '), dict(author_id=3)]:
+            with self.subTest(changes=changes), self.assertRaises(ValidationError):
+                ConflictInput(**(body | changes))
+        with self.assertRaises(ValidationError):
+            ConflictReflectionInput(feelings=' ')
+        with self.assertRaises(ValidationError):
+            ConflictReflectionInput(feelings='字' * 1001)
+        with self.assertRaises(ValidationError):
+            ConflictAgreementInput(agreement='试试', expected_version=-1)
+
     def test_dates_text_and_unknown_fields(self):
         body = dict(memory_date='2024-02-29', title=' 回忆 ', client_request_id='a' * 32)
         self.assertEqual(MemoryInput(**body).title, '回忆')
@@ -111,6 +129,68 @@ class CoupleApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
+    def test_conflict_private_drafts_comments_and_two_member_agreement(self):
+        self.start()
+        body = dict(conflict_date=today().isoformat(), title=' 周末安排 ',
+                    summary='讨论时间没有提前约好', client_request_id=secrets.token_hex(16))
+        created = self.client.post('/couple/conflicts', headers=self.a, json=body)
+        self.assertEqual(created.status_code, 201, created.text)
+        ident = created.json()['id']
+        path = f'/couple/conflicts/{ident}'
+        self.assertEqual(self.client.post('/couple/conflicts', headers=self.a, json=body).json()['id'], ident)
+        self.assertEqual(self.client.post('/couple/conflicts', headers=self.a,
+            json=body | {'summary': '不同内容'}).status_code, 409)
+        draft = dict(observations='没约好时间', feelings='失望', needs='提前安排',
+                     my_part='没有说清楚', request='出发前一起确认', published=False)
+        self.assertEqual(self.client.put(path + '/reflection', headers=self.a, json=draft).status_code, 200)
+        mine = self.client.get(path, headers=self.a).json()
+        self.assertFalse(mine['reflections'][0]['published'])
+        self.assertNotIn('request_hash', mine)
+        self.assertEqual(self.client.get(path, headers=self.b).json()['reflections'], [])
+        self.assertEqual(self.client.get(path, headers=self.c).status_code, 404)
+        self.assertEqual(self.client.put(path + '/reflection', headers=self.c, json=draft).status_code, 404)
+        agreement = dict(agreement='周五晚确认周末安排', expected_version=0,
+                         follow_up_date=(today() + timedelta(days=7)).isoformat())
+        self.assertEqual(self.client.put(path + '/agreement', headers=self.a, json=agreement).status_code, 409)
+        for header in (self.a, self.b):
+            published = self.client.put(path + '/reflection', headers=header, json=draft | {'published': True})
+            self.assertEqual(published.status_code, 200, published.text)
+        first = self.client.put(path + '/agreement', headers=self.a, json=agreement)
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(first.json()['status'], 'talking')
+        version = first.json()['agreement_version']
+        self.assertEqual(self.client.put(path + '/agreement', headers=self.b, json=agreement).status_code, 409)
+        second = self.client.put(path + '/agreement', headers=self.b,
+                                 json=agreement | {'expected_version': version})
+        self.assertEqual(second.json()['status'], 'agreed')
+        self.assertEqual(set(second.json()['agreement_confirmed_by']), set(self.users[:2]))
+        changed = self.client.put(path + '/reflection', headers=self.a,
+                                  json=draft | {'published': True, 'feelings': '现在平静了'})
+        self.assertEqual(changed.status_code, 200)
+        refreshed = self.client.get(path, headers=self.b).json()
+        self.assertEqual(refreshed['status'], 'talking')
+        self.assertEqual(refreshed['agreement_confirmed_by'], [])
+        self.assertGreater(refreshed['agreement_version'], version)
+        self.assertEqual(self.client.put(path + '/agreement', headers=self.b,
+            json=agreement | {'expected_version': version}).status_code, 409)
+        comment = dict(content='我理解了，一起试试', client_request_id=secrets.token_hex(16))
+        sent = self.client.post(path + '/comments', headers=self.b, json=comment)
+        self.assertEqual(sent.status_code, 201, sent.text)
+        repeated = self.client.post(path + '/comments', headers=self.b, json=comment)
+        self.assertEqual(sent.json()['id'], repeated.json()['id'])
+        self.assertEqual(self.client.post(path + '/comments', headers=self.c, json=comment).status_code, 404)
+        day = today().isoformat()
+        calendar = self.client.get(f'/couple/conflicts?start={day}&end={day}', headers=self.a).json()
+        self.assertEqual(calendar[0]['reflection_count'], 2)
+        self.assertEqual(self.client.delete(path, headers=self.b).status_code, 403)
+        with self.assertRaisesRegex(RuntimeError, 'would discard shared reflections'):
+            command.downgrade(self.config, '0012_workout_actions')
+        self.assertEqual(self.client.delete(path, headers=self.a).status_code, 200)
+        self.assertEqual(self.client.get(path, headers=self.b).status_code, 404)
+        with api.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM couple_conflict_reflections WHERE conflict_id=%s', (ident,)).fetchone()['n'], 0)
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM couple_conflict_comments WHERE conflict_id=%s', (ident,)).fetchone()['n'], 0)
+
     def test_invite_confirmation_rotation_expiry_and_two_member_limit(self):
         self.assertEqual(self.client.get('/couple/space').status_code, 401)
         self.assertIsNone(self.client.get('/couple/space', headers=self.a).json())
@@ -186,7 +266,7 @@ class CoupleApiTests(unittest.TestCase):
         publication_day = today().isoformat()
         pair = self.client.get(f'/couple/pair?date={publication_day}', headers=self.a).json()['items']
         self.assertEqual({row['id'] for row in pair}, {partner['id'], latest['id']})
-        self.assertTrue(all(row['published_date'].isoformat() == publication_day for row in pair))
+        self.assertTrue(all(row['published_date'] == publication_day for row in pair))
         page = self.client.get('/couple/memories?limit=2', headers=self.a).json()
         self.assertTrue(page['has_more'])
         following = self.client.get('/couple/memories?limit=2&offset=2', headers=self.b).json()

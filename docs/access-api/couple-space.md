@@ -1,14 +1,16 @@
 # 情侣空间
 
-Flutter 客户端和 FastAPI/PostgreSQL 后端实现。入口：我的 → 情侣空间。
+Flutter 客户端和 FastAPI/PostgreSQL 后端实现。入口：日常 → 情侣空间。
 
-当前公开版本为 `1.3.4+11`，服务器数据库已升级至 Alembic `0006_memory_albums`。真实 HTTPS 检查已通过纪念日同步、双图滑动、九图九宫格、照片顺序、上限及越权检查；Android 真机相册体验仍需人工验收。
+本次发布版本为 `1.4.3+18`，服务器数据库已升级至 Alembic `0013_couple_conflicts`。真实 HTTPS 检查已通过纪念日同步、相册、草稿私密性、争执日历、评论、双人共识及过期版本保护；Android 真机体验仍需人工验收。部署记录见 [1.4.3 检查记录](../release-notes/1.4.3-deployment.json)。
 
 ## 使用流程
 
 创建空间时设置名字和在一起的日期；之后双方都可以从空间首页的纪念日卡片打开日历，修改恋爱纪念日。卡片以衬线字体显示在一起多久，并同时显示包含开始当天的累计天数。创建者生成 12 位邀请码，7 天内有效，生成新码替换旧码；另一人输入后先看到邀请者、空间名字和日期，确认双方共享范围后加入。每个账号只有一个空间，每个空间最多两人。加入后不能邀请第三人。
 
 空间成员可以一次添加最多 9 张照片，选择九宫格或左右滑动的卡片相册展示；也可以发布纯文字回忆，并设置回忆日期、标题、正文和心情。详情中可以查看完整九宫格或横向滑动浏览大图。双方可以查看、留言、用“❤️、抱抱、想你、开心”回应。只能删除自己的回忆；删除同时移除其照片、留言和表情，客户端先确认。
+
+情侣空间首页的“吵架反思”入口打开按月浏览的争执日历。双方可以在过去日期补记争执主题和经过；每条记录中各自填写事实观察、感受、在意的需要、自己的部分和下次请求。未发布草稿仅本人可见，发布后双方可见；双方都发布后可写一条共同约定、选填回访日期，各自确认后记录标记为“双方确认共识”。修改约定、回访日期或已确认的反思会使旧确认失效；过期页面须载入最新约定后再确认。创建失败会保留输入并复用请求编号重试。评论按时间顺序显示作者和留言。删除由创建者操作并移除该争执的反思及评论。
 
 回忆册和星空可切换，分页查看历史。回忆册按服务器发布时间（Asia/Shanghai）倒序显示纵向时间线，一天只有一个日期节点；同一天发布的照片、文字和心情都归入这个节点。历史补录仍留在实际发布日，若所选回忆日期不同，在卡片标注“回忆于 YYYY-MM-DD”。翻页遇到同一天剩余内容时，合并到现有节点，不重复显示日期。下拉、刷新按钮和回到前台时获取最新数据。首版未提供实时推送、解除绑定、照片原文件下载和离线持久草稿。个人日历、身体及女性健康数据仍按个人账号隔离，不会因绑定分享。
 
@@ -54,10 +56,15 @@ Flutter 客户端和 FastAPI/PostgreSQL 后端实现。入口：我的 → 情�
 | couple/memories/{id}/photos/{position} | GET | 返回 0–8 位置的鉴权 JPEG；thumbnail=true/false |
 | couple/memories/{id}/comments | POST | content、client_request_id |
 | couple/memories/{id}/reaction | PUT | emoji，null 清除自己的表情 |
+| couple/conflicts | GET / POST | 按 start/end 查询争执日历；保存 conflict_date、title、summary、client_request_id |
+| couple/conflicts/{id} | GET / DELETE | 获取双方已发布反思、自己的草稿与评论；创建者删除 |
+| couple/conflicts/{id}/reflection | PUT | 保存自己的 observations、feelings、needs、my_part、request；published 控制是否对另一半公开 |
+| couple/conflicts/{id}/agreement | PUT | 保存 agreement、可选 follow_up_date 与 expected_version 并确认；过期版本返回 409；双方确认后标记共识 |
+| couple/conflicts/{id}/comments | POST | content、client_request_id |
 
 ## 部署与验证
 
-升级至 Alembic `0006_memory_albums`（依赖 `0005_pomodoro`）；上传 couple.py、journal.py、database.py、app.py、迁移目录和依赖文件，Pillow 纳入依赖锁。按数据库迁移指南先备份，再执行 deploy.sh。API 安装包使用现有服务器地址和证书。
+升级至 Alembic `0013_couple_conflicts`（依赖 `0012_workout_actions`）；上传 couple.py、app.py、迁移目录和相关验证脚本。按数据库迁移指南先备份，再迁移并重启服务。API 安装包使用现有服务器地址和证书。
 
 真实 PostgreSQL 检查：设置 `TEST_DATABASE_URL` 指向隔离测试库，运行 `python -m unittest discover -s server -p 'test_*.py' -v`。用例覆盖邀请码失效/并发抢占、第三人访问、图片验证/缩放/元数据清理、重试去重、表情覆盖、作者删除、发布时间分组与分页拼贴，以及已有表数据保留。
 

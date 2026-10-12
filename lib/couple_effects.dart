@@ -181,7 +181,7 @@ class _CoupleAlbumViewerState extends State<CoupleAlbumViewer> {
       );
     }
     if (widget.compact) return _cover();
-    if (widget.memory.displayMode == 'slide') return _slideshow();
+    if (widget.memory.displayMode == 'swipe') return _slideshow();
     return FutureBuilder<List<Uint8List>>(
       future: previews,
       builder: (context, snapshot) {

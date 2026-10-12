@@ -8,7 +8,6 @@ import 'package:image_picker/image_picker.dart';
 import 'data/api_client.dart';
 import 'data/legacy_migration.dart';
 import 'update/app_updates_platform.dart';
-import 'couple_page.dart';
 
 Future<bool> serverAction(
     BuildContext context, Future<void> Function() action) async {
@@ -424,8 +423,7 @@ class _LegacyImportPageState extends State<LegacyImportPage> {
 }
 
 class MyPage extends StatefulWidget {
-  const MyPage({super.key, this.onOpenCouple});
-  final VoidCallback? onOpenCouple;
+  const MyPage({super.key});
   @override
   State<MyPage> createState() => _MyPageState();
 }
@@ -692,22 +690,6 @@ class _MyPageState extends State<MyPage> {
                         Text('注册时间　$registered'),
                       ]))),
           const SizedBox(height: 14),
-          Card(
-              child: ListTile(
-                  leading: const Icon(Icons.favorite_border),
-                  title: const Text('情侣空间'),
-                  subtitle: const Text('两个人的照片、留言和日常回忆'),
-                  trailing: const Icon(Icons.chevron_right),
-                  enabled: !_busy,
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (widget.onOpenCouple != null) {
-                      widget.onOpenCouple!();
-                      return;
-                    }
-                    Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const CouplePage()));
-                  })),
           Card(
               child: ListTile(
             leading: const Icon(Icons.manage_accounts_outlined),

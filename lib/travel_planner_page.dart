@@ -1,11 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'widgets/travel_planning_icon.dart';
 import 'package:flutter/services.dart';
 
 import 'data/api_client.dart';
 import 'data/travel_planner.dart';
 import 'travel_result_view.dart';
+import 'travel_planning_loading.dart';
+import 'travel_city_field.dart';
 
 const _travelPaper = Color(0xfff6f5ef);
 const _travelSurface = Color(0xfffffefa);
@@ -36,17 +37,9 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
   String _budgetLevel = 'standard';
   final Set<String> _preferences = {};
   bool _busy = false;
-  String _loadingMessage = '正在准备行程规划…';
-  Timer? _loadingTimer;
-  int _loadingStep = 0;
+  bool _generationComplete = false;
+  bool _generationFailed = false;
   TravelPlan? _plan;
-
-  static const _loadingMessages = [
-    '正在搜索目的地信息…',
-    '正在整理天气、景点和住宿…',
-    '正在生成每日行程与预算…',
-    '正在校验行程安排…',
-  ];
 
   static const _transportOptions = [
     '公共交通',
@@ -100,7 +93,6 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
 
   @override
   void dispose() {
-    _loadingTimer?.cancel();
     _cityController.dispose();
     _extraController.dispose();
     _budgetController.dispose();
@@ -123,33 +115,48 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
     return _endDate!.difference(_startDate!).inDays + 1;
   }
 
-  Future<void> _pickDate(bool isStart) async {
-    final now = DateTime.now();
-    final current = isStart ? _startDate : _endDate;
-    final firstDate = isStart ? DateTime(2000) : (_startDate ?? DateTime(2000));
-    final lastDate = DateTime(2100);
-    final picked = await showDatePicker(
+  Future<void> _pickTravelDates() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: current ?? (isStart ? now : _startDate ?? now),
-      firstDate: firstDate,
-      lastDate: lastDate,
-      helpText: isStart ? '选择出发日期' : '选择结束日期',
+      initialDateRange: _startDate == null || _endDate == null
+          ? null
+          : DateTimeRange(start: _startDate!, end: _endDate!),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      locale: const Locale('zh', 'CN'),
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
+      helpText: '先选出发日期，再选返回日期 · 最多30天',
+      saveText: '确认日期',
+      selectableDayPredicate: (day, start, end) =>
+          start == null ||
+          end != null ||
+          day.isBefore(start) ||
+          day.difference(start).inDays < 30,
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+                primary: _travelGreen,
+                surface: _travelSurface,
+              ),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560, maxHeight: 760),
+            child: child!,
+          ),
+        ),
+      ),
     );
     if (picked == null || !mounted) return;
-    setState(() {
-      if (isStart) {
-        _startDate = DateTime(picked.year, picked.month, picked.day);
-        if (_endDate != null && _endDate!.isBefore(_startDate!)) {
-          _endDate = null;
-        }
-      } else {
-        _endDate = DateTime(picked.year, picked.month, picked.day);
-      }
-    });
-    if (_travelDays != null && _travelDays! > 30) {
-      setState(() => _endDate = null);
+    if (picked.duration.inDays >= 30) {
       _showMessage('旅行天数不能超过 30 天');
+      return;
     }
+    setState(() {
+      _startDate = picked.start;
+      _endDate = picked.end;
+    });
   }
 
   void _showMessage(String message) {
@@ -159,6 +166,7 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
   }
 
   Future<void> _generate() async {
+    if (_busy) return;
     if (!_formKey.currentState!.validate()) return;
     if (_startDate == null || _endDate == null) {
       _showMessage('请选择出发和结束日期');
@@ -181,18 +189,11 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
       return;
     }
 
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _busy = true;
-      _loadingStep = 0;
-      _loadingMessage = _loadingMessages.first;
-    });
-    _loadingTimer?.cancel();
-    _loadingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      if (!mounted || !_busy) return;
-      setState(() {
-        _loadingStep = (_loadingStep + 1) % _loadingMessages.length;
-        _loadingMessage = _loadingMessages[_loadingStep];
-      });
+      _generationComplete = false;
+      _generationFailed = false;
     });
 
     try {
@@ -221,12 +222,16 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
         },
       });
       if (!mounted) return;
+      setState(() => _generationComplete = true);
+      // 等待进度条补满，再切换到行程结果。
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+      if (!mounted) return;
       setState(() => _plan = plan);
     } catch (error) {
       if (!mounted) return;
+      setState(() => _generationFailed = true);
       _showMessage(error is ApiException ? error.message : '行程生成失败，请稍后重试');
     } finally {
-      _loadingTimer?.cancel();
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -279,34 +284,12 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
                           title: '目的地与日期',
                           icon: Icons.place_outlined,
                           child: Column(children: [
-                            TextFormField(
+                            TravelCityField(
                               controller: _cityController,
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: '目的地城市',
-                                hintText: '例如：杭州',
-                                prefixIcon: Icon(Icons.location_city_outlined),
-                              ),
-                              validator: (value) =>
-                                  value == null || value.trim().isEmpty
-                                      ? '请输入目的地城市'
-                                      : null,
+                              enabled: !_busy,
                             ),
                             const SizedBox(height: 16),
-                            Row(children: [
-                              Expanded(child: _dateButton(true)),
-                              const SizedBox(width: 12),
-                              Expanded(child: _dateButton(false)),
-                            ]),
-                            if (_travelDays != null) ...[
-                              const SizedBox(height: 10),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text('共 $_travelDays 天（含出发和返程日期）',
-                                    style: const TextStyle(
-                                        color: _travelMuted, fontSize: 12)),
-                              ),
-                            ],
+                            _dateRangeButton(),
                           ]),
                         ),
                         const SizedBox(height: 14),
@@ -448,7 +431,8 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
                           child: FilledButton.icon(
                             onPressed: _busy ? null : _generate,
                             icon: const Icon(Icons.auto_awesome_rounded),
-                            label: const Text('开始规划行程'),
+                            label:
+                                Text(_generationFailed ? '重试生成行程' : '开始规划行程'),
                             style: FilledButton.styleFrom(
                               backgroundColor: _travelGreen,
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -466,30 +450,18 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
           ),
           if (_busy)
             Positioned.fill(
-              child: ColoredBox(
-                color: Colors.black.withValues(alpha: .30),
-                child: Center(
-                  child: Card(
-                    color: _travelSurface,
-                    child: Padding(
-                      padding: const EdgeInsets.all(26),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 300),
-                        child:
-                            Column(mainAxisSize: MainAxisSize.min, children: [
-                          const CircularProgressIndicator(color: _travelGreen),
-                          const SizedBox(height: 18),
-                          Text(_loadingMessage, textAlign: TextAlign.center),
-                          const SizedBox(height: 8),
-                          const Text('规划可能需要几分钟，请保持页面打开。',
-                              textAlign: TextAlign.center,
-                              style:
-                                  TextStyle(color: _travelMuted, fontSize: 12)),
-                        ]),
-                      ),
+              child: BlockSemantics(
+                child: Stack(children: [
+                  ModalBarrier(
+                    color: Colors.black.withValues(alpha: .30),
+                    dismissible: false,
+                  ),
+                  Center(
+                    child: TravelPlanningLoading(
+                      complete: _generationComplete,
                     ),
                   ),
-                ),
+                ]),
               ),
             ),
         ],
@@ -502,13 +474,15 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
           height: 48,
           decoration: BoxDecoration(
               color: _travelSoftGreen, borderRadius: BorderRadius.circular(16)),
-          child: const Icon(Icons.travel_explore_rounded, color: _travelGreen),
+          child: const IconTheme(
+              data: IconThemeData(color: _travelGreen),
+              child: Center(child: TravelPlanningIcon())),
         ),
         const SizedBox(width: 14),
         const Expanded(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('旅游规划',
+            Text('旅行规划',
                 style: TextStyle(
                     color: _travelInk,
                     fontSize: 24,
@@ -519,21 +493,30 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
         ),
       ]);
 
-  Widget _dateButton(bool isStart) {
-    final date = isStart ? _startDate : _endDate;
-    return OutlinedButton.icon(
-      onPressed: _busy ? null : () => _pickDate(isStart),
-      icon: const Icon(Icons.calendar_month_outlined),
-      label: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(isStart ? '出发日期' : '结束日期',
-            style: const TextStyle(fontSize: 11, color: _travelMuted)),
-        Text(_dateLabel(date), maxLines: 1, overflow: TextOverflow.ellipsis),
-      ]),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _travelInk,
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        side: const BorderSide(color: Color(0xffdeded5)),
+  Widget _dateRangeButton() {
+    final end = _endDate;
+    final range = _startDate == null || end == null
+        ? '选择出发和返回日期'
+        : '${_dateLabel(_startDate)} — '
+            '${_startDate!.year == end.year ? '${end.month}月${end.day}日' : _dateLabel(end)}'
+            ' · 共$_travelDays天';
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        key: const ValueKey('travel-date-range'),
+        onPressed: _busy ? null : _pickTravelDates,
+        icon: const Icon(Icons.calendar_month_outlined),
+        label: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('旅行日期',
+              style: const TextStyle(fontSize: 11, color: _travelMuted)),
+          Text(range),
+        ]),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _travelInk,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          side: const BorderSide(color: Color(0xffdeded5)),
+        ),
       ),
     );
   }

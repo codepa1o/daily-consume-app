@@ -117,6 +117,108 @@ class CoupleTimelineDay {
   final List<CoupleMemory> memories;
 }
 
+class CoupleConflict {
+  const CoupleConflict({
+    required this.id,
+    required this.conflictDate,
+    required this.title,
+    required this.summary,
+    required this.createdBy,
+    required this.status,
+    required this.agreement,
+    required this.followUpDate,
+    required this.agreementVersion,
+    required this.agreementConfirmedBy,
+    required this.reflectionCount,
+  });
+
+  final int id;
+  final DateTime conflictDate;
+  final String title;
+  final String summary;
+  final int createdBy;
+  final String status;
+  final String agreement;
+  final DateTime? followUpDate;
+  final int agreementVersion;
+  final List<int> agreementConfirmedBy;
+  final int reflectionCount;
+
+  factory CoupleConflict.fromJson(Map<String, dynamic> row) => CoupleConflict(
+        id: row['id'] as int,
+        conflictDate:
+            journalDate(DateTime.parse(row['conflict_date'] as String)),
+        title: row['title'] as String,
+        summary: row['summary'] as String? ?? '',
+        createdBy: row['created_by'] as int,
+        status: row['status'] as String,
+        agreement: row['agreement'] as String? ?? '',
+        followUpDate: row['follow_up_date'] == null
+            ? null
+            : journalDate(DateTime.parse(row['follow_up_date'] as String)),
+        agreementVersion: row['agreement_version'] as int? ?? 0,
+        agreementConfirmedBy:
+            (row['agreement_confirmed_by'] as List? ?? const [])
+                .whereType<num>()
+                .map((id) => id.toInt())
+                .toList(),
+        reflectionCount: row['reflection_count'] as int? ?? 0,
+      );
+}
+
+class CoupleConflictReflection {
+  const CoupleConflictReflection({
+    required this.authorId,
+    required this.author,
+    required this.observations,
+    required this.feelings,
+    required this.needs,
+    required this.myPart,
+    required this.request,
+    required this.published,
+  });
+
+  final int authorId;
+  final String author;
+  final String observations;
+  final String feelings;
+  final String needs;
+  final String myPart;
+  final String request;
+  final bool published;
+
+  factory CoupleConflictReflection.fromJson(Map<String, dynamic> row) =>
+      CoupleConflictReflection(
+        authorId: row['author_id'] as int,
+        author: row['author_name'] as String,
+        observations: row['observations'] as String,
+        feelings: row['feelings'] as String,
+        needs: row['needs'] as String,
+        myPart: row['my_part'] as String,
+        request: row['request'] as String,
+        published: row['published'] as bool,
+      );
+}
+
+class CoupleConflictComment {
+  const CoupleConflictComment({
+    required this.author,
+    required this.content,
+    required this.createdAt,
+  });
+
+  final String author;
+  final String content;
+  final DateTime createdAt;
+
+  factory CoupleConflictComment.fromJson(Map<String, dynamic> row) =>
+      CoupleConflictComment(
+        author: row['author_name'] as String,
+        content: row['content'] as String,
+        createdAt: DateTime.parse(row['created_at'] as String),
+      );
+}
+
 /// Group publish-time-ordered rows. A date split across API pages keeps one marker.
 List<CoupleTimelineDay> coupleTimelineDays(List<CoupleMemory> memories) {
   final days = <DateTime, List<CoupleMemory>>{};
@@ -238,6 +340,74 @@ class CoupleApi {
 
   Future<void> delete(int id) async {
     await _request('DELETE', 'couple/memories/$id', binary: false);
+  }
+
+  Future<List<CoupleConflict>> conflicts(DateTime start, DateTime end) async =>
+      (await _request('GET', 'couple/conflicts', binary: false, query: {
+        'start': dateKey(start),
+        'end': dateKey(end),
+      }) as List)
+          .map((row) =>
+              CoupleConflict.fromJson(Map<String, dynamic>.from(row as Map)))
+          .toList();
+
+  Future<int> createConflict({
+    required DateTime date,
+    required String title,
+    required String summary,
+    required String requestId,
+  }) async =>
+      (await _request('POST', 'couple/conflicts', binary: false, body: {
+        'conflict_date': dateKey(date),
+        'title': title.trim(),
+        'summary': summary.trim(),
+        'client_request_id': requestId,
+      }) as Map)['id'] as int;
+
+  Future<Map<String, dynamic>> conflict(int id) async =>
+      Map<String, dynamic>.from(
+          await _request('GET', 'couple/conflicts/$id', binary: false) as Map);
+
+  Future<void> saveConflictReflection(
+    int id, {
+    required String observations,
+    required String feelings,
+    required String needs,
+    required String myPart,
+    required String request,
+    required bool published,
+  }) async {
+    await _request('PUT', 'couple/conflicts/$id/reflection',
+        binary: false,
+        body: {
+          'observations': observations.trim(),
+          'feelings': feelings.trim(),
+          'needs': needs.trim(),
+          'my_part': myPart.trim(),
+          'request': request.trim(),
+          'published': published,
+        });
+  }
+
+  Future<void> saveConflictAgreement(int id, String agreement,
+      {required int expectedVersion, DateTime? followUpDate}) async {
+    await _request('PUT', 'couple/conflicts/$id/agreement',
+        binary: false,
+        body: {
+          'agreement': agreement.trim(),
+          'expected_version': expectedVersion,
+          'follow_up_date': followUpDate == null ? null : dateKey(followUpDate),
+        });
+  }
+
+  Future<void> commentConflict(int id, String content, String requestId) async {
+    await _request('POST', 'couple/conflicts/$id/comments',
+        binary: false,
+        body: {'content': content.trim(), 'client_request_id': requestId});
+  }
+
+  Future<void> deleteConflict(int id) async {
+    await _request('DELETE', 'couple/conflicts/$id', binary: false);
   }
 
   static String requestId() => journalRequestId();

@@ -50,6 +50,10 @@
 | pomodoro/sessions | GET / POST | 按日期查询已完成专注；提交记录时校验所属任务并按 client_request_id 去重 |
 | legacy/import | POST | source_id、import_id、tables；返回导入凭据和逐表 counts |
 
+## 1.4.3 部署记录
+
+2026-10-12 随 1.4.3+18 部署，Alembic 已升级至 `0013_couple_conflicts`，新增争执记录、个人反思与评论三张表。迁移前后原有 36 张表（含 Alembic 版本表）行数一致；服务和 Nginx 为 active，8 组真实 HTTPS 检查通过，临时检查账号及空间已清理。数据库和代码备份位于 `/var/backups/daily-consume/daily-consume-pre-1.4.3-20261012T075947Z`，数据库 SHA256 为 `c2f24f3b83fe3da69d2d9c4a85894c467448c821a6e94d238f8b29e93477f677`，已通过 `pg_restore --list` 校验。完整记录见 [1.4.3 部署记录](../release-notes/1.4.3-deployment.json)。
+
 ## 旧记录导入
 
 SQLite 仅作为只读的旧数据来源保留，不再新建或升级本地业务数据库。新版登录后展示当前用户名，明确确认归属后才提交；也可暂缓，在“我的”继续。
