@@ -46,12 +46,12 @@ void main() {
         expect(find.byType(PomodoroCard, skipOffstage: false), findsNothing);
         final ids = [
           'body',
+          'diary',
+          'workout',
           'calendar',
           'focus',
-          'diary',
           if (gender == 'female') 'female',
           'couple',
-          'workout',
           'travel'
         ];
         expect(
@@ -61,12 +61,12 @@ void main() {
                 .label),
             [
               '身体数据',
+              '饮食消费',
+              '健身',
               '生活日历',
               '专注时刻',
-              '饮食消费',
               if (gender == 'female') '女性健康',
               '情侣空间',
-              '健身',
               '旅行规划'
             ]);
         if (gender == 'male') {
@@ -74,7 +74,7 @@ void main() {
               find.byKey(const ValueKey('daily-module-female')), findsNothing);
         }
         final first = find.byKey(const ValueKey('daily-module-body'));
-        final fourth = find.byKey(const ValueKey('daily-module-diary'));
+        final fourth = find.byKey(const ValueKey('daily-module-calendar'));
         final fifth = find.byKey(ValueKey('daily-module-${ids[4]}'));
         expect(tester.getTopLeft(first).dy, tester.getTopLeft(fourth).dy);
         if (width < 600) {
@@ -93,6 +93,9 @@ void main() {
 
         Future<void> open(String id) async {
           final entry = find.byKey(ValueKey('daily-module-$id'));
+          await tester.drag(find.byType(NestedScrollView).hitTestable().first,
+              const Offset(0, 800));
+          await tester.pumpAndSettle();
           await tester.ensureVisible(entry);
           await tester.tap(entry);
           await tester.pumpAndSettle();

@@ -1,0 +1,12 @@
+.page { padding: 22rpx; }
+.card { margin-bottom: 18rpx; padding: 24rpx; border-radius: 22rpx; background: #fffefa; }
+.section-title { font-size: 30rpx; font-weight: 650; }
+.body { display: block; margin-top: 14rpx; color: #60655b; font-size: 23rpx; line-height: 1.6; }
+.current { margin: 18rpx 0; color: #64765a; font-weight: 600; }
+.secondary, .primary { margin: 12rpx 0 0; border-radius: 12rpx; color: #45543e; background: #e9eee4; font-size: 23rpx; }
+.primary { color: #fffefa; background: #64765a; }
+.section-row, .count-row { display: flex; justify-content: space-between; align-items: center; padding: 12rpx 0; }
+.total { display: block; margin: 14rpx 0; color: #64765a; font-size: 26rpx; }
+.remove { color: #9b4339; font-size: 36rpx; }
+.success { display: block; margin-top: 12rpx; color: #64765a; }
+.error { color: #9b4339; }

@@ -1,0 +1,11 @@
+{
+  "name": "daily-consume-miniprogram",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "miniprogram-api-typings": "^5.2.3",
+    "typescript": "~5.3.3"
+  }
+}

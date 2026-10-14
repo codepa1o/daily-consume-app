@@ -1,0 +1,45 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/body/index",
+    "pages/diary/index",
+    "pages/workout/index",
+    "pages/journal/index",
+    "pages/health/index",
+    "pages/focus/index",
+    "pages/chatbot/index",
+    "pages/ai/index",
+    "pages/research/index",
+    "pages/skills/index",
+    "pages/couple/index",
+    "pages/conflicts/index",
+    "pages/travel/index",
+    "pages/migration/index",
+    "pages/releases/index",
+    "pages/privacy/index",
+    "pages/account/index",
+    "pages/login/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "日常",
+    "navigationBarBackgroundColor": "#f6f5ef",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f6f5ef"
+  },
+  "tabBar": {
+    "color": "#70756b",
+    "selectedColor": "#64765a",
+    "backgroundColor": "#fffefa",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "日常"
+      },
+      {
+        "pagePath": "pages/account/index",
+        "text": "我的"
+      }
+    ]
+  }
+}

@@ -21,7 +21,7 @@ from psycopg.conninfo import make_conninfo
 
 SERVER = Path(__file__).resolve().parent
 BASELINE_SQL = (SERVER / 'migrations/versions/0001_schema.sql').read_text(encoding='utf-8')
-HEAD_REVISION = '0013_couple_conflicts'
+HEAD_REVISION = '0016_pomodoro_reminders'
 MIGRATION_TABLES = set(re.findall(r'CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(\w+)', BASELINE_SQL))
 for migration in (SERVER / 'migrations/versions').glob('*.py'):
     MIGRATION_TABLES.update(re.findall(

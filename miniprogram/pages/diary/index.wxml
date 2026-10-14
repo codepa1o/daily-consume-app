@@ -1,0 +1,49 @@
+<view class="page">
+  <view class="card date-card">
+    <view class="date-nav"><text bindtap="previousDate">‹</text><picker mode="date" value="{{date}}" start="2000-01-01" end="{{today}}" bindchange="onDateChange"><view>{{date}}</view></picker><text class="{{date === today ? 'disabled' : ''}}" bindtap="nextDate">›</text></view>
+    <view class="periods">
+      <text class="{{period === 'day' ? 'selected' : ''}}" data-period="day" bindtap="onPeriodTap">日</text>
+      <text class="{{period === 'week' ? 'selected' : ''}}" data-period="week" bindtap="onPeriodTap">周</text>
+      <text class="{{period === 'month' ? 'selected' : ''}}" data-period="month" bindtap="onPeriodTap">月</text>
+    </view>
+  </view>
+
+  <view wx:if="{{error}}" class="error card"><text>{{error}}</text><button class="link" bindtap="retry">重试</button></view>
+  <view wx:if="{{loading}}" class="hint">正在加载记录…</view>
+
+  <view class="card summary">
+    <text class="section-title">{{period === 'day' ? '今日' : period === 'week' ? '本周' : '本月'}}消费</text>
+    <text class="total">¥ {{periodStats.total}}</text>
+    <view class="summary-row"><text>早餐 {{periodStats.breakfast}}</text><text>午餐 {{periodStats.lunch}}</text><text>晚餐 {{periodStats.dinner}}</text></view>
+    <view class="summary-row"><text>餐费 ¥{{periodStats.meals}}</text><text>其他 ¥{{periodStats.other}}</text></view>
+  </view>
+
+  <view wx:for="{{meals}}" wx:for-item="meal" wx:for-index="mealIndex" wx:key="meal_type" class="card meal">
+    <view class="heading"><text class="section-title">{{meal.meal_type}}</text><text class="muted">记录于 {{date}}</text></view>
+    <view wx:for="{{meal.items}}" wx:for-item="food" wx:for-index="itemIndex" wx:key="key" class="meal-item">
+      <input class="food-name" value="{{food.name}}" placeholder="餐食名称" data-meal-index="{{mealIndex}}" data-item-index="{{itemIndex}}" bindinput="onMealName" />
+      <input class="food-amount" type="digit" value="{{food.amount}}" placeholder="0.00" data-meal-index="{{mealIndex}}" data-item-index="{{itemIndex}}" bindinput="onMealAmount" />
+      <text class="yuan">元</text>
+      <text wx:if="{{meal.items.length > 1}}" class="remove" data-meal-index="{{mealIndex}}" data-item-index="{{itemIndex}}" bindtap="removeMealItem">×</text>
+    </view>
+    <view class="actions"><text class="add" data-meal-index="{{mealIndex}}" bindtap="addMealItem">＋ 添加一项</text><view><button class="small" data-meal-index="{{mealIndex}}" bindtap="saveMeal">保存</button><button class="small danger" data-meal-index="{{mealIndex}}" bindtap="deleteMeal">删除</button></view></view>
+  </view>
+
+  <view class="card expenses">
+    <text class="section-title">其他消费</text>
+    <view wx:for="{{expenses}}" wx:key="id" class="expense-row">
+      <picker class="expense-date" mode="date" value="{{item.date}}" start="2000-01-01" end="{{today}}" data-index="{{index}}" bindchange="onExpenseDate"><view>{{item.date}}</view></picker>
+      <input class="food-name" value="{{item.category}}" data-index="{{index}}" bindinput="onExpenseCategory" />
+      <input class="food-amount" type="digit" value="{{item.amount}}" data-index="{{index}}" bindinput="onExpenseAmount" />
+      <text class="yuan">元</text>
+      <button class="small" data-index="{{index}}" bindtap="saveExpense">保存</button>
+      <text class="remove" data-index="{{index}}" bindtap="deleteExpense">×</text>
+    </view>
+    <view class="expense-row new-expense">
+      <input class="food-name" placeholder="消费类别" value="{{newCategory}}" bindinput="onNewCategory" />
+      <input class="food-amount" type="digit" placeholder="0.00" value="{{newAmount}}" bindinput="onNewAmount" />
+      <text class="yuan">元</text>
+    </view>
+    <button class="primary" loading="{{saving}}" disabled="{{saving}}" bindtap="addExpense">添加消费</button>
+  </view>
+</view>

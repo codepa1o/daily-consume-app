@@ -9,6 +9,7 @@
 ## 目录结构
 
 - `lib/`：Flutter 应用入口、页面、数据访问、共享组件和更新功能。
+- `miniprogram/`：原生微信小程序 TypeScript 工程，与 Flutter 客户端共用服务器 API。
 - `test/`：Flutter 测试。
 - `server/`：FastAPI 服务、数据库配置、Alembic 迁移和服务端测试。
 - `android/`：Android 平台工程及构建配置。
@@ -21,9 +22,10 @@
 
 - 先沿用现有目录划分、命名方式和组件/API 模式，保持修改聚焦。
 - Dart 代码使用 `dart format` 格式化，并以 `flutter analyze` 检查。
+- 小程序代码放在 `miniprogram/`，使用微信开发者工具内置 TypeScript 编译器；AppSecret 等密钥只能放在服务端环境变量中。
 - Python 代码遵循现有模块结构与风格；变更服务端行为时更新相应测试。
 - 数据库结构变更必须新增 Alembic 迁移；应用启动时不得自行修改数据库结构。
-- 代码注释使用简体中文；协议名、标识符和必要的原文术语保留原样。
+- 编写或修改代码时，必须补充清晰的简体中文注释，说明关键逻辑、业务规则和非直观实现的原因；协议名、标识符和必要的原文术语保留原样。
 - 不把密钥、签名文件或本机配置写入代码或提交到 Git。
 
 ## 构建与检查命令
@@ -49,6 +51,10 @@ python -m unittest discover -s server -p 'test_*.py' -v
 ```sh
 python -m pip install -r server/requirements.txt
 ```
+
+## Git 提交规范
+
+- 提交代码前，必须先根据本次变更生成中文 commit message，再执行 `git commit`；提交信息应准确概括修改内容。
 
 ## Git 永不规则
 

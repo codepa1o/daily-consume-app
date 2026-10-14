@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'widgets/app_layout.dart';
+
 import 'data/api_client.dart';
 import 'data/app_database.dart' show dateKey;
 import 'data/journal.dart';
@@ -23,21 +25,27 @@ class JournalRecordTile extends StatelessWidget {
   final VoidCallback? onLocate;
   @override
   Widget build(BuildContext context) => ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        leading: entry.isTodo && onComplete != null
-            ? Checkbox(
-                value: entry.completed,
-                onChanged: busy ? null : (value) => onComplete!(value!),
-                semanticLabel: entry.completed
-                    ? '取消完成 ${entry.heading}'
-                    : '完成 ${entry.heading}')
-            : Icon(entry.isTodo
-                ? (entry.completed
-                    ? Icons.task_alt
-                    : Icons.check_box_outline_blank)
-                : entry.kind == 'diary'
-                    ? Icons.menu_book_outlined
-                    : Icons.notes_outlined),
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        minLeadingWidth: 48,
+        horizontalTitleGap: 12,
+        leading: SizedBox.square(
+            dimension: 48,
+            child: Center(
+              child: entry.isTodo && onComplete != null
+                  ? Checkbox(
+                      value: entry.completed,
+                      onChanged: busy ? null : (value) => onComplete!(value!),
+                      semanticLabel: entry.completed
+                          ? '取消完成 ${entry.heading}'
+                          : '完成 ${entry.heading}')
+                  : Icon(entry.isTodo
+                      ? (entry.completed
+                          ? Icons.task_alt
+                          : Icons.check_box_outline_blank)
+                      : entry.kind == 'diary'
+                          ? Icons.menu_book_outlined
+                          : Icons.notes_outlined),
+            )),
         title: Text(entry.heading,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -59,12 +67,14 @@ class JournalRecordTile extends StatelessWidget {
             ]),
             maxLines: 3,
             overflow: TextOverflow.ellipsis),
-        trailing: onLocate == null
-            ? const Icon(Icons.chevron_right, size: 18)
-            : IconButton(
-                onPressed: onLocate,
-                tooltip: '在日历中查看',
-                icon: const Icon(Icons.calendar_month_outlined)),
+        trailing: SizedBox(
+            width: 48,
+            child: onLocate == null
+                ? const Icon(Icons.chevron_right, size: 18)
+                : IconButton(
+                    onPressed: onLocate,
+                    tooltip: '在日历中查看',
+                    icon: const Icon(Icons.calendar_month_outlined))),
         onTap: busy ? null : onTap,
       );
 }
@@ -177,8 +187,7 @@ class _JournalRecordsPageState extends State<JournalRecordsPage> {
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 920),
-                    child: ListView(
-                        padding: const EdgeInsets.all(20),
+                    child: AppPageList(
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: [
                           TextField(

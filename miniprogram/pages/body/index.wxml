@@ -1,0 +1,54 @@
+<view class="page">
+  <view class="date-row card">
+    <text class="section-title">记录日期</text>
+    <picker mode="date" value="{{date}}" start="2000-01-01" end="{{today}}" bindchange="onDateChange">
+      <view class="picker-value">{{date}}　›</view>
+    </picker>
+  </view>
+
+  <view wx:if="{{error}}" class="error card">
+    <text>{{error}}</text><button class="link" bindtap="retry">重试</button>
+  </view>
+  <view wx:if="{{loading}}" class="hint">正在加载…</view>
+
+  <view class="card overview"><view><text class="overview-value">{{latestWeight || '—'}}</text><text class="overview-unit"> kg</text><text class="muted">最近体重 {{latestWeightDate}}</text></view><view><text class="overview-value">{{latestHeight || '—'}}</text><text class="overview-unit"> cm</text><text class="muted">最近身高 {{latestHeightDate}}</text></view></view>
+
+  <view class="card record">
+    <text class="section-title">体重</text>
+    <view class="input-row"><input type="digit" value="{{weightInput}}" placeholder="输入体重" bindinput="onWeightInput" /><text>kg</text></view>
+    <button class="primary" loading="{{saving === 'weight'}}" disabled="{{saving !== ''}}" bindtap="saveWeight">保存体重</button>
+  </view>
+
+  <view class="card record">
+    <text class="section-title">身高</text>
+    <view class="input-row"><input type="digit" value="{{heightInput}}" placeholder="输入身高" bindinput="onHeightInput" /><text>cm</text></view>
+    <button class="primary" loading="{{saving === 'height'}}" disabled="{{saving !== ''}}" bindtap="saveHeight">保存身高</button>
+  </view>
+
+  <view class="card record">
+    <text class="section-title">目标体重</text>
+    <view class="input-row"><input type="digit" value="{{goalInput}}" placeholder="未设置" bindinput="onGoalInput" /><text>kg</text></view>
+    <button class="primary" loading="{{saving === 'goal'}}" disabled="{{saving !== ''}}" bindtap="saveGoal">保存目标</button>
+  </view>
+
+  <view class="card chart-card">
+    <text class="section-title">体重趋势 · 最近 14 次记录</text>
+    <scroll-view wx:if="{{trend.length}}" scroll-x class="chart-scroll">
+      <view class="bars">
+        <view wx:for="{{trend}}" wx:key="date" class="bar-col">
+          <text class="bar-value">{{item.value}}</text>
+          <view class="bar" style="height: {{item.height}}rpx"></view>
+          <text class="bar-date">{{item.date}}</text>
+        </view>
+      </view>
+    </scroll-view>
+    <text wx:else class="muted">记录体重后显示趋势</text>
+  </view>
+
+  <view class="card history">
+    <text class="section-title">历史记录</text>
+    <view wx:for="{{weights}}" wx:key="date" class="history-row"><text>{{item.date}}</text><text>{{item.value}} kg</text></view>
+    <text wx:if="{{!weights.length}}" class="muted">暂无体重记录</text>
+    <view wx:for="{{heights}}" wx:key="date" class="history-row"><text>{{item.date}} · 身高</text><text>{{item.value}} cm</text></view>
+  </view>
+</view>

@@ -1,0 +1,51 @@
+<view class="page">
+  <view class="card calendar">
+    <view class="month-heading"><text bindtap="previousMonth">‹</text><text>{{monthTitle}}</text><text bindtap="nextMonth">›</text></view>
+    <view class="weekdays"><text wx:for="{{weekLabels}}" wx:key="*this">{{item}}</text></view>
+    <view class="days"><view wx:for="{{monthCells}}" wx:key="date" class="day-cell {{item.date === selectedDate ? 'selected' : ''}} {{item.checked ? 'checked' : ''}} {{item.rest ? 'rest' : ''}}" data-date="{{item.date}}" bindtap="onDayTap"><text>{{item.day}}</text><view wx:if="{{item.checked}}" class="dot"></view></view></view>
+    <view class="date-nav"><text bindtap="previousDay">‹ 前一天</text><text>{{selectedDate}}</text><text class="{{selectedDate === today ? 'disabled' : ''}}" bindtap="nextDay">后一天 ›</text></view>
+  </view>
+
+  <view wx:if="{{error}}" class="error card"><text>{{error}}</text><button class="link" bindtap="retry">重试</button></view>
+  <view wx:if="{{loading}}" class="hint">正在加载训练记录…</view>
+
+  <view class="card checkin">
+    <view class="summary"><text class="section-title">本周训练</text><text>{{weekCount}} / {{weeklyGoal}} 天</text></view>
+    <text class="muted">本月完成 {{monthCount}} 天 · {{isRest ? '今天是计划休息日' : currentLog ? '训练已打卡' : '选择部位后长按 2 秒打卡'}}</text>
+    <view class="muscles">
+      <view wx:for="{{muscles}}" wx:key="name" class="muscle {{item.selected ? 'active' : ''}}" style="border-color: {{item.color}}; color: {{item.selected ? '#fffefa' : item.color}}; background: {{item.selected ? item.color : 'transparent'}}" data-name="{{item.name}}" bindtap="toggleMuscle">{{item.name}}</view>
+    </view>
+    <view wx:if="{{!currentLog && !isRest}}" class="actions">
+      <text class="muted">训练动作（可选，最多 20 项）</text>
+      <view wx:for="{{actions}}" wx:key="key" class="action-row">
+        <input placeholder="动作名称" value="{{item.name}}" data-index="{{index}}" data-field="name" bindinput="onActionInput" />
+        <input type="number" value="{{item.sets}}" data-index="{{index}}" data-field="sets" bindinput="onActionInput" />
+        <text>组 ×</text>
+        <input type="number" value="{{item.reps}}" data-index="{{index}}" data-field="reps" bindinput="onActionInput" />
+        <text>次</text><text class="remove" data-index="{{index}}" bindtap="removeAction">×</text>
+      </view>
+      <text class="add" wx:if="{{actions.length < 20}}" bindtap="addAction">＋ 添加动作</text>
+    </view>
+    <view wx:if="{{currentLog}}" class="saved-actions"><text class="muted">历史部位</text><view class="muscles"><text wx:for="{{currentLog.muscles}}" wx:key="name" class="history-muscle" style="color: {{item.displayColor}}; border-color: {{item.displayColor}}">{{item.name}}</text></view><text wx:if="{{currentLog.actions.length}}" class="muted">训练动作</text><view wx:for="{{currentLog.actions}}" wx:key="name">{{item.name}} · {{item.sets}} 组 × {{item.reps}} 次</view></view>
+    <button class="check-button {{currentLog ? 'undo' : ''}}" disabled="{{saving || loading || (isRest && !currentLog)}}" bindtouchstart="startCheckin" bindtouchend="endCheckin" bindtouchcancel="endCheckin" bindtap="checkinTap" loading="{{saving}}">{{currentLog ? '撤销打卡' : '长按 2 秒打卡'}}</button>
+  </view>
+
+  <view class="card plan">
+    <text class="section-title">每周计划</text>
+    <view class="summary"><text>每周目标</text><picker mode="selector" range="{{weeklyGoals}}" value="{{weeklyGoalInput - 1}}" bindchange="onGoalChange"><view class="picker">{{weeklyGoalInput}} 天　›</view></picker></view>
+    <picker mode="selector" range="{{weekdays}}" value="{{planWeekday - 1}}" bindchange="onPlanWeekday"><view class="picker">编辑 {{weekdays[planWeekday - 1]}} 计划　›</view></picker>
+    <view class="summary rest-row"><text>设为休息日</text><switch checked="{{planRest}}" color="#64765a" bindchange="onPlanRest" /></view>
+    <view wx:if="{{!planRest}}" class="muscles">
+      <view wx:for="{{muscles}}" wx:key="name" class="muscle {{item.planSelected ? 'active' : ''}}" style="border-color: {{item.color}}; color: {{item.planSelected ? '#fffefa' : item.color}}; background: {{item.planSelected ? item.color : 'transparent'}}" data-name="{{item.name}}" bindtap="togglePlanMuscle">{{item.name}}</view>
+    </view>
+    <button class="primary" loading="{{planSaving}}" disabled="{{planSaving}}" bindtap="saveSchedule">保存每周计划</button>
+  </view>
+
+  <view class="card custom">
+    <text class="section-title">训练部位管理</text>
+    <view wx:for="{{muscles}}" wx:key="name" class="custom-row"><view class="color-dot" style="background: {{item.color}}"></view><text class="custom-name">{{item.name}}{{item.built_in ? ' · 内置' : ''}}</text><button wx:if="{{!item.built_in}}" class="small" data-index="{{index}}" bindtap="changeMuscleColor">换颜色</button><button wx:if="{{!item.built_in}}" class="small danger" data-index="{{index}}" bindtap="deleteMuscle">删除</button></view>
+    <view class="palette"><view wx:for="{{palette}}" wx:key="*this" class="color-choice" style="background: {{item}}; border: {{newMuscleColor === item ? '4rpx solid #292c25' : '0'}}" data-index="{{index}}" bindtap="selectMuscleColor"></view></view>
+    <view class="new-muscle"><input placeholder="自定义部位名称" maxlength="12" value="{{newMuscleName}}" bindinput="onNewMuscleName" /><button class="small" bindtap="addMuscle">添加</button></view>
+  </view>
+  <view class="card stats"><text class="section-title">本月部位统计</text><view wx:for="{{muscleStats}}" wx:key="name" class="stat-row"><text class="history-muscle" style="color: {{item.color}}; border-color: {{item.color}}">{{item.name}}</text><text>{{item.count}} 天</text></view><text wx:if="{{!muscleStats.length}}" class="muted">本月还没有训练记录</text></view>
+</view>

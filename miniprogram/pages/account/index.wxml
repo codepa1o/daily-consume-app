@@ -1,0 +1,27 @@
+<view class="page">
+  <view class="profile card">
+    <image wx:if="{{avatarPath}}" class="avatar-image" src="{{avatarPath}}" mode="aspectFill" bindtap="chooseAvatar" />
+    <view wx:else class="avatar" bindtap="chooseAvatar">{{avatarText}}</view>
+    <text class="name">{{nickname || '尚未登录'}}</text>
+    <text class="muted">{{username}}</text>
+    <text wx:if="{{createdAt}}" class="muted">注册于 {{createdAt}}</text>
+    <text wx:if="{{username}}" class="muted" bindtap="chooseAvatar">更换头像</text>
+  </view>
+  <view wx:if="{{username}}" class="profile-edit card">
+    <text class="section-title">个人资料</text>
+    <input class="field" maxlength="32" placeholder="昵称" value="{{nickname}}" bindinput="onNickname" />
+    <picker mode="selector" range="{{genderOptions}}" value="{{gender === 'unset' ? 0 : gender === 'male' ? 1 : 2}}" bindchange="onGender"><view class="field picker">性别　{{gender === 'unset' ? '未设置' : gender === 'male' ? '男' : '女'}}　›</view></picker>
+    <input class="field" type="number" placeholder="年龄（可留空）" value="{{ageInput}}" bindinput="onAge" />
+    <button class="save" loading="{{savingProfile}}" disabled="{{savingProfile}}" bindtap="saveProfile">保存资料</button>
+  </view>
+  <view wx:if="{{username}}" class="wechat card">
+    <text>微信登录</text>
+    <text class="muted">{{wechatBound ? '已绑定' : wechatConfigured ? '尚未绑定' : '服务端尚未配置'}}</text>
+    <button wx:if="{{wechatConfigured && !wechatBound}}" class="bind" loading="{{wechatLoading}}" disabled="{{wechatLoading}}" bindtap="bindWechat">绑定微信</button>
+  </view>
+  <view wx:if="{{username}}" class="migration card" bindtap="openMigration"><text>旧记录导入　›</text><text class="muted">从旧版 Android App 导出的迁移文件</text></view>
+  <view class="migration card" bindtap="openReleases"><text>更新日志　›</text><text class="muted">查看微信小程序版本说明</text></view>
+  <view class="migration card" bindtap="openPrivacy"><text>隐私保护指引　›</text><text class="muted">了解数据使用方式和权限</text></view>
+  <button wx:if="{{username}}" class="signout" bindtap="signOut">退出登录</button>
+  <button wx:else class="signout" bindtap="goLogin">登录 / 注册</button>
+</view>

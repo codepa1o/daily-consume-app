@@ -1,0 +1,13 @@
+.page { padding: 72rpx 32rpx; }
+.brand { color: #64765a; font-size: 56rpx; font-weight: 700; text-align: center; }
+.subtitle { margin-top: 16rpx; color: #70756b; text-align: center; }
+.form { margin-top: 56rpx; padding: 36rpx 30rpx; background: #fffefa; border-radius: 24rpx; }
+.title { display: block; margin-bottom: 28rpx; font-size: 36rpx; font-weight: 650; }
+.input { height: 92rpx; margin-bottom: 18rpx; padding: 0 22rpx; border: 1rpx solid #e8e7df; border-radius: 14rpx; background: #fff; }
+.error { display: block; margin: 8rpx 0 18rpx; color: #9b4339; }
+.primary { margin-top: 14rpx; border-radius: 14rpx; background: #64765a; color: #fffefa; }
+.wechat { margin-top: 16rpx; border-radius: 14rpx; background: #e9eee4; color: #45543e; }
+.text-button { margin-top: 16rpx; background: transparent; color: #64765a; font-size: 26rpx; }
+.consent { display: flex; align-items: center; justify-content: center; margin-top: 18rpx; }
+.consent checkbox { transform: scale(.78); }
+.privacy-link { color: #64765a; font-size: 21rpx; }

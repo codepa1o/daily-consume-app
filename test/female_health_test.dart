@@ -173,7 +173,7 @@ void main() {
     await tester.pumpAndSettle();
     NavigationBar bar() =>
         tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(bar().destinations.length, 2);
+    expect(bar().destinations.length, 4);
     expect(find.byKey(const ValueKey('daily-module-female')), findsNothing);
     await tester.tap(find.byTooltip('我的账户与设置'));
     await tester.pumpAndSettle();
@@ -181,7 +181,7 @@ void main() {
     api.account = account('female');
     api.dataImported();
     await tester.pumpAndSettle();
-    expect(bar().destinations.length, 2);
+    expect(bar().destinations.length, 4);
     expect(bar().selectedIndex, 0);
     expect(find.byKey(const ValueKey('daily-module-female')), findsOneWidget);
     expect(find.text('个人资料'), findsOneWidget);
@@ -196,7 +196,7 @@ void main() {
     api.account = account('male');
     api.dataImported();
     await tester.pumpAndSettle();
-    expect(bar().destinations.length, 2);
+    expect(bar().destinations.length, 4);
     expect(bar().selectedIndex, 0);
     expect(find.byKey(const ValueKey('daily-module-female')), findsNothing);
     expect(find.byType(FemaleHealthPage, skipOffstage: false), findsNothing);

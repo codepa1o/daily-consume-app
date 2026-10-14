@@ -1,0 +1,48 @@
+<view class="page">
+  <view class="card form">
+    <text class="section-title">规划一段旅行</text>
+    <input class="field" placeholder="目的地城市" value="{{city}}" bindinput="onCity" />
+    <view class="dates"><picker mode="date" value="{{startDate || today}}" start="2000-01-01" end="2100-12-31" bindchange="onStartDate"><view class="field">出发　{{startDate || '选择日期'}}　›</view></picker><picker mode="date" value="{{endDate || startDate || today}}" start="{{startDate || '2000-01-01'}}" end="2100-12-31" bindchange="onEndDate"><view class="field">返回　{{endDate || '选择日期'}}　›</view></picker></view>
+    <text class="label">同行人数（总人数 {{adults + children + elders}}）</text>
+    <view class="party"><view><text>成人</text><input type="number" data-field="adults" value="{{adults}}" bindinput="onCount" /></view><view><text>儿童</text><input type="number" data-field="children" value="{{children}}" bindinput="onCount" /></view><view><text>老人</text><input type="number" data-field="elders" value="{{elders}}" bindinput="onCount" /></view></view>
+    <picker mode="selector" range="{{transports}}" value="{{transportIndex}}" bindchange="onTransport"><view class="field">交通　{{transportation}}　›</view></picker>
+    <picker mode="selector" range="{{stays}}" value="{{stayIndex}}" bindchange="onAccommodation"><view class="field">住宿　{{accommodation}}　›</view></picker>
+    <text class="label">预算档位</text><picker mode="selector" range="{{budgetLevels}}" range-key="label" value="{{budgetLevelIndex}}" bindchange="onBudgetLevel"><view class="field">预算档位　{{budgetLevels[budgetLevelIndex].label}}　›</view></picker>
+    <input class="field" type="number" placeholder="总预算（元，可留空）" value="{{budgetAmount}}" bindinput="onBudget" />
+    <view class="switch-row"><text>严格控制预算</text><switch checked="{{strictBudget}}" color="#64765a" bindchange="onBudgetStrict" /></view>
+    <text class="label">旅行偏好</text><view class="options wrap"><text wx:for="{{preferenceOptions}}" wx:key="value" class="option {{item.selected ? 'chosen' : ''}}" data-value="{{item.value}}" bindtap="togglePreference">{{item.value}}</text></view>
+    <textarea class="field extra" maxlength="3000" placeholder="其他要求（可选）" value="{{freeText}}" bindinput="onFreeText" />
+    <button class="primary" loading="{{loading}}" disabled="{{loading}}" bindtap="generate">生成旅行计划</button>
+  </view>
+
+  <view wx:if="{{error}}" class="card error"><text>{{error}}</text><button class="link" bindtap="retry">重试</button></view>
+  <view wx:if="{{plan}}" class="result">
+    <view class="card result-head"><view class="row"><text class="section-title">{{plan.city}} · {{plan.start_date}} 至 {{plan.end_date}}</text><button class="small" bindtap="exportPlan">导出 / 分享</button></view><button class="small edit-button" bindtap="togglePlanEdit">{{editingPlan ? '完成编辑' : '编辑行程'}}</button><text wx:if="{{fallback}}" class="warning">当前使用备用规划结果</text><text class="summary">{{plan.overall_suggestions}}</text><view wx:if="{{plan.budget}}" class="budget"><text>预算估算 ¥{{plan.budget.total}}</text><text class="muted">门票 {{plan.budget.total_attractions}} · 餐饮 {{plan.budget.total_meals}} · 住宿 {{plan.budget.total_hotels}} · 交通 {{plan.budget.total_transportation}}</text></view></view>
+    <view class="card map-card"><text class="section-title">地图与每日安排</text><scroll-view scroll-x class="day-tabs"><text wx:for="{{plan.days}}" wx:key="date" class="day-tab {{dayIndex === index ? 'chosen' : ''}}" data-index="{{index}}" bindtap="selectDay">第 {{index + 1}} 天</text></scroll-view><map class="map" latitude="{{centerLatitude}}" longitude="{{centerLongitude}}" scale="12" markers="{{markers}}" />
+      <view wx:if="{{plan.days[dayIndex]}}" class="day-content">
+        <text class="day-title">{{plan.days[dayIndex].date}} · {{plan.days[dayIndex].description}}</text>
+        <view wx:if="{{plan.days[dayIndex].hotel}}" class="point">
+          <text class="point-title">住宿 · {{plan.days[dayIndex].hotel.name}}</text>
+          <text class="muted">{{plan.days[dayIndex].hotel.address}} · {{plan.days[dayIndex].hotel.estimated_cost}} 元/晚</text>
+          <button wx:if="{{plan.days[dayIndex].hotel.location}}" class="tiny" data-index="0" bindtap="openLocation">地图定位</button>
+        </view>
+        <view wx:for="{{plan.days[dayIndex].attractions}}" wx:key="name" class="point">
+          <image wx:if="{{item.image_url}}" class="attraction-image" src="{{item.image_url}}" mode="aspectFill" />
+          <text wx:if="{{!editingPlan}}" class="point-title">景点 · {{item.name}}</text>
+          <input wx:if="{{editingPlan}}" class="edit-field" value="{{item.name}}" data-day="{{dayIndex}}" data-index="{{index}}" data-field="name" bindinput="editAttraction" catchtap="noop" />
+          <text wx:if="{{!editingPlan}}" class="muted">{{item.address}} · {{item.visit_duration}} 分钟</text>
+          <input wx:if="{{editingPlan}}" class="edit-field" value="{{item.address}}" data-day="{{dayIndex}}" data-index="{{index}}" data-field="address" bindinput="editAttraction" catchtap="noop" />
+          <text wx:if="{{!editingPlan}}">{{item.description}}</text>
+          <textarea wx:if="{{editingPlan}}" class="edit-field" value="{{item.description}}" data-day="{{dayIndex}}" data-index="{{index}}" data-field="description" bindinput="editAttraction" catchtap="noop" />
+          <button wx:if="{{!editingPlan && item.location}}" class="tiny" data-index="{{index + (plan.days[dayIndex].hotel ? 1 : 0)}}" bindtap="openLocation">地图定位</button>
+          <view wx:if="{{editingPlan}}" class="row"><button class="tiny" data-day="{{dayIndex}}" data-index="{{index}}" data-delta="-1" bindtap="moveAttraction">上移</button><button class="tiny" data-day="{{dayIndex}}" data-index="{{index}}" data-delta="1" bindtap="moveAttraction">下移</button><button class="tiny danger" data-day="{{dayIndex}}" data-index="{{index}}" bindtap="deleteAttraction">删除景点</button></view>
+        </view>
+        <view wx:for="{{plan.days[dayIndex].meals}}" wx:key="name" class="point"><text class="point-title">餐饮 · {{item.name}}</text><text class="muted">{{item.address}} · 约 {{item.estimated_cost}} 元</text><button wx:if="{{item.location}}" class="tiny" data-index="{{index + (plan.days[dayIndex].hotel ? 1 : 0) + plan.days[dayIndex].attractions.length}}" bindtap="openLocation">地图定位</button></view>
+      </view>
+    </view>
+    <view class="card weather"><text class="section-title">天气</text><view wx:for="{{plan.weather_info}}" wx:key="date" class="weather-row"><text>{{item.date}}</text><text>{{item.day_weather}} {{item.day_temp}}° / {{item.night_weather}} {{item.night_temp}}°</text></view></view>
+    <view class="card poi"><text class="section-title">地点搜索</text><view class="row"><input class="field" placeholder="搜索景点或地点" value="{{poiQuery}}" bindinput="onPoiQuery" /><button class="small" bindtap="searchPois">搜索</button></view><view wx:for="{{poiResults}}" wx:key="poi_id" class="weather-row" data-index="{{index}}" bindtap="openPoi"><text>{{item.name}}</text><text>{{item.address}}</text></view></view>
+    <view class="card route"><text class="section-title">路线查询</text><input class="field" placeholder="起点地址" value="{{routeOrigin}}" data-field="routeOrigin" bindinput="onRouteField" /><input class="field" placeholder="终点地址" value="{{routeDestination}}" data-field="routeDestination" bindinput="onRouteField" /><picker mode="selector" range="{{routeLabels}}" value="{{routeTypeIndex}}" bindchange="onRouteType"><view class="field">路线方式　{{routeLabels[routeTypeIndex]}}　›</view></picker><button class="secondary" bindtap="calculateRoute">规划路线</button><text wx:if="{{routeResult}}" class="muted">{{routeResult.distance}} · {{routeResult.duration}}</text></view>
+  </view>
+  <view class="card saved"><text class="section-title">已导出行程文件</text><view wx:for="{{savedExports}}" wx:key="path" class="saved-row"><text>{{item.name}}</text><text class="remove" data-index="{{index}}" bindtap="deleteExport">删除</text></view><text wx:if="{{!savedExports.length}}" class="muted">暂无导出文件</text></view>
+</view>

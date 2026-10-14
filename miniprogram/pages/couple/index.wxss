@@ -1,0 +1,53 @@
+.page { padding: 22rpx; }
+.card { margin-bottom: 18rpx; padding: 24rpx; border-radius: 22rpx; background: #fffefa; }
+.section-title { font-size: 30rpx; font-weight: 650; }
+.space-card { background: #fbf0f1; }
+.space-title { display: block; color: #54363c; font-size: 34rpx; font-weight: 700; }
+.together { display: block; margin-top: 12rpx; color: #a95d70; font-weight: 650; }
+.muted, .hint, .empty { display: block; margin-top: 10rpx; color: #85897f; font-size: 21rpx; }
+.space-date, .section-row, .memory-head, .row, .comment-form { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
+.space-date { margin: 16rpx 0; color: #a95d70; }
+.primary, .secondary, .small, .danger { margin: 10rpx 0; padding: 0 18rpx; height: 60rpx; line-height: 60rpx; border-radius: 12rpx; font-size: 22rpx; }
+.primary { color: #fff; background: #a95d70; }.secondary { color: #704b54; background: #f4e8eb; }.small { color: #704b54; background: #f4e8eb; }.danger { color: #9b4339; background: #f8ece9; }
+.invite { display: flex; align-items: center; justify-content: space-between; margin-top: 16rpx; color: #704b54; }
+.invite-code { font-size: 32rpx; font-weight: 700; letter-spacing: 3rpx; }
+.tabs { display: flex; align-items: center; gap: 12rpx; margin: 18rpx 0; }
+.tab { flex: 1; padding: 14rpx; border-radius: 22rpx; color: #806b6f; background: #f5f1f1; text-align: center; }
+.tab.active { color: #fff; background: #a95d70; }
+.conflict-link { flex: 0 0 auto; }
+.memory { overflow: hidden; }
+.cover { display: block; width: 100%; height: 340rpx; margin: -24rpx -24rpx 20rpx; width: calc(100% + 48rpx); }
+.memory-head { color: #a95d70; font-size: 20rpx; }
+.memory-title { display: block; margin: 14rpx 0 8rpx; font-size: 28rpx; font-weight: 650; }
+.memory-content { display: block; margin: 10rpx 0; line-height: 1.55; white-space: pre-wrap; }
+.author, .date { color: #a95d70; }
+.field { box-sizing: border-box; width: 100%; margin: 10rpx 0; padding: 16rpx; border: 1rpx solid #eadde0; border-radius: 12rpx; }
+.picker { color: #a95d70; }
+.text-area { height: 180rpx; }
+.label { display: block; margin: 12rpx 0; color: #806b6f; }
+.options { display: flex; flex-wrap: wrap; gap: 10rpx; margin: 12rpx 0; }
+.option { padding: 8rpx 15rpx; border-radius: 20rpx; color: #806b6f; background: #f5f1f1; font-size: 21rpx; }
+.option.chosen { color: #fff; background: #a95d70; }
+.overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; background: rgba(30,32,28,.4); }
+.editor, .detail { box-sizing: border-box; width: 100%; max-height: 90vh; overflow-y: auto; padding: 28rpx; border-radius: 26rpx 26rpx 0 0; }
+.close { color: #a95d70; font-size: 36rpx; }
+.photos { white-space: nowrap; margin: 16rpx 0; }
+.photo { display: inline-block; width: 500rpx; height: 400rpx; margin-right: 12rpx; border-radius: 16rpx; }
+.photos.grid { white-space: normal; display: flex; flex-wrap: wrap; gap: 10rpx; }
+.photos.grid .photo { width: 48%; height: 250rpx; margin: 0; }
+.photos.depth .photo { transform: perspective(700rpx) rotateY(5deg); box-shadow: 0 14rpx 24rpx rgba(41,44,37,.24); }
+.pair-effect { display: flex; gap: 12rpx; margin: 16rpx 0; }
+.pair-photo { flex: 1; display: flex; flex-direction: column; gap: 8rpx; padding: 10rpx; background: #f6f0e6; text-align: center; }
+.pair-photo image { width: 100%; height: 220rpx; }
+.sky-effect, .flip-back { display: flex; flex-direction: column; gap: 16rpx; min-height: 260rpx; margin: 16rpx 0; padding: 24rpx; border-radius: 16rpx; background: radial-gradient(circle at 20% 25%, #e9d7dc 0 2rpx, transparent 4rpx), linear-gradient(160deg,#283144,#566276); color: #fffefa; }
+.stars { font-size: 36rpx; color: #f6e9ce; }
+.star-memory { padding: 8rpx 0; color: #f2e7d8; font-size: 21rpx; }
+.flip-back { justify-content: center; background: #f5ece4; color: #54363c; line-height: 1.6; }
+.label, .no-photo { display: block; color: #a95d70; }
+.effect-action { margin: 10rpx 0; color: #704b54; background: #f4e8eb; }
+.scratch-text { display: block; padding: 20rpx; border-radius: 14rpx; color: #704b54; background: #fbf0f1; line-height: 1.6; }
+.reaction-row { display: flex; justify-content: space-around; padding: 16rpx 0; color: #a95d70; }
+.comment { display: flex; gap: 12rpx; padding: 10rpx 0; border-bottom: 1rpx solid #f0e7e9; }
+.comment-form { margin-top: 12rpx; }
+.comment-form .field { flex: 1; }
+.error { display: flex; justify-content: space-between; color: #9b4339; }.link { margin: 0; color: #a95d70; background: transparent; }

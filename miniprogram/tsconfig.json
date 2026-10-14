@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2018",
+    "lib": ["ES2019"],
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "noEmit": true,
+    "types": [
+      "miniprogram-api-typings"
+    ]
+  },
+  "include": [
+    "**/*.ts"
+  ]
+}

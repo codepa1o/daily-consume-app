@@ -1,0 +1,31 @@
+<view class="page">
+  <view class="card month"><text bindtap="previousMonth">‹</text><text>{{month}}</text><text bindtap="nextMonth">›</text></view>
+  <view wx:if="{{error}}" class="card error"><text>{{error}}</text><button class="link" bindtap="retry">重试</button></view>
+  <view class="section-row"><text class="section-title">共同关系反思</text><button class="small" bindtap="openCreate">＋ 新建</button></view>
+  <view wx:for="{{conflicts}}" wx:key="id" class="card conflict" data-id="{{item.id}}" bindtap="openConflict"><text class="conflict-title">{{item.title}}</text><text class="muted">{{item.conflict_date}} · {{item.status === 'agreed' ? '已达成约定' : item.status === 'talking' ? '沟通中' : '反思中'}} · 已发布 {{item.reflection_count}} 份反思</text><text>{{item.summary}}</text></view>
+  <text wx:if="{{!conflicts.length}}" class="muted">本月暂无记录</text>
+
+  <view wx:if="{{selected}}" class="overlay"><view class="editor card">
+    <view class="section-row"><text class="section-title">{{selected.title}}</text><text class="close" bindtap="closeConflict">×</text></view>
+    <text class="muted">{{selected.conflict_date}} · {{selected.status}}</text><text class="summary">{{selected.summary}}</text>
+    <text class="sub-title">我的私密反思</text>
+    <textarea class="field" maxlength="3000" placeholder="观察：发生了什么" value="{{observations}}" data-field="observations" bindinput="onReflection" />
+    <textarea class="field" maxlength="1000" placeholder="感受" value="{{feelings}}" data-field="feelings" bindinput="onReflection" />
+    <textarea class="field" maxlength="2000" placeholder="我的需要" value="{{needs}}" data-field="needs" bindinput="onReflection" />
+    <textarea class="field" maxlength="2000" placeholder="我承担的部分" value="{{myPart}}" data-field="myPart" bindinput="onReflection" />
+    <textarea class="field" maxlength="2000" placeholder="我希望提出的请求" value="{{requestText}}" data-field="requestText" bindinput="onReflection" />
+    <view class="publish"><text>向对方发布这份反思</text><switch checked="{{published}}" color="#64765a" bindchange="onPublished" /></view>
+    <button class="primary" loading="{{saving}}" bindtap="saveReflection">保存反思</button>
+    <view wx:for="{{selected.reflections}}" wx:key="author_id" class="reflection"><text class="sub-title">{{item.author_name}}的反思{{item.published ? '' : '（私密）'}}</text><text wx:if="{{item.published}}">{{item.observations}} {{item.feelings}} {{item.needs}} {{item.my_part}} {{item.request}}</text></view>
+    <text class="sub-title">共同约定（双方发布反思后可确认）</text>
+    <textarea class="field" maxlength="2000" placeholder="填写共同约定" value="{{agreement}}" bindinput="onAgreement" />
+    <picker mode="date" value="{{followUpDate || selected.conflict_date}}" start="{{selected.conflict_date}}" end="{{lastDate}}" bindchange="onFollowUp"><view class="field picker">回访日期　{{followUpDate || '未设置'}}　›</view></picker>
+    <text class="muted">{{selected.agreement_confirmed_by.length}} / 2 人已确认</text>
+    <button class="primary" disabled="{{selected.reflection_count < 2 || saving}}" bindtap="saveAgreement">确认共同约定</button>
+    <view wx:for="{{selected.comments}}" wx:key="id" class="comment"><text>{{item.author_name}}</text><text>{{item.content}}</text></view>
+    <view class="comment-row"><input class="field" placeholder="留言" value="{{comment}}" bindinput="onComment" /><button class="small" bindtap="addComment">发送</button></view>
+    <button wx:if="{{selected.created_by === userId}}" class="danger" bindtap="deleteConflict">删除记录</button>
+  </view></view>
+
+  <view wx:if="{{createOpen}}" class="overlay"><view class="editor card"><view class="section-row"><text class="section-title">新建关系反思</text><text class="close" bindtap="closeCreate">×</text></view><picker mode="date" value="{{conflictDate}}" start="2000-01-01" end="{{today}}" bindchange="onCreateDate"><view class="field picker">日期　{{conflictDate}}　›</view></picker><input class="field" maxlength="120" placeholder="主题" value="{{title}}" bindinput="onCreateTitle" /><textarea class="field" maxlength="3000" placeholder="简要描述发生的事情" value="{{summary}}" bindinput="onCreateSummary" /><button class="primary" loading="{{saving}}" bindtap="createConflict">创建</button></view></view>
+</view>

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'widgets/app_layout.dart';
 import 'package:tyme/tyme.dart';
 
 import 'data/api_client.dart';
@@ -73,8 +75,9 @@ LegalHoliday? _officialHoliday(DateTime date) {
 }
 
 class LifeCalendar extends StatefulWidget {
-  const LifeCalendar({super.key, this.api});
+  const LifeCalendar({super.key, this.api, this.embedded = false});
   final JournalApi? api;
+  final bool embedded;
   @override
   State<LifeCalendar> createState() => _LifeCalendarState();
 }
@@ -273,7 +276,7 @@ class _LifeCalendarState extends State<LifeCalendar> {
           elevation: 0,
           color: scheme.surfaceContainerLow,
           child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: appCardPadding,
               child: Column(children: [
                 Row(children: [
                   IconButton(
@@ -384,11 +387,11 @@ class _LifeCalendarState extends State<LifeCalendar> {
       ]);
 
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const SizedBox(height: 28),
+        if (!widget.embedded) const SizedBox(height: 24),
         Row(children: [
           Expanded(
-              child:
-                  Text('生活日历', style: Theme.of(context).textTheme.titleLarge)),
+              child: Text(widget.embedded ? '记录概览' : '生活日历',
+                  style: Theme.of(context).textTheme.titleMedium)),
           TextButton(
               onPressed: () async {
                 final result = await Navigator.push<DateTime>(
@@ -402,8 +405,8 @@ class _LifeCalendarState extends State<LifeCalendar> {
               },
               child: const Text('全部记录'))
         ]),
-        const Text('留住日常，也记得接下来的小事。'),
-        const SizedBox(height: 16),
+        if (!widget.embedded) const Text('留住日常，也记得接下来的小事。'),
+        const SizedBox(height: appSectionGap),
         if (wide)
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(flex: 6, child: calendar),

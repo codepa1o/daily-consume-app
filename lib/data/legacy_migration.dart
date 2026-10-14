@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -45,6 +46,16 @@ class LegacyMigration {
     final id =
         sha256.convert(utf8.encode(source + jsonEncode(tables))).toString();
     return pending = LegacySnapshot(path, tables, id, source);
+  }
+
+  Future<Uint8List> exportPackage() async {
+    final snapshot = pending ?? await scan();
+    if (snapshot == null) throw const ApiException('没有可导出的本机旧记录');
+    return Uint8List.fromList(utf8.encode(jsonEncode({
+      'import_id': snapshot.importId,
+      'source_id': snapshot.sourceId,
+      'tables': snapshot.tables,
+    })));
   }
 
   Future<void> importToCurrentAccount() async {

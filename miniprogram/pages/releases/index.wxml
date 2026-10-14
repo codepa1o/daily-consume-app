@@ -1,0 +1,6 @@
+<view class="page">
+  <view wx:for="{{releases}}" wx:key="version" class="card release">
+    <view class="heading"><text class="version">{{item.version}}</text><text class="date">{{item.date}}</text></view>
+    <text wx:for="{{item.notes}}" wx:for-item="note" wx:key="*this" class="note">· {{note}}</text>
+  </view>
+</view>

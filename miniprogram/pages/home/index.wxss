@@ -1,0 +1,12 @@
+.page { padding: 32rpx; }
+.card { background: #fffefa; border-radius: 24rpx; padding: 32rpx; }
+.welcome { display: flex; flex-direction: column; gap: 18rpx; }
+.logo { width: 120rpx; height: 120rpx; align-self: center; }
+.eyebrow, .section-title { color: #64765a; font-weight: 600; }
+.title { font-size: 38rpx; line-height: 1.4; font-weight: 700; }
+.muted, .hint { color: #70756b; }
+.hint { padding: 32rpx 8rpx; }
+.section-title { margin: 36rpx 4rpx 18rpx; }
+.feature { display: flex; flex-direction: column; gap: 12rpx; margin-bottom: 16rpx; }
+.error-card { display: flex; justify-content: space-between; align-items: center; margin-top: 20rpx; color: #9b4339; }
+.text-button { margin: 0; padding: 0 12rpx; background: transparent; color: #64765a; font-size: 26rpx; }

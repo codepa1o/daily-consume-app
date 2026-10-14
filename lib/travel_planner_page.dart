@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'widgets/app_layout.dart';
 import 'widgets/travel_planning_icon.dart';
 import 'package:flutter/services.dart';
 
@@ -268,10 +270,8 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
           Form(
             key: _formKey,
             child: LayoutBuilder(builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 900;
               return SingleChildScrollView(
-                padding:
-                    EdgeInsets.fromLTRB(wide ? 36 : 18, 26, wide ? 36 : 18, 36),
+                padding: appPagePadding(constraints.maxWidth),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 960),
@@ -328,36 +328,32 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
                                   ],
                                 ),
                                 const SizedBox(height: 14),
-                                Row(children: [
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _budgetController,
-                                      keyboardType: TextInputType.number,
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.digitsOnly
-                                      ],
-                                      decoration: const InputDecoration(
-                                        labelText: '总预算（元，可不填）',
-                                        prefixText: '¥ ',
-                                      ),
+                                AppFormRow(children: [
+                                  TextFormField(
+                                    controller: _budgetController,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly
+                                    ],
+                                    decoration: const InputDecoration(
+                                      labelText: '总预算（元，可不填）',
+                                      prefixText: '¥ ',
                                     ),
                                   ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: DropdownButtonFormField<String>(
-                                      initialValue: _budgetLevel,
-                                      decoration: const InputDecoration(
-                                          labelText: '预算档位'),
-                                      items: [
-                                        for (final entry
-                                            in _budgetOptions.entries)
-                                          DropdownMenuItem(
-                                              value: entry.key,
-                                              child: Text(entry.value)),
-                                      ],
-                                      onChanged: (value) => setState(() =>
-                                          _budgetLevel = value ?? 'standard'),
-                                    ),
+                                  DropdownButtonFormField<String>(
+                                    isExpanded: true,
+                                    initialValue: _budgetLevel,
+                                    decoration: const InputDecoration(
+                                        labelText: '预算档位'),
+                                    items: [
+                                      for (final entry
+                                          in _budgetOptions.entries)
+                                        DropdownMenuItem(
+                                            value: entry.key,
+                                            child: Text(entry.value)),
+                                    ],
+                                    onChanged: (value) => setState(() =>
+                                        _budgetLevel = value ?? 'standard'),
                                   ),
                                 ]),
                               ]),
@@ -436,8 +432,10 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
                             style: FilledButton.styleFrom(
                               backgroundColor: _travelGreen,
                               padding: const EdgeInsets.symmetric(vertical: 16),
-                              textStyle: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.w600),
+                              textStyle: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(fontSize: 16),
                             ),
                           ),
                         ),
@@ -468,7 +466,7 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
       );
 
   Widget _pageHeading() =>
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
         Container(
           width: 48,
           height: 48,
@@ -485,7 +483,7 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
             Text('旅行规划',
                 style: TextStyle(
                     color: _travelInk,
-                    fontSize: 24,
+                    fontSize: 32,
                     fontWeight: FontWeight.w700)),
             SizedBox(height: 4),
             Text('填写偏好，生成按天安排的旅行计划。', style: TextStyle(color: _travelMuted)),
@@ -533,7 +531,7 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
           side: const BorderSide(color: Color(0xffe8e7df)),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: appCardPadding,
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
@@ -541,7 +539,7 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
               const SizedBox(width: 8),
               Text(title,
                   style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700)),
+                      fontSize: 16, fontWeight: FontWeight.w600)),
             ]),
             const SizedBox(height: 16),
             child,
@@ -557,6 +555,7 @@ class _TravelPlannerPageState extends State<TravelPlannerPage> {
   }) =>
       DropdownButtonFormField<String>(
         initialValue: value,
+        isExpanded: true,
         decoration: InputDecoration(labelText: label),
         items: [
           for (final item in values)

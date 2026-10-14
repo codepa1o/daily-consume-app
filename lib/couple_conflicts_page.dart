@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'widgets/app_layout.dart';
+
 import 'data/api_client.dart';
 import 'data/app_database.dart' show dateKey;
 import 'data/couple.dart';
@@ -161,8 +163,8 @@ class _CoupleConflictCalendarPageState
                               style: TextStyle(color: _conflictMuted)),
                         ),
                       )
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 104),
+                    : AppPageList(
+                        bottom: 104,
                         children: [
                           _calendar(),
                           const SizedBox(height: 18),

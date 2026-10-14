@@ -1,0 +1,19 @@
+<view class="page">
+  <view class="card form">
+    <text class="section-title">论文检索</text>
+    <input class="field" placeholder="输入关键词或标题" maxlength="200" value="{{query}}" bindinput="onQuery" confirm-type="search" bindconfirm="search" />
+    <input wx:if="{{sources[1].selected}}" class="field" placeholder="OpenReview 会议 ID（可选）" maxlength="160" value="{{venueId}}" bindinput="onVenue" />
+    <text class="label">检索来源</text>
+    <view class="sources"><text wx:for="{{sources}}" wx:key="id" class="source {{item.selected ? 'chosen' : ''}}" data-source="{{item.id}}" bindtap="toggleSource">{{item.label}}</text></view>
+    <picker mode="selector" range="{{limits}}" value="{{limitIndex}}" bindchange="onLimit"><view class="picker">每个来源最多 {{limit}} 篇　›</view></picker>
+    <button class="primary" loading="{{loading}}" disabled="{{loading}}" bindtap="search">搜索论文</button>
+  </view>
+  <view wx:if="{{error}}" class="card error"><text>{{error}}</text><button class="link" bindtap="retry">重试</button></view>
+  <view wx:if="{{sourceErrors.length}}" class="card warning"><text wx:for="{{sourceErrors}}" wx:key="source">{{item.source}} 暂时无法搜索</text></view>
+  <view wx:for="{{results}}" wx:key="id" class="card paper">
+    <text class="title">{{item.title}}</text><text class="meta">{{item.year}} · {{item.venue}} · {{item.source}}</text>
+    <text class="authors">{{item.authorLine}}</text><text class="abstract">{{item.abstract}}</text>
+    <view class="row"><button class="download" loading="{{downloading === item.id}}" disabled="{{downloading !== ''}}" data-index="{{index}}" bindtap="download">下载并打开 PDF</button><button class="small" data-index="{{index}}" bindtap="copyArticleUrl">复制论文链接</button></view>
+  </view>
+  <view class="card saved"><text class="section-title">已保存到小程序</text><view wx:for="{{saved}}" wx:key="path" class="saved-row"><text class="saved-title" data-index="{{index}}" bindtap="openSaved">{{item.title}}</text><text class="remove" data-index="{{index}}" bindtap="deleteSaved">×</text></view><text wx:if="{{!saved.length}}" class="meta">尚无本地 PDF</text></view>
+</view>

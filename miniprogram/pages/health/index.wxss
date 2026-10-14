@@ -1,0 +1,43 @@
+.page { padding: 22rpx; }
+.card { margin-bottom: 18rpx; padding: 24rpx; border-radius: 22rpx; background: #fffefa; }
+.hero { background: #fbf0f1; }
+.section-row, .month-heading, .button-row, .spotting { display: flex; align-items: center; justify-content: space-between; }
+.section-title { font-size: 30rpx; font-weight: 650; }
+.settings, .close { color: #a95d70; font-size: 34rpx; padding: 4rpx 14rpx; }
+.prediction { display: block; margin: 16rpx 0 8rpx; color: #54363c; font-size: 31rpx; font-weight: 650; }
+.muted, .notice, .hint { display: block; margin-top: 10rpx; color: #806b6f; font-size: 21rpx; }
+.notice { margin-top: 18rpx; }
+.history { display: flex; flex-wrap: wrap; gap: 10rpx; margin-top: 14rpx; }
+.cycle-chip { padding: 6rpx 12rpx; border-radius: 20rpx; color: #a95d70; background: #f4dfe3; font-size: 21rpx; }
+.month-heading { color: #a95d70; font-size: 30rpx; font-weight: 650; }
+.month-heading text:first-child, .month-heading text:last-child { padding: 4rpx 20rpx; font-size: 42rpx; }
+.weekdays, .days { display: flex; flex-wrap: wrap; text-align: center; }
+.weekdays text, .day-cell { box-sizing: border-box; width: 14.2857%; }
+.weekdays { margin-top: 18rpx; color: #94878a; font-size: 21rpx; }
+.day-cell { min-height: 64rpx; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #51474a; }
+.day-cell.selected { outline: 2rpx solid #6d5358; font-weight: 700; }
+.day-cell.future { color: #bcb3b5; }
+.day-cell.period { color: #fff; background: #b76578; }
+.day-cell.predicted { color: #884c5c; background: #f1d8de; }
+.day-cell.fertile { color: #56745c; background: #e4eddf; }
+.day-cell.ovulation { color: #fff; background: #64765a; }
+.legend { display: flex; flex-wrap: wrap; gap: 14rpx; margin-top: 14rpx; color: #806b6f; font-size: 18rpx; }
+.legend text { display: flex; align-items: center; gap: 5rpx; }
+.legend i { width: 14rpx; height: 14rpx; border-radius: 50%; }
+.period-dot { background: #b76578; }.predicted-dot { background: #f1d8de; }.fertile-dot { background: #e4eddf; }.ovulation-dot { background: #64765a; }
+.selected-date { display: block; margin-top: 12rpx; color: #a95d70; }
+.actions .button-row, .daily .button-row { gap: 12rpx; margin-top: 16rpx; }
+.button-row button { flex: 1; }
+.primary, .secondary, .danger { margin: 0; padding: 0 14rpx; min-height: 64rpx; border-radius: 12rpx; font-size: 22rpx; }
+.primary { color: #fff; background: #a95d70; }.secondary { color: #704b54; background: #f4e8eb; }.danger { margin-top: 16rpx; color: #9b4339; background: #f8ece9; }
+.label { display: block; margin: 22rpx 0 10rpx; color: #65565a; font-size: 23rpx; }
+.options { display: flex; gap: 10rpx; }.options.wrap { flex-wrap: wrap; }
+.option { padding: 9rpx 17rpx; border-radius: 20rpx; color: #806b6f; background: #f5f1f1; font-size: 21rpx; }
+.option.chosen { color: #fff; background: #a95d70; }
+.spotting { margin-top: 18rpx; color: #65565a; }
+.notes, .field { box-sizing: border-box; width: 100%; margin: 18rpx 0; padding: 16rpx; border: 1rpx solid #e8dadd; border-radius: 12rpx; }
+.notes { height: 150rpx; }
+.overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; background: rgba(30, 32, 28, .38); }
+.editor { width: 100%; padding: 30rpx; border-radius: 26rpx 26rpx 0 0; }
+.clear-area { padding: 18rpx; text-align: center; }.clear { color: #9b4339; font-size: 22rpx; }
+.error { display: flex; justify-content: space-between; color: #9b4339; }.link { margin: 0; color: #a95d70; background: transparent; }

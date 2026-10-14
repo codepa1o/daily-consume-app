@@ -1,0 +1,28 @@
+.page { padding: 22rpx; }
+.card { margin-bottom: 18rpx; padding: 24rpx; border-radius: 22rpx; background: #fffefa; }
+.date-nav, .periods, .summary-row, .heading, .actions, .expense-row { display: flex; align-items: center; justify-content: space-between; }
+.date-nav { font-size: 34rpx; color: #64765a; }
+.date-nav text { padding: 0 18rpx; font-size: 44rpx; }
+.date-nav .disabled { color: #c8c9c0; }
+.periods { justify-content: center; gap: 14rpx; margin-top: 20rpx; }
+.periods text { padding: 8rpx 28rpx; border-radius: 24rpx; color: #70756b; background: #f3f2ec; }
+.periods .selected { color: #fffefa; background: #64765a; }
+.section-title { font-size: 30rpx; font-weight: 650; }
+.total { display: block; margin: 10rpx 0 18rpx; color: #64765a; font-size: 46rpx; font-weight: 700; }
+.summary-row { padding-top: 10rpx; color: #70756b; font-size: 23rpx; }
+.muted, .hint { color: #8a8e83; font-size: 22rpx; }
+.meal-item, .expense-row { display: flex; align-items: center; gap: 8rpx; padding: 12rpx 0; border-bottom: 1rpx solid #f0efe8; }
+.food-name { flex: 1; min-width: 0; padding: 12rpx 8rpx; }
+.food-amount { width: 118rpx; padding: 12rpx 8rpx; text-align: right; }
+.expense-date { min-width: 150rpx; color: #64765a; font-size: 19rpx; }
+.yuan { color: #8a8e83; font-size: 22rpx; }
+.remove { padding: 0 8rpx; color: #9b4339; font-size: 34rpx; }
+.actions { margin-top: 12rpx; }
+.actions view { display: flex; gap: 8rpx; }
+.add { color: #64765a; font-size: 24rpx; }
+.small { display: inline-block; min-width: 92rpx; height: 58rpx; margin: 0; padding: 0 14rpx; line-height: 58rpx; background: #e9eee4; color: #45543e; font-size: 22rpx; }
+.danger { margin-left: 8rpx; color: #9b4339; background: #f8ece9; }
+.primary { margin: 18rpx 0 0; border-radius: 14rpx; background: #64765a; color: #fffefa; font-size: 26rpx; }
+.error { display: flex; align-items: center; justify-content: space-between; color: #9b4339; }
+.link { margin: 0; padding: 0 8rpx; color: #64765a; background: transparent; }
+.hint { padding: 12rpx; }

@@ -1,0 +1,75 @@
+<view class="page">
+  <view wx:if="{{noSpace}}" class="card setup">
+    <text class="section-title">建立两个人的小窝</text>
+    <text class="muted">创建空间后生成邀请码，另一位成员确认加入后即可共同记录。</text>
+    <input class="field" maxlength="60" value="{{title}}" bindinput="onTitle" placeholder="空间名称" />
+    <picker mode="date" value="{{sinceDate}}" start="2000-01-01" end="{{today}}" bindchange="onSinceDate"><view class="field picker">纪念日　{{sinceDate}}　›</view></picker>
+    <button class="primary" bindtap="createSpace">创建空间</button>
+    <view class="divider"></view>
+    <text class="section-title">加入已有空间</text>
+    <input class="field code" maxlength="12" value="{{inviteCode}}" bindinput="onInviteCode" placeholder="输入 12 位邀请码" />
+    <button class="secondary" bindtap="previewInvite">预览邀请码</button>
+    <view wx:if="{{invitePreview}}" class="preview"><text>邀请人：{{invitePreview.inviter}}</text><text>空间：{{invitePreview.title}}</text><button class="primary" bindtap="joinInvite">确认加入</button></view>
+  </view>
+
+  <view wx:if="{{space}}" class="card space-card">
+    <text class="space-title">{{space.title}}</text>
+    <text class="muted">{{space.members[0].nickname}} 与 {{space.members[1] ? space.members[1].nickname : '等待另一位加入'}}</text>
+    <text class="together">{{timeTogether}} · 已共同记录 {{daysTogether}} 天</text>
+    <view class="space-date"><text>纪念日</text><picker mode="date" value="{{sinceDate}}" start="2000-01-01" end="{{today}}" bindchange="updateAnniversary"><view>{{sinceDate}}　›</view></picker></view>
+    <button wx:if="{{space.members.length < 2}}" class="secondary" bindtap="createInvite">生成 / 刷新邀请码</button>
+    <view wx:if="{{inviteCode}}" class="invite"><text>邀请码（7 天有效）</text><text class="invite-code">{{inviteCode}}</text><button class="small" open-type="share">分享</button></view>
+  </view>
+
+  <view wx:if="{{space}}" class="tabs"><text class="tab {{tab === 'memories' ? 'active' : ''}}" data-tab="memories" bindtap="switchTab">共享回忆</text><text class="tab {{tab === 'pair' ? 'active' : ''}}" data-tab="pair" bindtap="switchTab">双人精选</text><button class="small conflict-link" bindtap="openConflicts">关系反思</button></view>
+  <view wx:if="{{space && tab === 'memories'}}" class="section-row"><text class="section-title">共同回忆</text><button class="small" bindtap="newMemory">＋ 发布</button></view>
+  <view wx:if="{{space && tab === 'pair'}}" class="card pair-date"><picker mode="date" value="{{date}}" start="2000-01-01" end="{{today}}" bindchange="onDate"><view>挑选日期　{{date}}　›</view></picker></view>
+  <view wx:if="{{error}}" class="card error"><text>{{error}}</text><button class="link" bindtap="retry">重试</button></view>
+  <view wx:if="{{loading}}" class="hint">正在加载…</view>
+
+  <view wx:if="{{tab === 'memories'}}" class="memories">
+    <view wx:for="{{memories}}" wx:key="id" class="card memory" data-id="{{item.id}}" bindtap="openMemory">
+      <image wx:if="{{item.coverPath}}" class="cover" src="{{item.coverPath}}" mode="aspectFill" />
+      <view class="memory-head"><text class="author">{{item.author_name}} · {{item.mood || '留下一段回忆'}}</text><text class="date">{{item.memory_date}}</text></view>
+      <text class="memory-title">{{item.title}}</text><text class="memory-content">{{item.content}}</text>
+      <text class="muted">{{item.photo_count}} 张照片 · {{item.display_mode === 'grid' ? '拼贴展示' : '翻页展示'}}</text>
+    </view>
+    <button wx:if="{{hasMore}}" class="secondary" loading="{{loading}}" bindtap="loadMore">加载更多</button>
+    <text wx:if="{{!memories.length && !loading}}" class="empty">还没有共同回忆</text>
+  </view>
+  <view wx:if="{{tab === 'pair'}}" class="memories">
+    <view wx:for="{{pair}}" wx:key="id" class="card memory" data-id="{{item.id}}" bindtap="openMemory">
+      <image wx:if="{{item.coverPath}}" class="cover" src="{{item.coverPath}}" mode="aspectFill" />
+      <text class="author">{{item.author_name}}</text><text class="memory-title">{{item.title}}</text><text class="memory-content">{{item.content}}</text>
+    </view>
+    <text wx:if="{{!pair.length && !loading}}" class="empty">这一天还没有双方照片回忆</text>
+  </view>
+
+  <view wx:if="{{editorOpen}}" class="overlay"><view class="editor card"><view class="section-row"><text class="section-title">发布共同回忆</text><text class="close" bindtap="closeEditor">×</text></view>
+    <picker mode="date" value="{{memoryDate}}" start="2000-01-01" end="{{today}}" bindchange="onMemoryDate"><view class="field picker">日期　{{memoryDate}}　›</view></picker>
+    <input class="field" maxlength="100" value="{{memoryTitle}}" bindinput="onMemoryTitle" placeholder="标题" />
+    <textarea class="field text-area" maxlength="5000" value="{{memoryContent}}" bindinput="onMemoryContent" placeholder="写下这段回忆" />
+    <text class="label">当时的心情</text><view class="options"><text wx:for="{{moods}}" wx:key="*this" class="option {{memoryMood === item ? 'chosen' : ''}}" data-mood="{{item}}" bindtap="selectMood">{{item || '未选择'}}</text></view>
+    <view class="options"><text class="option {{displayMode === 'grid' ? 'chosen' : ''}}" data-mode="grid" bindtap="selectMode">拼贴</text><text class="option {{displayMode === 'swipe' ? 'chosen' : ''}}" data-mode="swipe" bindtap="selectMode">翻页</text></view>
+    <button class="secondary" bindtap="choosePhotos">选择照片（最多 9 张）</button><text class="muted">已选 {{photoFiles.length}} 张</text>
+    <button class="primary" loading="{{saving}}" disabled="{{saving}}" bindtap="saveMemory">发布回忆</button>
+  </view></view>
+
+  <view wx:if="{{selectedMemory}}" class="overlay detail-overlay"><view class="detail card"><view class="section-row"><text class="section-title">{{selectedMemory.title}}</text><text class="close" bindtap="closeMemory">×</text></view>
+    <text class="muted">{{selectedMemory.author_name}} · {{selectedMemory.memory_date}} · {{selectedMemory.mood}}</text>
+    <picker mode="selector" range="{{effects}}" value="{{effectIndex}}" bindchange="selectEffect"><view class="field picker">照片玩法　{{effects[effectIndex]}}　›</view></picker>
+    <view wx:if="{{effectIndex === 2}}" class="pair-effect"><view wx:for="{{pairItems}}" wx:key="id" class="pair-photo"><image wx:if="{{item.coverPath}}" src="{{item.coverPath}}" mode="aspectFill" /><text>{{item.author_name}}</text><text>{{item.title}}</text></view><text wx:if="{{pairItems.length < 2}}" class="muted">等双方在同一天各发布照片，拼成“今天的我们”。</text></view>
+    <view wx:elif="{{effectIndex === 4}}" class="sky-effect"><text class="stars">✦　·　✧　·　✦</text><text>我们的回忆星空</text><view wx:for="{{memories}}" wx:key="id" class="star-memory" data-id="{{item.id}}" bindtap="openMemory">✦ {{item.memory_date}} · {{item.title}}</view></view>
+    <view wx:elif="{{effectIndex === 1 && flipped}}" class="flip-back"><text class="label">留给你的话</text><text>{{selectedMemory.content || '这张照片里，有我们一起度过的一刻。'}}</text><text wx:if="{{comments.length}}" class="muted">{{comments[comments.length - 1].author_name}}：{{comments[comments.length - 1].content}}</text></view>
+    <scroll-view wx:elif="{{memoryPhotos.length}}" scroll-x class="photos {{selectedMemory.display_mode}} {{effectIndex === 5 ? 'depth' : ''}}"><image wx:for="{{memoryPhotos}}" wx:key="*this" class="photo" src="{{item}}" mode="aspectFill" /></scroll-view>
+    <text wx:elif="{{!memoryPhotos.length}}" class="no-photo">这条回忆没有照片</text>
+    <button wx:if="{{effectIndex === 1}}" class="small effect-action" bindtap="toggleFlip">翻面留言</button>
+    <button wx:if="{{effectIndex === 3 && !scratched}}" class="small effect-action" bindtap="scratchReveal">揭开惊喜留言</button>
+    <text wx:if="{{effectIndex === 3 && scratched}}" class="scratch-text">{{selectedMemory.content || '每一段回忆，都是我们的惊喜。'}}</text>
+    <text wx:if="{{effectIndex !== 1 && effectIndex !== 3 && selectedMemory.content}}" class="memory-content">{{selectedMemory.content}}</text>
+    <view class="reaction-row"><text data-emoji="❤️" bindtap="setReaction">❤️</text><text data-emoji="抱抱" bindtap="setReaction">抱抱</text><text data-emoji="想你" bindtap="setReaction">想你</text><text data-emoji="开心" bindtap="setReaction">开心</text></view>
+    <view wx:for="{{comments}}" wx:key="id" class="comment"><text class="author">{{item.author_name}}</text><text>{{item.content}}</text></view>
+    <view class="comment-form"><input class="field" value="{{comment}}" bindinput="onComment" placeholder="写留言" /><button class="small" bindtap="addComment">发送</button></view>
+    <button wx:if="{{selectedMemory.author_id === userId}}" class="danger" bindtap="deleteMemory">删除回忆</button>
+  </view></view>
+</view>

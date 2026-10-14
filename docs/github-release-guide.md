@@ -4,15 +4,15 @@
 
 ## 本次版本
 
-- 应用显示版本：1.4.4。
-- 内部版本编号：19，即 `pubspec.yaml` 中的 `1.4.4+19`。
-- Release 标签：`v1.4.4+19`。
-- 更新日志原稿：`docs/release-notes/1.4.4.txt`，每行一条。
-- 聊天机器人依赖后端迁移 `0014_chatbot`；发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
+- 应用显示版本：1.4.6。
+- 内部版本编号：21，即 `pubspec.yaml` 中的 `1.4.6+21`。
+- Release 标签：`v1.4.6+21`。
+- 更新日志原稿：`docs/release-notes/1.4.6.txt`，每行一条。
+- 本版服务端需要迁移至 `0016_pomodoro_reminders`，微信登录及订阅提醒还需配置正式账号和模板；发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
 
 ## 以后发布新版的推荐步骤
 
-以下以 **1.4.4+19** 为例。每次正式发布都应使用新的版本号和内部版本编号。
+以下以 **1.4.6+21** 为例。每次正式发布都应使用新的版本号和内部版本编号。
 
 ### 1. 验证代码
 
@@ -28,13 +28,13 @@ Set-Location C:\my_project\daily-consume-app
 
 ### 2. 写日志并构建
 
-新建 UTF-8 文件 `docs/release-notes/1.4.4.txt`，每行一条给用户看的更新内容，然后执行：
+新建 UTF-8 文件 `docs/release-notes/1.4.6.txt`，每行一条给用户看的更新内容，然后执行：
 
 ```powershell
 .\scripts\build_release.ps1 `
-  -VersionName '1.4.4' `
-  -VersionCode 19 `
-  -NotesFile '.\docs\release-notes\1.4.4.txt' `
+  -VersionName '1.4.6' `
+  -VersionCode 21 `
+  -NotesFile '.\docs\release-notes\1.4.6.txt' `
   -Flutter 'C:\dev_env\flutter\bin\flutter.bat'
 ```
 

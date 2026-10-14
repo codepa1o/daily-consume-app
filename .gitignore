@@ -1,4 +1,6 @@
 .dart_tool/
+miniprogram/node_modules/
+miniprogram/project.private.config.json
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages

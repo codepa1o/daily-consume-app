@@ -125,11 +125,11 @@ class JournalApiTests(unittest.TestCase):
         diary = self.create(content='特殊字符 100% _ \\ 中文')
         self.create(kind='memo', title='普通备忘')
         pending = self.create(kind='memo', title='未完成', is_todo=True)
-        self.create(kind='memo', title='完成', is_todo=True, completed=True)
+        completed = self.create(kind='memo', title='完成', is_todo=True, completed=True)
         future = self.create(kind='memo', entry_date=(journal_today() + timedelta(days=1)).isoformat())
         self.assertEqual(future['kind'], 'memo')
         page = self.client.get('/journal/entries?date=2024-02-29&limit=1', headers=self.a).json()
-        self.assertEqual(page['items'][0]['id'], pending['id'])
+        self.assertEqual(page['items'][0]['id'], completed['id'])
         self.assertEqual(page['total'], 4)
         self.assertTrue(page['has_more'])
         all_ids = [self.client.get(f'/journal/entries?date=2024-02-29&limit=1&offset={n}', headers=self.a).json()['items'][0]['id'] for n in range(4)]

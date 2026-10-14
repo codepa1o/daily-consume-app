@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+
+import 'widgets/app_layout.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -243,9 +245,9 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
                   ? _CoupleSetup(onJoined: reload, api: api)
                   : RefreshIndicator(
                       onRefresh: reload,
-                      child: ListView(
+                      child: AppPageList(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                          bottom: 104,
                           children: [
                             const Text('OUR LITTLE MOMENTS',
                                 style: TextStyle(
@@ -256,7 +258,7 @@ class _CouplePageState extends State<CouplePage> with WidgetsBindingObserver {
                             Text(space!.title,
                                 style: const TextStyle(
                                     color: coupleInk,
-                                    fontSize: 29,
+                                    fontSize: 32,
                                     fontFamily: 'serif')),
                             const SizedBox(height: 14),
                             Material(
@@ -496,8 +498,7 @@ class _CoupleSetupState extends State<_CoupleSetup> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      ListView(padding: const EdgeInsets.all(24), children: [
+  Widget build(BuildContext context) => AppPageList(children: [
         const Icon(Icons.favorite_border, size: 48, color: coupleRose),
         const SizedBox(height: 16),
         const Text('留一个地方，给我们',
@@ -869,7 +870,7 @@ class _CoupleEditorState extends State<CoupleEditor> {
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 960),
-                  child: ListView(padding: const EdgeInsets.all(20), children: [
+                  child: AppPageList(children: [
                     Row(children: [
                       const Text('照片展示方式'),
                       const Spacer(),
@@ -1223,132 +1224,124 @@ class _CoupleDetailState extends State<CoupleDetail>
                 : Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1000),
-                      child: ListView(
-                          padding: const EdgeInsets.all(20),
-                          children: [
-                            DropdownButtonFormField<int>(
-                                initialValue: effect,
-                                decoration: const InputDecoration(
-                                    labelText: '照片玩法',
-                                    border: OutlineInputBorder()),
-                                items: [
-                                  for (var i = 0; i < coupleEffects.length; i++)
-                                    DropdownMenuItem(
-                                        value: i, child: Text(coupleEffects[i]))
-                                ],
-                                onChanged: (value) {
-                                  if (value != null)
-                                    setState(() {
-                                      effect = value;
-                                      scratchRevealed = false;
-                                    });
-                                }),
-                            const SizedBox(height: 28),
-                            Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 6),
-                                child: _effect(memory, comments)),
-                            const SizedBox(height: 24),
-                            if (memory.mood.isNotEmpty)
-                              Text('${memory.author}的心情：${memory.mood}',
-                                  style: const TextStyle(color: coupleRose)),
-                            if (memory.content.isNotEmpty &&
-                                effect != 1 &&
-                                (effect != 3 || scratchRevealed))
-                              Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 14),
-                                  child: Text(memory.content,
-                                      style: const TextStyle(
-                                          color: coupleInk, height: 1.8))),
-                            const Divider(height: 32),
-                            Wrap(spacing: 8, runSpacing: 6, children: [
-                              for (final emoji in ['❤️', '抱抱', '想你', '开心'])
-                                ChoiceChip(
-                                    label: Text(emoji),
-                                    selected: mine?['emoji'] == emoji,
-                                    onSelected: busy
-                                        ? null
-                                        : (selected) => action(() async {
-                                              await api.react(memory.id,
-                                                  selected ? emoji : null);
-                                              await reload();
-                                            }))
-                            ]),
-                            if (reactions.isNotEmpty)
-                              Padding(
-                                  padding: const EdgeInsets.only(top: 10),
-                                  child: Text(
-                                      reactions
-                                          .map((r) =>
-                                              '${r['author_name']}：${r['emoji']}')
-                                          .join('  '),
-                                      style: const TextStyle(
-                                          color: coupleRose, fontSize: 12))),
-                            const SizedBox(height: 24),
-                            const Text('照片背后的留言',
-                                style:
-                                    TextStyle(fontSize: 18, color: coupleInk)),
-                            const SizedBox(height: 12),
-                            if (comments.isEmpty)
-                              const Text('还没有留言，给另一半留一句话吧。',
-                                  style: TextStyle(color: Color(0xff877267))),
-                            for (final entry in comments)
-                              Card(
-                                  color: couplePaper,
-                                  child: Padding(
-                                      padding: const EdgeInsets.all(14),
-                                      child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(entry['author_name'] as String,
-                                                style: const TextStyle(
-                                                    color: coupleRose,
-                                                    fontSize: 12)),
-                                            const SizedBox(height: 6),
-                                            Text(entry['content'] as String,
-                                                style: const TextStyle(
-                                                    height: 1.6)),
-                                          ]))),
-                            const SizedBox(height: 14),
-                            TextField(
-                                controller: comment,
-                                enabled: !busy,
-                                minLines: 2,
-                                maxLines: 5,
-                                maxLength: 1000,
-                                decoration: const InputDecoration(
-                                    hintText: '想对你说…',
-                                    border: OutlineInputBorder())),
-                            Align(
-                                alignment: Alignment.centerRight,
-                                child: FilledButton(
-                                    onPressed: busy
-                                        ? null
-                                        : () => action(() async {
-                                              if (comment.text.trim().isEmpty)
-                                                throw const ApiException(
-                                                    '请先写下留言');
-                                              await api.comment(
-                                                  memory.id,
-                                                  comment.text,
-                                                  commentRequestId);
-                                              comment.clear();
-                                              commentRequestId =
-                                                  CoupleApi.requestId();
-                                              await reload();
-                                            }),
-                                    child: Text(busy ? '保存中…' : '留下这句话'))),
-                            if (actionError != null)
-                              Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Text(actionError!,
-                                      style: TextStyle(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .error))),
-                          ]),
+                      child: AppPageList(children: [
+                        DropdownButtonFormField<int>(
+                            initialValue: effect,
+                            decoration: const InputDecoration(
+                                labelText: '照片玩法',
+                                border: OutlineInputBorder()),
+                            items: [
+                              for (var i = 0; i < coupleEffects.length; i++)
+                                DropdownMenuItem(
+                                    value: i, child: Text(coupleEffects[i]))
+                            ],
+                            onChanged: (value) {
+                              if (value != null)
+                                setState(() {
+                                  effect = value;
+                                  scratchRevealed = false;
+                                });
+                            }),
+                        const SizedBox(height: 28),
+                        Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: _effect(memory, comments)),
+                        const SizedBox(height: 24),
+                        if (memory.mood.isNotEmpty)
+                          Text('${memory.author}的心情：${memory.mood}',
+                              style: const TextStyle(color: coupleRose)),
+                        if (memory.content.isNotEmpty &&
+                            effect != 1 &&
+                            (effect != 3 || scratchRevealed))
+                          Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: Text(memory.content,
+                                  style: const TextStyle(
+                                      color: coupleInk, height: 1.8))),
+                        const Divider(height: 32),
+                        Wrap(spacing: 8, runSpacing: 6, children: [
+                          for (final emoji in ['❤️', '抱抱', '想你', '开心'])
+                            ChoiceChip(
+                                label: Text(emoji),
+                                selected: mine?['emoji'] == emoji,
+                                onSelected: busy
+                                    ? null
+                                    : (selected) => action(() async {
+                                          await api.react(memory.id,
+                                              selected ? emoji : null);
+                                          await reload();
+                                        }))
+                        ]),
+                        if (reactions.isNotEmpty)
+                          Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Text(
+                                  reactions
+                                      .map((r) =>
+                                          '${r['author_name']}：${r['emoji']}')
+                                      .join('  '),
+                                  style: const TextStyle(
+                                      color: coupleRose, fontSize: 12))),
+                        const SizedBox(height: 24),
+                        const Text('照片背后的留言',
+                            style: TextStyle(fontSize: 18, color: coupleInk)),
+                        const SizedBox(height: 12),
+                        if (comments.isEmpty)
+                          const Text('还没有留言，给另一半留一句话吧。',
+                              style: TextStyle(color: Color(0xff877267))),
+                        for (final entry in comments)
+                          Card(
+                              color: couplePaper,
+                              child: Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(entry['author_name'] as String,
+                                            style: const TextStyle(
+                                                color: coupleRose,
+                                                fontSize: 12)),
+                                        const SizedBox(height: 6),
+                                        Text(entry['content'] as String,
+                                            style:
+                                                const TextStyle(height: 1.6)),
+                                      ]))),
+                        const SizedBox(height: 14),
+                        TextField(
+                            controller: comment,
+                            enabled: !busy,
+                            minLines: 2,
+                            maxLines: 5,
+                            maxLength: 1000,
+                            decoration: const InputDecoration(
+                                hintText: '想对你说…',
+                                border: OutlineInputBorder())),
+                        Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton(
+                                onPressed: busy
+                                    ? null
+                                    : () => action(() async {
+                                          if (comment.text.trim().isEmpty)
+                                            throw const ApiException('请先写下留言');
+                                          await api.comment(memory.id,
+                                              comment.text, commentRequestId);
+                                          comment.clear();
+                                          commentRequestId =
+                                              CoupleApi.requestId();
+                                          await reload();
+                                        }),
+                                child: Text(busy ? '保存中…' : '留下这句话'))),
+                        if (actionError != null)
+                          Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Text(actionError!,
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .error))),
+                      ]),
                     ),
                   ));
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'widgets/app_layout.dart';
+
 import 'account_pages.dart';
 import 'data/api_client.dart';
 import 'data/app_database.dart' show dateKey;
@@ -493,8 +495,7 @@ class _FemaleHealthPageState extends State<FemaleHealthPage> {
             onRefresh: _reload,
             color: _rose,
             child: ListView(
-              padding:
-                  EdgeInsets.fromLTRB(wide ? 36 : 20, 22, wide ? 36 : 20, 32),
+              padding: appPagePadding(constraints.maxWidth),
               children: [
                 Row(children: [
                   Expanded(
@@ -514,7 +515,7 @@ class _FemaleHealthPageState extends State<FemaleHealthPage> {
                     style: TextStyle(fontSize: 13, color: _muted)),
                 const SizedBox(height: 20),
                 Container(
-                    padding: const EdgeInsets.all(18),
+                    padding: appCardPadding,
                     decoration: BoxDecoration(
                         color: _roseSoft,
                         borderRadius: BorderRadius.circular(18)),
@@ -704,7 +705,7 @@ class _FemaleHealthPageState extends State<FemaleHealthPage> {
     final type = prediction.typeAt(_selected);
     final past = !_selected.isAfter(healthToday());
     return Container(
-        padding: const EdgeInsets.all(16),
+        padding: appCardPadding,
         decoration: BoxDecoration(
             color: const Color(0xfffffefa),
             borderRadius: BorderRadius.circular(18)),

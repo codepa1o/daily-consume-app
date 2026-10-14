@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'widgets/app_layout.dart';
+
 import 'data/travel_planner.dart';
 import 'travel_export.dart';
 import 'travel_map.dart';
@@ -114,50 +116,55 @@ class _TravelResultViewState extends State<TravelResultView> {
     final visiblePoints = _mapDay < 0
         ? allPoints
         : allPoints.where((point) => point.dayIndex == _mapDay).toList();
-    return Column(children: [
-      _toolbar(),
-      Expanded(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_plan.isFallback) ...[
-                      _fallbackNotice(),
-                      const SizedBox(height: 12),
-                    ],
-                    RepaintBoundary(key: _overviewKey, child: _overviewCard()),
-                    const SizedBox(height: 14),
-                    _mapCard(allPoints, visiblePoints, days),
-                    if (days.isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      const _SectionHeading(
-                          icon: Icons.view_day_outlined, title: '每日行程'),
-                      const SizedBox(height: 8),
-                      for (var index = 0; index < days.length; index++) ...[
-                        RepaintBoundary(
-                          key: _dayKeys[index],
-                          child: _dayCard(index, days[index]),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                    ],
-                    if (_plan.weather.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      const _SectionHeading(
-                          icon: Icons.cloud_outlined, title: '天气信息'),
-                      const SizedBox(height: 8),
-                      RepaintBoundary(key: _weatherKey, child: _weatherCards()),
-                    ],
-                  ]),
-            ),
-          ),
-        ),
-      ),
-    ]);
+    return LayoutBuilder(
+        builder: (context, constraints) => Column(children: [
+              _toolbar(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: appPagePadding(constraints.maxWidth),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1120),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_plan.isFallback) ...[
+                              _fallbackNotice(),
+                              const SizedBox(height: 12),
+                            ],
+                            RepaintBoundary(
+                                key: _overviewKey, child: _overviewCard()),
+                            const SizedBox(height: 14),
+                            _mapCard(allPoints, visiblePoints, days),
+                            if (days.isNotEmpty) ...[
+                              const SizedBox(height: 14),
+                              const _SectionHeading(
+                                  icon: Icons.view_day_outlined, title: '每日行程'),
+                              const SizedBox(height: 8),
+                              for (var index = 0;
+                                  index < days.length;
+                                  index++) ...[
+                                RepaintBoundary(
+                                  key: _dayKeys[index],
+                                  child: _dayCard(index, days[index]),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                            ],
+                            if (_plan.weather.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              const _SectionHeading(
+                                  icon: Icons.cloud_outlined, title: '天气信息'),
+                              const SizedBox(height: 8),
+                              RepaintBoundary(
+                                  key: _weatherKey, child: _weatherCards()),
+                            ],
+                          ]),
+                    ),
+                  ),
+                ),
+              ),
+            ]));
   }
 
   Widget _toolbar() => Material(
@@ -229,7 +236,7 @@ class _TravelResultViewState extends State<TravelResultView> {
       elevation: 0,
       shape: _cardShape,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: appCardPadding,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('${_plan.city}旅行计划',
               style:

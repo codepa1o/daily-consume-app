@@ -1,0 +1,54 @@
+{
+  "version": "1.4.6+21",
+  "release_tag": "v1.4.6+21",
+  "migration": "0016_pomodoro_reminders",
+  "backup": "/var/backups/daily-consume/daily-consume-pre-1.4.6-20261014T164731Z",
+  "service": "active",
+  "nginx": "active",
+  "backend_tests_passed": 38,
+  "wechat_login_configured": false,
+  "wechat_reminder_configured": false,
+  "database_sha256": "e075fb163574145fb2d2f1e3b59d80262f09a5cb973c03a8f5a1cfb607c159e3",
+  "code_sha256": "7a61ae8f3138b36852d4fbfcbef0476649f975683b0b65b31387d7c0e0d1ed9e",
+  "source_manifest_sha256": "4bef924b3cc4c6ba1d4221c4efc82eccd533237aee316aa03f4295b8ee6b6453",
+  "https_checks": {
+    "passed": 8,
+    "checks": [
+      "TLS, authenticated invitation confirmation, shared space and one-time code",
+      "Calendar anniversary updates are shared with both members",
+      "Photo upload, safe retry, JPEG read, no-store and outsider denial",
+      "Two-photo swipe and nine-photo grid albums, order, cap and access checks",
+      "Two-author collage, partner comments, reactions and author-only deletion",
+      "Conflict calendar, private draft, comments, two-member agreement and stale-version protection",
+      "Shared album does not expose account-private life calendar",
+      "Only this run's disposable accounts and spaces removed"
+    ]
+  },
+  "new_route_checks": [
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/wechat/status",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/wechat/login",
+      "status": 503
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pomodoro/reminders",
+      "status": 401
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/chatbot/conversations/1",
+      "status": 401
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/skill-agent/conversations/1",
+      "status": 401
+    }
+  ]
+}

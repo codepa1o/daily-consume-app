@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+
+import 'widgets/app_layout.dart';
 import 'package:flutter/services.dart';
 
 import 'data/api_client.dart';
@@ -678,33 +680,28 @@ class _PomodoroCardState extends State<PomodoroCard>
       case _PomodoroStep.focus:
       case _PomodoroStep.shortBreak:
       case _PomodoroStep.longBreak:
-        return Row(children: [
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: _togglePause,
-              icon: Icon(_deadline == null
-                  ? Icons.play_arrow_rounded
-                  : Icons.pause_rounded),
-              label: Text(_deadline == null ? '继续' : '暂停'),
-            ),
+        return AppFormRow(breakpoint: 260, children: [
+          FilledButton.icon(
+            onPressed: _togglePause,
+            icon: Icon(_deadline == null
+                ? Icons.play_arrow_rounded
+                : Icons.pause_rounded),
+            label: Text(_deadline == null ? '继续' : '暂停'),
           ),
-          const SizedBox(width: 10),
-          TextButton.icon(
+          OutlinedButton.icon(
             onPressed: _step == _PomodoroStep.focus ? _endFocus : _endBreak,
             icon: const Icon(Icons.stop_rounded),
             label: Text(_step == _PomodoroStep.focus ? '结束' : '结束休息'),
           ),
         ]);
       case _PomodoroStep.focusComplete:
-        return Row(children: [
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: _startBreak,
-              icon: const Icon(Icons.coffee_outlined),
-              label: Text('开始 $_nextBreakMinutes 分钟休息'),
-            ),
+        return AppFormRow(breakpoint: 380, children: [
+          FilledButton.icon(
+            onPressed: _startBreak,
+            icon: const Icon(Icons.coffee_outlined),
+            label: Text('开始 $_nextBreakMinutes 分钟休息'),
           ),
-          TextButton(onPressed: _startFocus, child: const Text('跳过')),
+          OutlinedButton(onPressed: _startFocus, child: const Text('跳过')),
         ]);
       case _PomodoroStep.breakComplete:
         return FilledButton.icon(
@@ -803,7 +800,7 @@ class _PomodoroCardState extends State<PomodoroCard>
       color: colors.surfaceContainerLowest,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: appCardPadding,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(Icons.timer_outlined, color: colors.primary),

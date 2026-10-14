@@ -1,0 +1,28 @@
+<view class="page">
+  <view class="welcome card">
+    <image class="logo" src="../../assets/rem_logo.png" mode="aspectFit" />
+    <text class="eyebrow">日常记录</text>
+    <text class="title">{{nickname ? nickname + '，今天也照顾好自己' : '把每天过得清楚一点'}}</text>
+    <text class="muted">身体、饮食消费与健身记录</text>
+  </view>
+
+  <view wx:if="{{loading}}" class="hint">正在读取账户…</view>
+  <view wx:elif="{{error}}" class="card error-card">
+    <text>{{error}}</text>
+    <button class="text-button" bindtap="retry">重试</button>
+  </view>
+
+  <view class="section-title">日常记录</view>
+  <view class="feature card" bindtap="openBody"><text>身体数据　›</text><text class="muted">体重趋势、身高与目标体重</text></view>
+  <view class="feature card" bindtap="openDiary"><text>饮食消费　›</text><text class="muted">餐食明细、其他支出和日周月统计</text></view>
+  <view class="feature card" bindtap="openWorkout"><text>健身　›</text><text class="muted">训练计划、长按打卡、月历和统计</text></view>
+  <view class="feature card" bindtap="openJournal"><text>生活日历　›</text><text class="muted">日记、备忘、待办和跨日期搜索</text></view>
+  <view wx:if="{{female}}" class="feature card" bindtap="openHealth"><text>女性健康　›</text><text class="muted">经期记录、周期估计和每日感受</text></view>
+  <view class="feature card" bindtap="openFocus"><text>专注时刻　›</text><text class="muted">番茄钟、事项、休息设置和历史记录</text></view>
+  <view class="feature card" bindtap="openChatbot"><text>聊天机器人　›</text><text class="muted">多轮对话、知识库检索和附件</text></view>
+  <view class="feature card" bindtap="openAi"><text>AI 生活助手　›</text><text class="muted">个人分析和当日总结</text></view>
+  <view class="feature card" bindtap="openResearch"><text>科研工具　›</text><text class="muted">论文检索、PDF 下载和阅读</text></view>
+  <view class="feature card" bindtap="openSkills"><text>技能实验室　›</text><text class="muted">技能对话、运行、知识库和评测</text></view>
+  <view class="feature card" bindtap="openCouple"><text>情侣空间　›</text><text class="muted">共同回忆、照片、互动与关系反思</text></view>
+  <view class="feature card" bindtap="openTravel"><text>旅行规划　›</text><text class="muted">行程、地图、地点与路线查询</text></view>
+</view>

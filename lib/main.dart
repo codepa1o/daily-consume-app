@@ -22,6 +22,7 @@ import 'pomodoro_card.dart';
 import 'widgets/app_logo.dart';
 import 'widgets/body_data_icon.dart';
 import 'widgets/travel_planning_icon.dart';
+import 'widgets/app_layout.dart';
 import 'skill_agent_page.dart';
 import 'research_tools_page.dart';
 import 'chatbot_page.dart';
@@ -75,6 +76,43 @@ class DailyConsumeApp extends StatelessWidget {
           scaffoldBackgroundColor: paper,
           colorScheme: ColorScheme.fromSeed(seedColor: sage, surface: paper),
           fontFamily: 'sans-serif',
+          appBarTheme: const AppBarTheme(
+              centerTitle: false, titleSpacing: 20, toolbarHeight: 64),
+          cardTheme: const CardThemeData(
+            margin: EdgeInsets.zero,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(18)),
+                side: BorderSide(color: line)),
+          ),
+          filledButtonTheme: FilledButtonThemeData(
+              style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 12))),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+              style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 12))),
+          textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10))),
+          inputDecorationTheme: const InputDecorationTheme(
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
+          listTileTheme: const ListTileThemeData(
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              horizontalTitleGap: 12,
+              minLeadingWidth: 40),
+          textTheme: const TextTheme(
+              titleLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+              titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              bodyMedium: TextStyle(fontSize: 14, height: 1.45),
+              bodySmall: TextStyle(fontSize: 12, height: 1.45),
+              labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         ),
         home: UpdateHost(
             child: AuthGate(homeBuilder: (key) => AppShell(key: key))),
@@ -249,7 +287,7 @@ class _AppShellState extends State<AppShell> {
                                 'calendar' => const _DailySectionPage(
                                     title: '生活日历',
                                     subtitle: '日记与备忘录',
-                                    child: LifeCalendar()),
+                                    child: LifeCalendar(embedded: true)),
                                 'focus' => _DailySectionPage(
                                     title: '专注时刻',
                                     subtitle: '番茄钟',
@@ -361,7 +399,8 @@ class _AppShellState extends State<AppShell> {
                                     icon: Icon(Icons.psychology_alt_rounded),
                                     label: Text('技能实验室')),
                                 const NavigationRailDestination(
-                                    icon: Icon(Icons.chat_bubble_outline_rounded),
+                                    icon:
+                                        Icon(Icons.chat_bubble_outline_rounded),
                                     label: Text('聊天机器人')),
                               ],
                             ),
@@ -476,97 +515,119 @@ class _DailyModuleSelector extends StatelessWidget {
   final ValueChanged<String> onSelected;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-        bottom: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-          decoration: const BoxDecoration(
-              color: surface, border: Border(bottom: BorderSide(color: line))),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              IconButton(
-                tooltip: '我的账户与设置',
-                onPressed: () => Scaffold.of(context).openDrawer(),
-                icon: AccountAvatar(
-                    bytes: ApiClient.instance.account?.avatarBytes, radius: 17),
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text('日常',
-                    style:
-                        TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            LayoutBuilder(builder: (context, constraints) {
-              final wide = constraints.maxWidth >= modules.length * 80;
-              final columns = wide ? modules.length : 4;
-              final entryWidth =
-                  (constraints.maxWidth - (columns - 1) * 8) / columns;
-              final circleSize = wide ? 64.0 : 56.0;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Wrap(spacing: 8, runSpacing: 20, children: [
-                  for (final module in modules)
-                    SizedBox(
-                      width: entryWidth,
-                      child: Semantics(
-                        key: ValueKey('daily-module-${module.id}'),
-                        button: true,
-                        selected: selected == module.id,
-                        label: module.label,
-                        excludeSemantics: true,
-                        onTap: () => onSelected(module.id),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => onSelected(module.id),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  AnimatedContainer(
-                                    key: ValueKey('daily-circle-${module.id}'),
-                                    duration:
-                                        MediaQuery.disableAnimationsOf(context)
-                                            ? Duration.zero
-                                            : const Duration(milliseconds: 160),
-                                    width: circleSize,
-                                    height: circleSize,
-                                    decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: selected == module.id
-                                            ? sage
-                                            : sageSoft),
-                                    child: IconTheme(
-                                        data: IconThemeData(
-                                            size: 26,
-                                            color: selected == module.id
-                                                ? Colors.white
-                                                : sage),
-                                        child: Center(child: module.icon)),
-                                  ),
-                                  const SizedBox(height: 9),
-                                  Text(module.label,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                          fontSize: 13,
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) => SafeArea(
+          bottom: false,
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+                appPagePadding(constraints.maxWidth).left,
+                12,
+                appPagePadding(constraints.maxWidth).right,
+                12),
+            decoration: const BoxDecoration(
+                color: surface,
+                border: Border(bottom: BorderSide(color: line))),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                IconButton(
+                  tooltip: '我的账户与设置',
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  icon: AccountAvatar(
+                      bytes: ApiClient.instance.account?.avatarBytes,
+                      radius: 17),
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('日常',
+                      style:
+                          TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              LayoutBuilder(builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
+                final wide =
+                    constraints.maxWidth >= modules.length * 80 * scale;
+                final minEntryWidth = math.max(60.0, 52 * scale + 8);
+                final columns = wide
+                    ? modules.length
+                    : ((constraints.maxWidth + 8) / (minEntryWidth + 8))
+                        .floor()
+                        .clamp(2, 4);
+                final entryWidth =
+                    (constraints.maxWidth - (columns - 1) * 8) / columns;
+                final circleSize = wide ? 64.0 : 56.0;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Wrap(spacing: 8, runSpacing: 20, children: [
+                    for (final module in modules)
+                      SizedBox(
+                        width: entryWidth,
+                        child: Semantics(
+                          key: ValueKey('daily-module-${module.id}'),
+                          button: true,
+                          selected: selected == module.id,
+                          label: module.label,
+                          excludeSemantics: true,
+                          onTap: () => onSelected(module.id),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => onSelected(module.id),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    AnimatedContainer(
+                                      key:
+                                          ValueKey('daily-circle-${module.id}'),
+                                      duration: MediaQuery.disableAnimationsOf(
+                                              context)
+                                          ? Duration.zero
+                                          : const Duration(milliseconds: 160),
+                                      width: circleSize,
+                                      height: circleSize,
+                                      decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
                                           color: selected == module.id
                                               ? sage
-                                              : muted,
-                                          fontWeight: selected == module.id
-                                              ? FontWeight.w600
-                                              : FontWeight.w400)),
-                                ]),
+                                              : sageSoft),
+                                      child: IconTheme(
+                                          data: IconThemeData(
+                                              size: 26,
+                                              color: selected == module.id
+                                                  ? Colors.white
+                                                  : sage),
+                                          child: Center(child: module.icon)),
+                                    ),
+                                    const SizedBox(height: 9),
+                                    SizedBox(
+                                        height: MediaQuery.textScalerOf(context)
+                                                .scale(13) *
+                                            2.6,
+                                        child: Text(module.label,
+                                            maxLines: 2,
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                                fontSize: 13,
+                                                color: selected == module.id
+                                                    ? sage
+                                                    : muted,
+                                                fontWeight:
+                                                    selected == module.id
+                                                        ? FontWeight.w600
+                                                        : FontWeight.w400))),
+                                  ]),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ]),
-              );
-            }),
-          ]),
+                  ]),
+                );
+              }),
+            ]),
+          ),
         ),
       );
 }
@@ -581,11 +642,13 @@ class _DailySectionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) => ListView(
-          padding: EdgeInsets.fromLTRB(constraints.maxWidth >= 1050 ? 36 : 20,
-              22, constraints.maxWidth >= 1050 ? 36 : 20, 32),
+          padding: appPagePadding(constraints.maxWidth),
           children: [
             Text(title,
-                style: const TextStyle(fontFamily: 'serif', fontSize: 30)),
+                style: TextStyle(
+                    fontFamily: 'serif',
+                    fontSize: constraints.maxWidth >= 1050 ? 36 : 32,
+                    height: 1.2)),
             const SizedBox(height: 7),
             Text(subtitle, style: const TextStyle(color: muted, fontSize: 13)),
             const SizedBox(height: 20),
@@ -607,10 +670,18 @@ class _BodyPageState extends State<BodyPage> {
   List<BodyEntry> weights = [];
   List<BodyEntry> heights = [];
   double? goalWeight;
+  bool _weightInJin = false;
   bool loading = true;
   bool _aiBusy = false;
   String? loadError;
   int _loadVersion = 0;
+
+  String get _weightUnit => _weightInJin ? '斤' : 'kg';
+
+  double _displayWeight(double kilograms) =>
+      _weightInJin ? kilograms * 2 : kilograms;
+
+  double _kilogramsFromInput(double value) => _weightInJin ? value / 2 : value;
 
   @override
   void initState() {
@@ -728,12 +799,15 @@ class _BodyPageState extends State<BodyPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextFormField(
-                  initialValue: latest?.value.toStringAsFixed(1) ?? '',
+                  initialValue: latest == null
+                      ? ''
+                      : (weight ? _displayWeight(latest.value) : latest.value)
+                          .toStringAsFixed(1),
                   autofocus: true,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
-                    labelText: weight ? '体重（kg）' : '身高（cm）',
+                    labelText: weight ? '体重（$_weightUnit）' : '身高（cm）',
                     filled: true,
                     fillColor: paper,
                     border: OutlineInputBorder(
@@ -744,8 +818,14 @@ class _BodyPageState extends State<BodyPage> {
                     final value = double.tryParse(raw ?? '');
                     if (value == null || !value.isFinite || value <= 0)
                       return '请输入有效数值';
-                    if (weight && (value < 20 || value > 300))
-                      return '体重范围为 20–300 kg';
+                    if (weight) {
+                      final kilograms = _kilogramsFromInput(value);
+                      if (kilograms < 20 || kilograms > 300) {
+                        return _weightInJin
+                            ? '体重范围为 40–600 斤'
+                            : '体重范围为 20–300 kg';
+                      }
+                    }
                     if (!weight && (value < 80 || value > 250))
                       return '身高范围为 80–250 cm';
                     return null;
@@ -784,7 +864,7 @@ class _BodyPageState extends State<BodyPage> {
                       final success =
                           await serverAction(dialogContext, () async {
                         if (weight) {
-                          await db.saveWeight(date, value);
+                          await db.saveWeight(date, _kilogramsFromInput(value));
                         } else {
                           await db.saveHeight(date, value);
                         }
@@ -839,12 +919,14 @@ class _BodyPageState extends State<BodyPage> {
             content: Form(
               key: formKey,
               child: TextFormField(
-                initialValue: goalWeight?.toStringAsFixed(1) ?? '',
+                initialValue: goalWeight == null
+                    ? ''
+                    : _displayWeight(goalWeight!).toStringAsFixed(1),
                 autofocus: true,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: '目标体重（kg）',
+                  labelText: '目标体重（$_weightUnit）',
                   filled: true,
                   fillColor: paper,
                   border: OutlineInputBorder(
@@ -854,7 +936,12 @@ class _BodyPageState extends State<BodyPage> {
                 validator: (raw) {
                   final value = double.tryParse(raw ?? '');
                   if (value == null || !value.isFinite) return '请输入有效数值';
-                  if (value < 20 || value > 300) return '体重范围为 20–300 kg';
+                  final kilograms = _kilogramsFromInput(value);
+                  if (kilograms < 20 || kilograms > 300) {
+                    return _weightInJin
+                        ? '目标体重范围为 40–600 斤'
+                        : '目标体重范围为 20–300 kg';
+                  }
                   return null;
                 },
                 onSaved: (raw) => inputValue = double.tryParse(raw ?? ''),
@@ -875,7 +962,7 @@ class _BodyPageState extends State<BodyPage> {
                     : () {
                         if (!formKey.currentState!.validate()) return;
                         formKey.currentState!.save();
-                        persist(inputValue);
+                        persist(_kilogramsFromInput(inputValue!));
                       },
                 child: Text(saving ? '保存中…' : '保存'),
               ),
@@ -898,64 +985,67 @@ class _BodyPageState extends State<BodyPage> {
   Widget build(BuildContext context) {
     final latestWeight = weights.isEmpty ? null : weights.last;
     final latestHeight = heights.isEmpty ? null : heights.last;
-    final series = weights;
-    const unit = 'kg';
+    final series = weights
+        .map((entry) =>
+            BodyEntry(date: entry.date, value: _displayWeight(entry.value)))
+        .toList();
+    final displayGoalWeight =
+        goalWeight == null ? null : _displayWeight(goalWeight!);
     return LayoutBuilder(builder: (context, constraints) {
       final wide = constraints.maxWidth >= 1080;
       final chart = _SectionCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Expanded(
-                child: Text('体重趋势',
+          OverflowBar(
+              alignment: MainAxisAlignment.spaceBetween,
+              overflowAlignment: OverflowBarAlignment.start,
+              spacing: 12,
+              overflowSpacing: 8,
+              children: [
+                const Text('体重趋势',
                     style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
-            Text('${series.length} 条记录',
-                style: const TextStyle(color: muted, fontSize: 12)),
-            const SizedBox(width: 8),
-            TextButton.icon(
-              onPressed: editGoalWeight,
-              icon: const Icon(Icons.flag_outlined, size: 15),
-              label: Text(goalWeight == null
-                  ? '设置目标'
-                  : '目标 ${goalWeight!.toStringAsFixed(1)} kg'),
-              style: TextButton.styleFrom(
-                foregroundColor: sage,
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                minimumSize: const Size(0, 34),
-                textStyle: const TextStyle(fontSize: 11),
-              ),
-            ),
-          ]),
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    children: [
+                      Text('${series.length} 条记录',
+                          style: const TextStyle(color: muted, fontSize: 12)),
+                      TextButton.icon(
+                        onPressed: editGoalWeight,
+                        icon: const Icon(Icons.flag_outlined, size: 15),
+                        label: Text(goalWeight == null
+                            ? '设置目标'
+                            : '目标 ${displayGoalWeight!.toStringAsFixed(1)} $_weightUnit'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: sage,
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
+                          minimumSize: const Size(0, 34),
+                          textStyle: Theme.of(context)
+                              .textTheme
+                              .labelLarge
+                              ?.copyWith(fontSize: 11),
+                        ),
+                      ),
+                    ]),
+              ]),
           const SizedBox(height: 12),
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(
-              series.isEmpty
-                  ? '—'
-                  : '${series.last.value.toStringAsFixed(1)} $unit',
-              style: const TextStyle(
-                  fontFamily: 'serif', fontSize: 27, color: ink),
-            ),
-            if (series.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(formatDate(series.last.date),
-                    style: const TextStyle(color: muted, fontSize: 11)),
-              ),
-            ],
-          ]),
+          AppMetricValue(
+            value: series.isEmpty
+                ? '—'
+                : '${series.last.value.toStringAsFixed(1)} $_weightUnit',
+            valueStyle:
+                const TextStyle(fontFamily: 'serif', fontSize: 27, color: ink),
+            unit: series.isEmpty ? '' : formatDate(series.last.date),
+            unitStyle: const TextStyle(color: muted, fontSize: 12),
+          ),
           const SizedBox(height: 8),
           if (series.isEmpty)
             const _EmptyChart()
           else
-            _InteractiveWeightChart(entries: series, goalWeight: goalWeight),
-          if (series.isNotEmpty)
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text(formatDate(series.first.date),
-                  style: const TextStyle(color: muted, fontSize: 11)),
-              Text(formatDate(series.last.date),
-                  style: const TextStyle(color: muted, fontSize: 11)),
-            ]),
+            _InteractiveWeightChart(
+                entries: series,
+                goalWeight: displayGoalWeight,
+                unit: _weightUnit),
         ]),
       );
       final heightSection = _MetricCard(
@@ -973,8 +1063,10 @@ class _BodyPageState extends State<BodyPage> {
               backgroundColor: sage,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-              textStyle:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              textStyle: Theme.of(context)
+                  .textTheme
+                  .labelLarge
+                  ?.copyWith(fontSize: 12),
             ),
             child: Text(latestHeight == null ? '添加身高记录' : '更新身高记录'),
           ),
@@ -982,28 +1074,48 @@ class _BodyPageState extends State<BodyPage> {
       );
       final weightSection = _MetricCard(
         label: '最近体重',
-        value: latestWeight?.value.toStringAsFixed(1) ?? '—',
-        unit: 'kg',
+        value: latestWeight == null
+            ? '—'
+            : _displayWeight(latestWeight.value).toStringAsFixed(1),
+        unit: _weightUnit,
         caption: latestWeight == null
             ? '记录今天的体重'
             : '最近记录 · ${formatDate(latestWeight.date)}',
         emphasized: true,
+        labelTrailing: SegmentedButton<bool>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(value: false, label: Text('kg')),
+            ButtonSegment(value: true, label: Text('斤')),
+          ],
+          selected: {_weightInJin},
+          onSelectionChanged: (selection) =>
+              setState(() => _weightInJin = selection.first),
+          style: ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 9)),
+            minimumSize: const WidgetStatePropertyAll(Size(0, 30)),
+            textStyle: WidgetStatePropertyAll(Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(fontSize: 10, fontWeight: FontWeight.w600)),
+          ),
+        ),
         action: SizedBox(
           width: 152,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton(
-              onPressed: () => editValue(weight: true),
-              style: FilledButton.styleFrom(
-                backgroundColor: sage,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-                textStyle:
-                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-              child: const Text('记录今日体重'),
+          child: FilledButton(
+            onPressed: () => editValue(weight: true),
+            style: FilledButton.styleFrom(
+              backgroundColor: sage,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+              textStyle: Theme.of(context)
+                  .textTheme
+                  .labelLarge
+                  ?.copyWith(fontSize: 12),
             ),
+            child: const Text('记录今日体重'),
           ),
         ),
       );
@@ -1022,7 +1134,7 @@ class _BodyPageState extends State<BodyPage> {
 
       return SafeArea(
         child: ListView(
-          padding: EdgeInsets.fromLTRB(wide ? 36 : 20, 22, wide ? 36 : 20, 32),
+          padding: appPagePadding(constraints.maxWidth),
           children: [
             const _Kicker('身体记录'),
             const SizedBox(height: 7),
@@ -1896,42 +2008,19 @@ class _DiaryPageState extends State<DiaryPage> {
       final dailyRecords = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(children: [
-            IconButton(
-              tooltip: '前一天',
-              onPressed: () =>
-                  setDate(selectedDate.subtract(const Duration(days: 1))),
-              icon: const Icon(Icons.chevron_left_rounded),
-            ),
-            Expanded(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: chooseDate,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  child: Column(children: [
-                    Text(formatDate(selectedDate, year: true),
-                        style:
-                            const TextStyle(fontFamily: 'serif', fontSize: 18)),
-                    const SizedBox(height: 3),
-                    Text(
-                        '${weekdayName(selectedDate.weekday)} · ${isToday ? '今天' : '历史记录'}',
-                        style: const TextStyle(color: muted, fontSize: 12)),
-                  ]),
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: '后一天',
-              onPressed: isToday
-                  ? null
-                  : () => setDate(selectedDate.add(const Duration(days: 1))),
-              icon: const Icon(Icons.chevron_right_rounded),
-            ),
-            TextButton(
-                onPressed: () => setDate(DateTime.now()),
-                child: const Text('今天')),
-          ]),
+          AppDateNavigator(
+            title: formatDate(selectedDate, year: true),
+            isToday: isToday,
+            subtitle:
+                '${weekdayName(selectedDate.weekday)} · ${isToday ? '今天' : '历史记录'}',
+            onPrevious: () =>
+                setDate(selectedDate.subtract(const Duration(days: 1))),
+            onNext: isToday
+                ? null
+                : () => setDate(selectedDate.add(const Duration(days: 1))),
+            onChoose: chooseDate,
+            onToday: () => setDate(DateTime.now()),
+          ),
           const SizedBox(height: 8),
           _DailySpendCard(
             totalCents: dayTotal,
@@ -2018,7 +2107,7 @@ class _DiaryPageState extends State<DiaryPage> {
 
       return SafeArea(
         child: ListView(
-          padding: EdgeInsets.fromLTRB(wide ? 36 : 20, 22, wide ? 36 : 20, 32),
+          padding: appPagePadding(constraints.maxWidth),
           children: [
             const _Kicker('饮食日记'),
             const SizedBox(height: 7),
@@ -2026,7 +2115,7 @@ class _DiaryPageState extends State<DiaryPage> {
                 style: TextStyle(
                     color: ink,
                     fontFamily: 'serif',
-                    fontSize: wide ? 36 : 31,
+                    fontSize: wide ? 36 : 32,
                     letterSpacing: -1)),
             const SizedBox(height: 16),
             if (wide)
@@ -2069,6 +2158,7 @@ class _MetricCard extends StatelessWidget {
     required this.unit,
     required this.caption,
     required this.action,
+    this.labelTrailing,
     this.emphasized = false,
   });
   final String label;
@@ -2076,61 +2166,64 @@ class _MetricCard extends StatelessWidget {
   final String unit;
   final String caption;
   final Widget action;
+  final Widget? labelTrailing;
   final bool emphasized;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(14, 14, 12, 13),
+        padding: appCardPadding,
         decoration: BoxDecoration(
           color: emphasized ? sageSoft : const Color(0xfff0efe8),
-          borderRadius: BorderRadius.circular(17),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final details = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: muted, fontSize: 12)),
-                const SizedBox(height: 9),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: Text(value,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontFamily: 'serif', fontSize: 30, height: 1)),
-                    ),
-                    const SizedBox(width: 4),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(unit,
-                          style: const TextStyle(color: muted, fontSize: 11)),
-                    ),
-                  ],
+                AppMetricValue(
+                  value: value,
+                  unit: unit,
+                  valueStyle: const TextStyle(
+                      fontFamily: 'serif', fontSize: 30, height: 1.1),
+                  unitStyle: const TextStyle(color: muted, fontSize: 12),
                 ),
                 const SizedBox(height: 6),
                 Text(caption,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: muted, fontSize: 11)),
               ],
             );
-            if (constraints.maxWidth < 390) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  details,
-                  const SizedBox(height: 12),
-                  Align(alignment: Alignment.centerRight, child: action),
-                ],
-              );
-            }
-            return Row(
+            final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: details),
-                const SizedBox(width: 10),
-                action,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: Row(children: [
+                    Expanded(
+                        child: Text(label,
+                            style:
+                                const TextStyle(color: muted, fontSize: 12))),
+                    if (labelTrailing != null) labelTrailing!,
+                  ]),
+                ),
+                const SizedBox(height: 8),
+                if (constraints.maxWidth < 300 * scale)
+                  Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        details,
+                        const SizedBox(height: 16),
+                        Align(alignment: Alignment.centerRight, child: action),
+                      ])
+                else
+                  Row(children: [
+                    Expanded(child: details),
+                    const SizedBox(width: 16),
+                    action,
+                  ]),
               ],
             );
           },
@@ -2144,8 +2237,7 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding:
-            EdgeInsets.all(MediaQuery.sizeOf(context).width >= 1100 ? 20 : 15),
+        padding: appCardPadding,
         decoration: BoxDecoration(
           color: surface,
           borderRadius: BorderRadius.circular(18),
@@ -2179,10 +2271,11 @@ const _weightChartRight = 4.0;
 
 class _InteractiveWeightChart extends StatefulWidget {
   const _InteractiveWeightChart(
-      {required this.entries, required this.goalWeight});
+      {required this.entries, required this.goalWeight, required this.unit});
 
   final List<BodyEntry> entries;
   final double? goalWeight;
+  final String unit;
 
   @override
   State<_InteractiveWeightChart> createState() =>
@@ -2222,18 +2315,17 @@ class _InteractiveWeightChartState extends State<_InteractiveWeightChart> {
   @override
   Widget build(BuildContext context) {
     final entries = _visibleEntries;
-    final selected = _selectedIndex == null
+    final selectedIndex = _selectedIndex == null || entries.isEmpty
         ? null
-        : entries.isEmpty
-            ? null
-            : entries[_selectedIndex!.clamp(0, entries.length - 1).toInt()];
+        : _selectedIndex!.clamp(0, entries.length - 1).toInt();
+    final selected = selectedIndex == null ? null : entries[selectedIndex];
     final rangeLabel = _rangeDays == 0 ? '全部' : '近 $_rangeDays 天';
     final semanticsValue = [
       selected == null
           ? '$rangeLabel，共 ${entries.length} 条记录'
-          : '${formatDate(selected.date)}，${selected.value.toStringAsFixed(1)} 千克',
+          : '${formatDate(selected.date)}，${selected.value.toStringAsFixed(1)} ${widget.unit}',
       if (widget.goalWeight != null)
-        '目标 ${widget.goalWeight!.toStringAsFixed(1)} 千克',
+        '目标 ${widget.goalWeight!.toStringAsFixed(1)} ${widget.unit}',
     ].join('，');
     return Focus(
       onKeyEvent: (node, event) {
@@ -2255,7 +2347,7 @@ class _InteractiveWeightChartState extends State<_InteractiveWeightChart> {
         button: true,
         label: '体重趋势图',
         value: semanticsValue,
-        hint: '点击数据点，或聚焦后使用左右方向键浏览记录',
+        hint: '左右滑动、悬停或点击图表查看记录，也可使用左右方向键浏览',
         child: Column(children: [
           Row(children: [
             Text('$rangeLabel · ${entries.length} 条',
@@ -2291,7 +2383,7 @@ class _InteractiveWeightChartState extends State<_InteractiveWeightChart> {
             ),
           ]),
           SizedBox(
-            height: 180,
+            height: 200,
             child: LayoutBuilder(builder: (context, constraints) {
               return MouseRegion(
                 cursor: SystemMouseCursors.click,
@@ -2302,15 +2394,25 @@ class _InteractiveWeightChartState extends State<_InteractiveWeightChart> {
                   behavior: HitTestBehavior.opaque,
                   onTapDown: (event) =>
                       _selectAt(event.localPosition, constraints.maxWidth),
+                  onHorizontalDragStart: (event) =>
+                      _selectAt(event.localPosition, constraints.maxWidth),
+                  onHorizontalDragUpdate: (event) =>
+                      _selectAt(event.localPosition, constraints.maxWidth),
                   child: entries.isEmpty
                       ? const Center(child: Text('此时间范围内没有体重记录'))
                       : CustomPaint(
                           painter: _TrendPainter(
                             values:
                                 entries.map((entry) => entry.value).toList(),
+                            dates: entries.map((entry) => entry.date).toList(),
                             color: sage,
                             goalWeight: widget.goalWeight,
-                            selectedIndex: _selectedIndex,
+                            unit: widget.unit,
+                            fontFamily: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.fontFamily,
+                            selectedIndex: selectedIndex,
                           ),
                           child: const SizedBox.expand(),
                         ),
@@ -2318,21 +2420,15 @@ class _InteractiveWeightChartState extends State<_InteractiveWeightChart> {
               );
             }),
           ),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 140),
-            child: SizedBox(
-              key: ValueKey(selected?.date),
-              width: double.infinity,
-              child: Text(
-                selected == null
-                    ? widget.goalWeight == null
-                        ? '悬停或点击图表查看记录'
-                        : '虚线表示目标体重 · 悬停或点击查看记录'
-                    : '${formatDate(selected.date)}　${selected.value.toStringAsFixed(1)} kg',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: sage, fontSize: 12, fontWeight: FontWeight.w600),
-              ),
+          SizedBox(
+            width: double.infinity,
+            child: Text(
+              widget.goalWeight == null
+                  ? '悬停或左右滑动查看记录'
+                  : '虚线表示目标体重 · 悬停或左右滑动查看记录',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: sage, fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
         ]),
@@ -2344,26 +2440,33 @@ class _InteractiveWeightChartState extends State<_InteractiveWeightChart> {
 class _TrendPainter extends CustomPainter {
   const _TrendPainter(
       {required this.values,
+      required this.dates,
       required this.color,
+      required this.unit,
+      this.fontFamily,
       this.goalWeight,
       this.selectedIndex});
   final List<double> values;
+  final List<DateTime> dates;
   final Color color;
+  final String unit;
+  final String? fontFamily;
   final double? goalWeight;
   final int? selectedIndex;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const top = 12.0;
-    const bottom = 11.0;
+    const top = 42.0;
+    const bottom = 30.0;
     final chart = Rect.fromLTRB(_weightChartLeft, top,
         size.width - _weightChartRight, size.height - bottom);
-    final axisTextStyle = const TextStyle(color: muted, fontSize: 10);
-    final unit = TextPainter(
-      text: TextSpan(text: 'kg', style: axisTextStyle),
+    final axisTextStyle =
+        TextStyle(color: muted, fontSize: 10, fontFamily: fontFamily);
+    final unitLabel = TextPainter(
+      text: TextSpan(text: unit, style: axisTextStyle),
       textDirection: TextDirection.ltr,
     )..layout();
-    unit.paint(canvas, Offset(0, 0));
+    unitLabel.paint(canvas, const Offset(0, 7));
     if (values.isEmpty) return;
 
     final allValues = [
@@ -2423,6 +2526,7 @@ class _TrendPainter extends CustomPainter {
           chart.bottom - (values[index] - low) / (high - low) * chart.height;
       return Offset(x, y);
     });
+    _paintDateLabels(canvas, chart, dates, selectedIndex);
     final path = Path()..moveTo(points.first.dx, points.first.dy);
     for (final point in points.skip(1)) {
       path.lineTo(point.dx, point.dy);
@@ -2468,12 +2572,124 @@ class _TrendPainter extends CustomPainter {
             ..strokeWidth = 1);
       canvas.drawCircle(point, 6, Paint()..color = surface);
       canvas.drawCircle(point, 4, Paint()..color = color);
+      _paintWeightTooltip(canvas, size, point,
+          '${values[selectedIndex!].toStringAsFixed(1)} $unit');
     }
+  }
+
+  void _paintDateLabels(
+      Canvas canvas, Rect chart, List<DateTime> dates, int? selectedIndex) {
+    if (dates.isEmpty) return;
+    final maxLabels = math.max(2, (chart.width / 52).floor());
+    final interval = math.max(1, (dates.length / maxLabels).ceil());
+    final indices = <int>{
+      if (selectedIndex != null) selectedIndex,
+      0,
+      for (var index = interval; index < dates.length - 1; index += interval)
+        index,
+      dates.length - 1,
+    };
+    final showYear = dates.first.year != dates.last.year;
+    final textPainters = <int, TextPainter>{};
+    for (final index in indices) {
+      final selected = index == selectedIndex;
+      textPainters[index] = TextPainter(
+        text: TextSpan(
+          text: formatDate(dates[index], year: showYear),
+          style: TextStyle(
+            color: selected ? sage : muted,
+            fontSize: selected ? 11 : 10,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+            fontFamily: fontFamily,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+    }
+    double centerFor(int index) => dates.length == 1
+        ? chart.center.dx
+        : chart.left + chart.width * index / (dates.length - 1);
+    double leftFor(int index, TextPainter painter) {
+      if (dates.length == 1) return chart.center.dx - painter.width / 2;
+      if (index == 0) return chart.left;
+      if (index == dates.length - 1) {
+        return math.max(chart.left, chart.right - painter.width).toDouble();
+      }
+      final maxLeft = math.max(chart.left, chart.right - painter.width);
+      return (centerFor(index) - painter.width / 2)
+          .clamp(chart.left, maxLeft)
+          .toDouble();
+    }
+
+    final priority = [
+      if (selectedIndex != null && indices.contains(selectedIndex))
+        selectedIndex,
+      0,
+      dates.length - 1,
+      ...indices.where((index) =>
+          index != 0 && index != dates.length - 1 && index != selectedIndex),
+    ];
+    final visible = <int>[];
+    for (final index in priority.toSet()) {
+      final painter = textPainters[index]!;
+      final left = leftFor(index, painter);
+      final overlaps = visible.any((other) {
+        final otherPainter = textPainters[other]!;
+        final otherLeft = leftFor(other, otherPainter);
+        return left < otherLeft + otherPainter.width + 5 &&
+            left + painter.width + 5 > otherLeft;
+      });
+      if (!overlaps) visible.add(index);
+    }
+    for (final index in visible) {
+      final painter = textPainters[index]!;
+      final left = leftFor(index, painter);
+      painter.paint(canvas, Offset(left, chart.bottom + 7));
+    }
+  }
+
+  void _paintWeightTooltip(
+      Canvas canvas, Size size, Offset point, String value) {
+    final text = TextPainter(
+      text: TextSpan(
+        text: value,
+        style: TextStyle(
+            color: ink,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            fontFamily: fontFamily),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    const horizontalPadding = 8.0;
+    const verticalPadding = 4.0;
+    const gap = 6.0;
+    final width = text.width + horizontalPadding * 2;
+    final height = text.height + verticalPadding * 2;
+    final maxLeft = math.max(4.0, size.width - width - 4).toDouble();
+    final left = (point.dx - width / 2).clamp(4.0, maxLeft).toDouble();
+    final top = math.max(0.0, point.dy - height - gap).toDouble();
+    final bubble = RRect.fromRectAndRadius(
+      Rect.fromLTWH(left, top, width, height),
+      const Radius.circular(8),
+    );
+    canvas.drawRRect(bubble, Paint()..color = surface);
+    canvas.drawRRect(
+      bubble,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+    text.paint(canvas, Offset(left + horizontalPadding, top + verticalPadding));
   }
 
   @override
   bool shouldRepaint(covariant _TrendPainter oldDelegate) =>
       oldDelegate.color != color ||
+      oldDelegate.fontFamily != fontFamily ||
+      !_sameDates(oldDelegate.dates, dates) ||
+      oldDelegate.unit != unit ||
       oldDelegate.goalWeight != goalWeight ||
       oldDelegate.selectedIndex != selectedIndex ||
       !_sameValues(oldDelegate.values, values);
@@ -2497,6 +2713,14 @@ bool _sameValues(List<double> first, List<double> second) {
   return true;
 }
 
+bool _sameDates(List<DateTime> first, List<DateTime> second) {
+  if (first.length != second.length) return false;
+  for (var index = 0; index < first.length; index++) {
+    if (first[index] != second[index]) return false;
+  }
+  return true;
+}
+
 class _DailySpendCard extends StatelessWidget {
   const _DailySpendCard({
     required this.totalCents,
@@ -2509,9 +2733,9 @@ class _DailySpendCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        padding: appCardPadding,
         decoration: BoxDecoration(
-            color: sageSoft, borderRadius: BorderRadius.circular(17)),
+            color: sageSoft, borderRadius: BorderRadius.circular(18)),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -2556,7 +2780,7 @@ class _OtherExpenseCard extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(13, 9, 5, 9),
         decoration: BoxDecoration(
           color: surface,
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: line),
         ),
         child: Row(
@@ -2612,7 +2836,7 @@ class _MealCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(13, 12, 10, 9),
       decoration: BoxDecoration(
           color: surface,
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: line)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2661,7 +2885,10 @@ class _MealCard extends StatelessWidget {
               style: TextButton.styleFrom(
                 foregroundColor: sage,
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                textStyle: const TextStyle(fontSize: 10),
+                textStyle: Theme.of(context)
+                    .textTheme
+                    .labelLarge
+                    ?.copyWith(fontSize: 10),
                 visualDensity: VisualDensity.compact,
               ),
             ),
@@ -2835,10 +3062,10 @@ class _DailyExpensePieCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+        padding: appCardPadding,
         decoration: BoxDecoration(
           color: const Color(0xfff0efe8),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2864,49 +3091,47 @@ class _DailyExpensePieCard extends StatelessWidget {
                 ),
               )
             else
-              Row(
+              AppFormRow(
+                breakpoint: 420,
                 children: [
-                  SizedBox(
+                  Center(
+                      child: SizedBox(
                     width: 116,
                     height: 116,
                     child: CustomPaint(
                       painter: _ExpensePiePainter(slices),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        for (final slice in slices)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 3),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                      color: slice.color,
-                                      shape: BoxShape.circle),
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(slice.label,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                          color: muted, fontSize: 10)),
-                                ),
-                                const SizedBox(width: 5),
-                                Text(formatMoney(slice.cents),
+                  )),
+                  Column(
+                    children: [
+                      for (final slice in slices)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                    color: slice.color, shape: BoxShape.circle),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(slice.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600)),
-                              ],
-                            ),
+                                        color: muted, fontSize: 10)),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(formatMoney(slice.cents),
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600)),
+                            ],
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -3009,10 +3234,10 @@ class _StatisticsCardState extends State<_StatisticsCard> {
         : widget.chartValues[
             _selectedIndex.clamp(0, widget.chartValues.length - 1).toInt()];
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
+      padding: appCardPadding,
       decoration: BoxDecoration(
           color: const Color(0xfff0efe8),
-          borderRadius: BorderRadius.circular(16)),
+          borderRadius: BorderRadius.circular(18)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3027,18 +3252,11 @@ class _StatisticsCardState extends State<_StatisticsCard> {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(formatMoney(widget.totalCents),
-                  style: const TextStyle(fontFamily: 'serif', fontSize: 23)),
-              const SizedBox(width: 7),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(label,
-                    style: const TextStyle(color: muted, fontSize: 9)),
-              ),
-            ],
+          AppMetricValue(
+            value: formatMoney(widget.totalCents),
+            unit: label,
+            valueStyle: const TextStyle(fontFamily: 'serif', fontSize: 23),
+            unitStyle: const TextStyle(color: muted, fontSize: 12),
           ),
           const SizedBox(height: 8),
           LayoutBuilder(builder: (context, constraints) {
@@ -3096,15 +3314,22 @@ class _StatisticsCardState extends State<_StatisticsCard> {
             child: Divider(height: 1, color: Color(0xffe2e0d7)),
           ),
           const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _Breakdown(label: '早餐', cents: widget.breakfastCents),
-              _Breakdown(label: '午餐', cents: widget.lunchCents),
-              _Breakdown(label: '晚餐', cents: widget.dinnerCents),
-              _Breakdown(label: '其他', cents: widget.otherExpenseCents),
-            ],
-          ),
+          LayoutBuilder(builder: (context, constraints) {
+            final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+            final columns = constraints.maxWidth >= 360 * scale ? 4 : 2;
+            final width = (constraints.maxWidth - (columns - 1) * 16) / columns;
+            return Wrap(spacing: 16, runSpacing: 16, children: [
+              for (final item in [
+                ('早餐', widget.breakfastCents),
+                ('午餐', widget.lunchCents),
+                ('晚餐', widget.dinnerCents),
+                ('其他', widget.otherExpenseCents),
+              ])
+                SizedBox(
+                    width: width,
+                    child: _Breakdown(label: item.$1, cents: item.$2)),
+            ]);
+          }),
         ],
       ),
     );

@@ -1,0 +1,42 @@
+<view class="page">
+  <view class="card calendar">
+    <view class="month-heading"><text bindtap="previousMonth">‹</text><text>{{monthTitle}}</text><text bindtap="nextMonth">›</text></view>
+    <view class="weekdays"><text wx:for="{{weekdays}}" wx:key="*this">{{item}}</text></view>
+    <view class="days"><view wx:for="{{cells}}" wx:key="date" class="day-cell {{item.selected ? 'selected' : ''}} {{item.future ? 'future' : ''}}" data-date="{{item.date}}" bindtap="selectDate"><text>{{item.day}}</text><view wx:if="{{item.summary}}" class="dots"><text wx:if="{{item.summary.diaries}}">日</text><text wx:if="{{item.summary.memos}}">备</text><text wx:if="{{item.summary.pending}}">待</text></view></view></view>
+    <view class="date-nav"><text bindtap="previousDay">‹ 前一天</text><text>{{date}}</text><text class="{{date === today ? 'disabled' : ''}}" bindtap="nextDay">后一天 ›</text></view>
+  </view>
+
+  <view class="card search">
+    <input placeholder="搜索日记和备忘" value="{{searchQuery}}" bindinput="onSearchInput" confirm-type="search" bindconfirm="search" />
+    <button class="small" loading="{{searching}}" bindtap="search">搜索</button>
+    <text wx:if="{{searchQuery}}" class="clear" bindtap="clearSearch">清除</text>
+  </view>
+
+  <view wx:if="{{error}}" class="card error"><text>{{error}}</text><button class="link" bindtap="retry">刷新</button></view>
+  <view wx:if="{{loading}}" class="hint">正在读取日历…</view>
+
+  <view wx:if="{{searchQuery && searchTotal}}" class="card"><text class="section-title">搜索结果（{{searchTotal}}）</text><view wx:for="{{searchResults}}" wx:key="id" class="entry" data-id="{{item.id}}" bindtap="openSearchResult"><text class="entry-title">{{item.title || item.content}}</text><text class="muted">{{item.entry_date}} · {{item.kind === 'diary' ? '日记' : item.is_todo ? '待办' : '备忘'}}</text></view><button wx:if="{{searchHasMore}}" class="link" loading="{{searching}}" bindtap="moreSearchResults">加载更多</button></view>
+
+  <view class="card entries">
+    <view class="section-row"><text class="section-title">{{date}} 的记录</text><button class="small" bindtap="newEntry">＋ 新建</button></view>
+    <view wx:for="{{entries}}" wx:key="id" class="entry">
+      <view class="entry-main" data-id="{{item.id}}" bindtap="editEntry"><text class="entry-title">{{item.title || item.content}}</text><text class="muted">{{item.kind === 'diary' ? '日记' : item.is_todo ? item.completed ? '已完成' : '待办' : '备忘'}} · {{item.content}}</text></view>
+      <switch wx:if="{{item.is_todo}}" checked="{{item.completed}}" color="#64765a" data-id="{{item.id}}" bindchange="toggleCompleted" />
+      <text class="remove" data-id="{{item.id}}" bindtap="deleteEntry">×</text>
+    </view>
+    <text wx:if="{{!entries.length}}" class="muted">这一天还没有记录</text>
+  </view>
+
+  <view wx:if="{{editorVisible}}" class="overlay">
+    <view class="editor card">
+      <view class="section-row"><text class="section-title">{{editingId ? '编辑记录' : '新建记录'}}</text><text class="close" bindtap="closeEditor">×</text></view>
+      <picker mode="date" value="{{editDate}}" start="2000-01-01" end="{{kind === 'diary' ? today : lastDate}}" bindchange="onEditDate"><view class="picker">日期　{{editDate}}　›</view></picker>
+      <view class="kind-row"><text class="kind {{kind === 'diary' ? 'chosen' : ''}}" data-kind="diary" bindtap="setKind">日记</text><text class="kind {{kind === 'memo' ? 'chosen' : ''}}" data-kind="memo" bindtap="setKind">备忘</text></view>
+      <input wx:if="{{kind === 'memo'}}" class="field" placeholder="标题（可选）" maxlength="100" value="{{title}}" bindinput="onTitle" />
+      <textarea class="field content" placeholder="{{kind === 'diary' ? '写下今天的记录…' : '备忘内容'}}" maxlength="20000" value="{{content}}" bindinput="onContent" />
+      <view wx:if="{{kind === 'memo'}}" class="switch-row"><text>设为待办</text><switch checked="{{isTodo}}" color="#64765a" bindchange="setTodo" /></view>
+      <view wx:if="{{kind === 'memo' && isTodo}}" class="switch-row"><text>已完成</text><switch checked="{{completed}}" color="#64765a" bindchange="setCompleted" /></view>
+      <view class="buttons"><button class="secondary" bindtap="closeEditor">取消</button><button class="primary" loading="{{saving}}" disabled="{{saving}}" bindtap="saveEntry">保存</button></view>
+    </view>
+  </view>
+</view>

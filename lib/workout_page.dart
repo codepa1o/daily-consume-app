@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+
+import 'widgets/app_layout.dart';
 import 'package:flutter/services.dart';
 
 import 'data/app_database.dart';
@@ -163,8 +165,8 @@ class _WorkoutPageState extends State<WorkoutPage> {
   }
 
   void _addWorkoutAction() {
-    setState(() => _selectedActions.add(
-        _WorkoutActionDraft(id: _nextActionDraftId++)));
+    setState(() =>
+        _selectedActions.add(_WorkoutActionDraft(id: _nextActionDraftId++)));
   }
 
   void _removeWorkoutAction(int id) {
@@ -220,8 +222,8 @@ class _WorkoutPageState extends State<WorkoutPage> {
         _selectedDate.isAfter(_dateOnly(DateTime.now()))) return;
     final actions = _workoutActionsToSave();
     if (actions == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('请填写完整动作名称、组数和每组次数，或删除该动作。')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请填写完整动作名称、组数和每组次数，或删除该动作。')));
       return;
     }
     setState(() => _saving = true);
@@ -514,8 +516,7 @@ class _WorkoutPageState extends State<WorkoutPage> {
       return Stack(children: [
         SafeArea(
           child: ListView(
-            padding:
-                EdgeInsets.fromLTRB(wide ? 36 : 20, 22, wide ? 36 : 20, 32),
+            padding: appPagePadding(constraints.maxWidth),
             children: [
               const Text('训练记录',
                   style: TextStyle(
@@ -711,45 +712,18 @@ class _WorkoutPageState extends State<WorkoutPage> {
         ),
       );
 
-  Widget _selectedDateHeader() => Row(
-        children: [
-          IconButton(
-            onPressed: () =>
-                _selectDate(_selectedDate.subtract(const Duration(days: 1))),
-            icon: const Icon(Icons.chevron_left_rounded),
-            visualDensity: VisualDensity.compact,
-          ),
-          Expanded(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: _chooseDate,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Column(
-                  children: [
-                    Text(_formatDate(_selectedDate),
-                        style:
-                            const TextStyle(fontFamily: 'serif', fontSize: 17)),
-                    const SizedBox(height: 3),
-                    Text(
-                        '${_weekdayName(_selectedDate.weekday)} · ${_isToday ? '今天' : '训练记录'}',
-                        style: const TextStyle(color: _muted, fontSize: 10)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: _isToday
-                ? null
-                : () => _selectDate(_selectedDate.add(const Duration(days: 1))),
-            icon: const Icon(Icons.chevron_right_rounded),
-            visualDensity: VisualDensity.compact,
-          ),
-          TextButton(
-              onPressed: () => _selectDate(DateTime.now()),
-              child: const Text('今天')),
-        ],
+  Widget _selectedDateHeader() => AppDateNavigator(
+        title: _formatDate(_selectedDate),
+        isToday: _isToday,
+        subtitle:
+            '${_weekdayName(_selectedDate.weekday)} · ${_isToday ? '今天' : '训练记录'}',
+        onPrevious: () =>
+            _selectDate(_selectedDate.subtract(const Duration(days: 1))),
+        onNext: _isToday
+            ? null
+            : () => _selectDate(_selectedDate.add(const Duration(days: 1))),
+        onChoose: _chooseDate,
+        onToday: () => _selectDate(DateTime.now()),
       );
 
   Widget _musclePicker(WorkoutLog? log) {
@@ -936,8 +910,8 @@ class _WorkoutPageState extends State<WorkoutPage> {
             Row(children: [
               const Expanded(
                   child: Text('动作（选填）',
-                      style:
-                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                      style: TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600))),
               TextButton.icon(
                 onPressed:
                     _selectedActions.length >= 20 ? null : _addWorkoutAction,
@@ -1127,17 +1101,21 @@ class _WorkoutPageState extends State<WorkoutPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        OverflowBar(
+          alignment: MainAxisAlignment.spaceBetween,
+          overflowAlignment: OverflowBarAlignment.start,
+          spacing: 12,
+          overflowSpacing: 8,
           children: [
-            Text('${logs.length}',
-                style: const TextStyle(
-                    color: _ink, fontFamily: 'serif', fontSize: 27)),
-            const Padding(
-                padding: EdgeInsets.only(left: 4, bottom: 4),
-                child: Text('天已打卡',
-                    style: TextStyle(color: _muted, fontSize: 10))),
-            const Spacer(),
+            SizedBox(
+                width: 140,
+                child: AppMetricValue(
+                  value: '${logs.length}',
+                  unit: '天已打卡',
+                  valueStyle: const TextStyle(
+                      color: _ink, fontFamily: 'serif', fontSize: 27),
+                  unitStyle: const TextStyle(color: _muted, fontSize: 12),
+                )),
             Text('$label · ${_formatShort(start)} — ${_formatShort(end)}',
                 style: const TextStyle(color: _muted, fontSize: 9)),
           ],
@@ -1553,7 +1531,7 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
+        padding: appCardPadding,
         decoration: BoxDecoration(
             color: _surface,
             borderRadius: BorderRadius.circular(18),

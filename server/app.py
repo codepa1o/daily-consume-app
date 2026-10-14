@@ -1,11 +1,16 @@
 """Daily Consume HTTPS API. Every business query is scoped to its session owner."""
 import base64
+import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
+import threading
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -39,6 +44,11 @@ from skill_agent.router import (
 password_hasher = PasswordHasher()
 dummy_password_hash = password_hasher.hash(secrets.token_urlsafe(32))
 security = HTTPBearer(auto_error=False)
+reminder_logger = logging.getLogger('daily_consume.pomodoro_reminders')
+_wechat_token_lock = threading.Lock()
+_wechat_access_token_value = ''
+_wechat_access_token_expires_at = 0.0
+_pomodoro_reminder_task = None
 DEFAULT_MUSCLES = {'胸': 0xffc87962, '背': 0xff6d8fa4, '肩': 0xffc59c4d,
                    '腿': 0xff718665, '手臂': 0xff9b7ca0}
 
@@ -70,7 +80,7 @@ def plain_ai_text(value):
     return value.strip()
 
 
-app = FastAPI(title='日常 API', version='1.4.4',
+app = FastAPI(title='日常 API', version='1.4.6',
               docs_url=None, redoc_url=None, openapi_url=None)
 
 web_origins = [
@@ -129,6 +139,160 @@ class Registration(Credentials):
     nickname: str = Field(default='', max_length=32)
 
 
+class WechatCode(Input):
+    code: str = Field(min_length=1, max_length=256)
+
+
+def wechat_identity(code):
+    app_id = os.environ.get('WECHAT_MINIPROGRAM_APPID', '').strip()
+    app_secret = os.environ.get('WECHAT_MINIPROGRAM_APPSECRET', '').strip()
+    if not app_id or not app_secret:
+        raise HTTPException(503, '微信登录尚未配置')
+    query = urllib.parse.urlencode({
+        'appid': app_id,
+        'secret': app_secret,
+        'js_code': code,
+        'grant_type': 'authorization_code',
+    })
+    request = urllib.request.Request(
+        f'https://api.weixin.qq.com/sns/jscode2session?{query}',
+        headers={'Accept': 'application/json'},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            result = json.loads(response.read())
+    except (urllib.error.URLError, TimeoutError, ValueError):
+        raise HTTPException(502, '微信登录服务暂不可用，请重试') from None
+    if not isinstance(result, dict) or result.get('errcode') or not isinstance(result.get('openid'), str):
+        raise HTTPException(401, '微信登录凭证无效，请重试')
+    return app_id, result['openid']
+
+
+def _wechat_access_token():
+    global _wechat_access_token_value, _wechat_access_token_expires_at
+    with _wechat_token_lock:
+        if _wechat_access_token_value and time.monotonic() < _wechat_access_token_expires_at:
+            return _wechat_access_token_value
+        app_id = os.environ.get('WECHAT_MINIPROGRAM_APPID', '').strip()
+        app_secret = os.environ.get('WECHAT_MINIPROGRAM_APPSECRET', '').strip()
+        if not app_id or not app_secret:
+            raise RuntimeError('微信服务端未配置')
+        query = urllib.parse.urlencode({
+            'grant_type': 'client_credential', 'appid': app_id, 'secret': app_secret,
+        })
+        request = urllib.request.Request(
+            f'https://api.weixin.qq.com/cgi-bin/token?{query}',
+            headers={'Accept': 'application/json'},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            result = json.loads(response.read())
+        token = result.get('access_token') if isinstance(result, dict) else None
+        if not isinstance(token, str) or not token:
+            raise RuntimeError('微信服务端令牌获取失败')
+        _wechat_access_token_value = token
+        _wechat_access_token_expires_at = time.monotonic() + max(60, int(result.get('expires_in', 7200)) - 300)
+        return token
+
+
+def _pomodoro_template_data(row):
+    raw_fields = os.environ.get('WECHAT_POMODORO_TEMPLATE_FIELDS', '')
+    try:
+        fields = json.loads(raw_fields) if raw_fields else {
+            'thing1': 'task', 'time2': 'deadline', 'thing3': 'phase',
+        }
+    except ValueError:
+        raise RuntimeError('番茄钟订阅模板字段配置无效') from None
+    if not isinstance(fields, dict) or not fields:
+        raise RuntimeError('番茄钟订阅模板字段尚未配置')
+    phase = {
+        'focus': '专注时间结束',
+        'shortBreak': '短休息结束',
+        'longBreak': '长休息结束',
+    }[row['phase']]
+    values = {
+        'task': row['task_title'] or '番茄钟',
+        'phase': phase,
+        'deadline': row['trigger_at'].astimezone(ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M'),
+    }
+    if any(key not in values or not isinstance(field, str) for field, key in fields.items()):
+        raise RuntimeError('番茄钟订阅模板字段映射无效')
+    return {field: {'value': values[key][:20]} for field, key in fields.items()}
+
+
+def _claim_pomodoro_reminders():
+    with connect() as db:
+        rows = db.execute('''SELECT r.*,w.openid FROM pomodoro_reminders r
+            JOIN wechat_identities w ON w.app_id=r.app_id AND w.user_id=r.user_id
+            WHERE r.status='pending' AND r.trigger_at<=now()
+            ORDER BY r.trigger_at LIMIT 20 FOR UPDATE OF r SKIP LOCKED''').fetchall()
+        for row in rows:
+            db.execute("UPDATE pomodoro_reminders SET status='sending' WHERE id=%s", (row['id'],))
+    return rows
+
+
+def _finish_pomodoro_reminder(reminder_id, *, sent=False, message='', permanent=False):
+    with connect() as db:
+        if sent:
+            db.execute("""UPDATE pomodoro_reminders SET status='sent',sent_at=now(),
+                error_message='',attempt_count=attempt_count+1 WHERE id=%s""", (reminder_id,))
+            return
+        db.execute('''UPDATE pomodoro_reminders SET
+            status=CASE WHEN %s OR attempt_count>=2 THEN 'failed' ELSE 'pending' END,
+            trigger_at=CASE WHEN %s OR attempt_count>=2 THEN trigger_at ELSE now()+interval '1 minute' END,
+            error_message=%s,attempt_count=attempt_count+1 WHERE id=%s''',
+            (permanent, permanent, message[:300], reminder_id))
+
+
+def _send_pomodoro_reminder(row):
+    try:
+        token = _wechat_access_token()
+        payload = {
+            'touser': row['openid'],
+            'template_id': row['template_id'],
+            'page': 'pages/focus/index',
+            'data': _pomodoro_template_data(row),
+        }
+        request = urllib.request.Request(
+            f'https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token={urllib.parse.quote(token)}',
+            data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
+            headers={'Content-Type': 'application/json', 'Accept': 'application/json'},
+            method='POST',
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            result = json.loads(response.read())
+        if isinstance(result, dict) and result.get('errcode') == 0:
+            _finish_pomodoro_reminder(row['id'], sent=True)
+            return
+        code = result.get('errcode') if isinstance(result, dict) else None
+        permanent = code in (43101, 40003, 40037)
+        _finish_pomodoro_reminder(row['id'], message=f'微信订阅消息发送失败（{code or "unknown"}）', permanent=permanent)
+    except Exception:
+        reminder_logger.warning('番茄钟订阅提醒发送失败，稍后重试')
+        _finish_pomodoro_reminder(row['id'], message='微信订阅消息服务暂不可用')
+
+
+async def _pomodoro_reminder_worker():
+    while True:
+        try:
+            rows = await asyncio.to_thread(_claim_pomodoro_reminders)
+            for row in rows:
+                await asyncio.to_thread(_send_pomodoro_reminder, row)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            reminder_logger.warning('番茄钟订阅提醒队列读取失败')
+        await asyncio.sleep(15)
+
+
+def create_session(user, db):
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    db.execute('DELETE FROM user_sessions WHERE expires_at<=now()')
+    db.execute('INSERT INTO user_sessions(token_hash,user_id,expires_at) VALUES (%s,%s,%s)',
+               (hashlib.sha256(token.encode()).hexdigest(), user['id'], expires_at))
+    return {'token': token, 'expires_at': expires_at, 'user': public_user(user)}
+
+
 def current_user(credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)]):
     if not credentials or not re.fullmatch(r'[A-Za-z0-9_-]{43}', credentials.credentials):
         raise HTTPException(401, '请先登录')
@@ -155,10 +319,21 @@ app.include_router(create_chatbot_router(connect, current_user))
 @app.on_event('startup')
 async def start_skill_agent_jobs():
     start_skill_agent_worker()
+    global _pomodoro_reminder_task
+    if os.environ.get('WECHAT_POMODORO_TEMPLATE_ID', '').strip():
+        _pomodoro_reminder_task = asyncio.create_task(_pomodoro_reminder_worker())
 
 
 @app.on_event('shutdown')
 async def stop_skill_agent_jobs():
+    global _pomodoro_reminder_task
+    if _pomodoro_reminder_task is not None:
+        _pomodoro_reminder_task.cancel()
+        try:
+            await _pomodoro_reminder_task
+        except asyncio.CancelledError:
+            pass
+        _pomodoro_reminder_task = None
     await stop_skill_agent_worker()
 
 
@@ -210,12 +385,54 @@ def login(body: Credentials):
         if password_hasher.check_needs_rehash(user['password_hash']):
             db.execute('UPDATE users SET password_hash=%s WHERE id=%s',
                        (password_hasher.hash(body.password.get_secret_value()), user['id']))
-        token = secrets.token_urlsafe(32)
-        expires_at = datetime.now(timezone.utc) + timedelta(days=30)
-        db.execute('DELETE FROM user_sessions WHERE expires_at<=now()')
-        db.execute('INSERT INTO user_sessions(token_hash,user_id,expires_at) VALUES (%s,%s,%s)',
-                   (hashlib.sha256(token.encode()).hexdigest(), user['id'], expires_at))
-    return {'token': token, 'expires_at': expires_at, 'user': public_user(user)}
+        session = create_session(user, db)
+    return session
+
+
+@app.post('/auth/wechat/login')
+def login_with_wechat(body: WechatCode):
+    app_id, openid = wechat_identity(body.code)
+    with connect() as db:
+        user = db.execute('''SELECT u.* FROM wechat_identities w
+            JOIN users u ON u.id=w.user_id
+            WHERE w.app_id=%s AND w.openid=%s''', (app_id, openid)).fetchone()
+        if not user:
+            raise HTTPException(409, '微信尚未绑定账号，请先使用用户名和密码登录并绑定微信')
+        if not user['active']:
+            raise HTTPException(401, '账号已停用，请使用其他账号')
+        session = create_session(user, db)
+    return session
+
+
+@app.post('/auth/wechat/bind')
+def bind_wechat(body: WechatCode, user: User):
+    app_id, openid = wechat_identity(body.code)
+    with connect() as db:
+        inserted = db.execute('''INSERT INTO wechat_identities(app_id,openid,user_id)
+            VALUES (%s,%s,%s) ON CONFLICT DO NOTHING RETURNING openid''',
+            (app_id, openid, user['id'])).fetchone()
+        if not inserted:
+            current = db.execute('''SELECT openid FROM wechat_identities
+                WHERE app_id=%s AND user_id=%s''', (app_id, user['id'])).fetchone()
+            owner = db.execute('''SELECT user_id FROM wechat_identities
+                WHERE app_id=%s AND openid=%s''', (app_id, openid)).fetchone()
+            if current and current['openid'] != openid:
+                raise HTTPException(409, '当前账号已绑定其他微信，请先解除原绑定')
+            if owner and owner['user_id'] != user['id']:
+                raise HTTPException(409, '该微信已绑定其他账号')
+    return {'bound': True}
+
+
+@app.get('/auth/wechat/status')
+def wechat_status(user: User):
+    app_id = os.environ.get('WECHAT_MINIPROGRAM_APPID', '').strip()
+    configured = bool(app_id and os.environ.get('WECHAT_MINIPROGRAM_APPSECRET', '').strip())
+    if not configured:
+        return {'configured': False, 'bound': False}
+    with connect() as db:
+        binding = db.execute('''SELECT 1 FROM wechat_identities
+            WHERE app_id=%s AND user_id=%s''', (app_id, user['id'])).fetchone()
+    return {'configured': True, 'bound': binding is not None}
 
 
 @app.get('/me')
@@ -925,6 +1142,60 @@ class PomodoroSessionInput(Input):
         if self.completed_at <= self.started_at:
             raise ValueError('结束时间必须晚于开始时间')
         return self
+
+
+class PomodoroReminderInput(Input):
+    client_request_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+    trigger_at: datetime
+    phase: Literal['focus', 'shortBreak', 'longBreak']
+    task_title: str = Field(default='', max_length=120)
+
+    @model_validator(mode='after')
+    def valid_trigger(self):
+        now = datetime.now(timezone.utc)
+        if self.trigger_at.tzinfo is None or self.trigger_at.utcoffset() is None:
+            raise ValueError('提醒时间必须包含时区')
+        trigger = self.trigger_at.astimezone(timezone.utc)
+        if trigger < now - timedelta(minutes=1) or trigger > now + timedelta(hours=3):
+            raise ValueError('提醒时间应在当前至 3 小时内')
+        return self
+
+
+@app.post('/pomodoro/reminders')
+def schedule_pomodoro_reminder(body: PomodoroReminderInput, user: User):
+    app_id = os.environ.get('WECHAT_MINIPROGRAM_APPID', '').strip()
+    template_id = os.environ.get('WECHAT_POMODORO_TEMPLATE_ID', '').strip()
+    if not app_id or not template_id or not os.environ.get('WECHAT_MINIPROGRAM_APPSECRET', '').strip():
+        raise HTTPException(503, '微信番茄钟订阅提醒尚未配置')
+    with connect() as db:
+        identity = db.execute('''SELECT openid FROM wechat_identities
+            WHERE app_id=%s AND user_id=%s''', (app_id, user['id'])).fetchone()
+        if not identity:
+            raise HTTPException(409, '请先绑定微信账号，再开启微信提醒')
+        trigger_at = body.trigger_at.astimezone(timezone.utc)
+        inserted = db.execute('''INSERT INTO pomodoro_reminders
+            (user_id,app_id,request_id,template_id,phase,task_title,trigger_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT(user_id,request_id) DO NOTHING RETURNING id,status''',
+            (user['id'], app_id, body.client_request_id, template_id, body.phase,
+             body.task_title.strip(), trigger_at)).fetchone()
+        if inserted:
+            return {'scheduled': True, 'status': inserted['status']}
+        existing = db.execute('''SELECT phase,task_title,trigger_at,status FROM pomodoro_reminders
+            WHERE user_id=%s AND request_id=%s''',
+            (user['id'], body.client_request_id)).fetchone()
+        if not existing or existing['phase'] != body.phase or existing['task_title'] != body.task_title.strip() or existing['trigger_at'] != trigger_at:
+            raise HTTPException(409, '该提醒请求已使用，请重新开始计时')
+    return {'scheduled': True, 'status': existing['status']}
+
+
+@app.delete('/pomodoro/reminders')
+def cancel_pomodoro_reminder(user: User, request_id: Annotated[str, Query(pattern=r'^[a-f0-9]{32}$')]):
+    with connect() as db:
+        db.execute('''UPDATE pomodoro_reminders SET status='cancelled'
+            WHERE user_id=%s AND request_id=%s AND status='pending' ''',
+            (user['id'], request_id))
+    return {'cancelled': True}
 
 
 @app.get('/pomodoro/settings')

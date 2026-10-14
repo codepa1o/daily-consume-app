@@ -1,0 +1,43 @@
+<view class="page">
+  <view wx:if="{{error}}" class="error card"><text>{{error}}</text><button class="link" bindtap="retry">重试</button></view>
+  <view wx:if="{{loading}}" class="hint">正在加载专注设置…</view>
+  <view class="card timer">
+    <view class="section-row"><text class="section-title">番茄钟</text><text class="settings" bindtap="openSettings">计时设置</text></view>
+    <picker wx:if="{{phase === 'idle'}}" mode="selector" range="{{tasks}}" range-key="title" bindchange="selectTask"><view class="picker">{{selectedTaskTitle || '先添加一项专注事项'}}　›</view></picker>
+    <text wx:if="{{phase === 'focus'}}" class="phase">专注中 · {{taskTitle}}</text>
+    <text wx:elif="{{phase === 'shortBreak'}}" class="phase">短休息</text>
+    <text wx:elif="{{phase === 'longBreak'}}" class="phase">长休息</text>
+    <text wx:elif="{{phase === 'focusComplete'}}" class="phase">本轮完成，记录已同步</text>
+    <text wx:elif="{{phase === 'breakComplete'}}" class="phase">休息结束</text>
+    <text wx:elif="{{phase === 'saveFailed'}}" class="phase">专注完成，但记录尚未同步</text>
+    <text class="clock">{{timerText}}</text>
+    <view wx:if="{{phase === 'idle'}}" class="controls"><button class="primary" disabled="{{loading || !tasks.length}}" bindtap="startFocus">开始专注</button></view>
+    <view wx:if="{{phase === 'focus' || phase === 'shortBreak' || phase === 'longBreak'}}" class="controls"><button class="primary" bindtap="togglePause">{{paused ? '继续' : '暂停'}}</button><button class="secondary" bindtap="endCurrent">{{phase === 'focus' ? '结束专注' : '结束休息'}}</button></view>
+    <view wx:if="{{phase === 'focusComplete'}}" class="controls"><button class="primary" bindtap="startBreak">开始休息</button><button class="secondary" bindtap="skipBreak">跳过休息</button></view>
+    <view wx:if="{{phase === 'breakComplete'}}" class="controls"><button class="primary" bindtap="startFocus">开始下一轮</button></view>
+    <view wx:if="{{phase === 'saveFailed'}}" class="controls"><button class="primary" loading="{{saving}}" bindtap="retrySave">重试保存</button></view>
+    <text class="muted">切到后台时界面可能暂停刷新；返回后会按结束时间恢复并同步完成记录。</text>
+    <text wx:if="{{backgroundReminderReady}}" class="muted">开始计时会询问是否订阅一次完成提醒。</text>
+    <text wx:else class="muted">后台提醒需在微信公众平台配置并审核订阅消息模板。</text>
+  </view>
+
+  <view class="card tasks">
+    <text class="section-title">专注事项</text>
+    <view wx:for="{{tasks}}" wx:key="id" class="task-row"><text>{{item.title}}</text><text class="remove" data-index="{{index}}" bindtap="deleteTask">×</text></view>
+    <view class="add-row"><input maxlength="120" placeholder="例如：阅读、写报告" value="{{newTaskTitle}}" bindinput="onNewTask" /><button class="small" bindtap="addTask">添加</button></view>
+  </view>
+
+  <view class="card history">
+    <text class="section-title">今日完成 {{sessions.length}} 轮 · {{focusedMinutes}} 分钟</text>
+    <view wx:for="{{sessions}}" wx:key="started_at" class="session-row"><text>{{item.task_title}}</text><text>{{item.duration_minutes}} 分钟</text></view>
+    <text wx:if="{{!sessions.length}}" class="muted">今天还没有完成记录</text>
+  </view>
+
+  <view wx:if="{{settingsOpen}}" class="overlay"><view class="editor card"><view class="section-row"><text class="section-title">计时设置</text><text class="settings" bindtap="closeSettings">关闭</text></view>
+    <text class="label">专注时长（1–120 分钟）</text><input class="field" type="number" data-field="focus_minutes" value="{{settingsDraft.focus_minutes}}" bindinput="onSettingInput" />
+    <text class="label">短休息（1–60 分钟）</text><input class="field" type="number" data-field="short_break_minutes" value="{{settingsDraft.short_break_minutes}}" bindinput="onSettingInput" />
+    <text class="label">长休息（1–120 分钟）</text><input class="field" type="number" data-field="long_break_minutes" value="{{settingsDraft.long_break_minutes}}" bindinput="onSettingInput" />
+    <text class="label">每几轮长休息（2–12 轮）</text><input class="field" type="number" data-field="rounds_per_long_break" value="{{settingsDraft.rounds_per_long_break}}" bindinput="onSettingInput" />
+    <button class="primary" bindtap="saveSettings">保存设置</button>
+  </view></view>
+</view>

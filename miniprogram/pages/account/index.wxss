@@ -1,0 +1,16 @@
+.page { padding: 32rpx; }
+.card { background: #fffefa; border-radius: 24rpx; padding: 40rpx 32rpx; }
+.profile { display: flex; flex-direction: column; align-items: center; gap: 14rpx; }
+.avatar { width: 112rpx; height: 112rpx; border-radius: 56rpx; display: flex; align-items: center; justify-content: center; background: #e9eee4; color: #64765a; font-size: 42rpx; }
+.avatar-image { width: 112rpx; height: 112rpx; border-radius: 56rpx; }
+.name { font-size: 34rpx; font-weight: 600; }
+.muted { color: #70756b; }
+.wechat { display: flex; flex-direction: column; gap: 16rpx; margin-top: 20rpx; }
+.bind { margin: 0; background: #e9eee4; color: #45543e; }
+.profile-edit { margin-top: 20rpx; }
+.migration { display: flex; flex-direction: column; gap: 10rpx; margin-top: 20rpx; }
+.section-title { display: block; margin-bottom: 16rpx; font-size: 29rpx; font-weight: 650; }
+.field { box-sizing: border-box; width: 100%; margin: 12rpx 0; padding: 16rpx; border: 1rpx solid #e8e7df; border-radius: 12rpx; }
+.picker { color: #70756b; background: #fff; }
+.save { margin-top: 10rpx; background: #64765a; color: #fffefa; border-radius: 14rpx; }
+.signout { margin-top: 32rpx; background: #fffefa; color: #64765a; border-radius: 16rpx; }

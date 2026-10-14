@@ -860,6 +860,7 @@ def create_chatbot_router(connect, current_user):
         return {"conversation": conversation, "messages": messages}
 
     @router.patch("/conversations/{conversation_id}")
+    @router.put("/conversations/{conversation_id}")
     def rename_conversation(conversation_id: int, body: ConversationTitle, user: User):
         with connect() as db:
             row = db.execute(

@@ -1,0 +1,17 @@
+<view class="page">
+  <view class="card">
+    <text class="section-title">把旧记录导入账号</text>
+    <text class="body">请先在旧版 Android App 登录要使用的账号，在“旧记录导入”页面确认数据归属后，选择“导出迁移文件，导入微信小程序”。该操作不会删除 Android 本机数据库。</text>
+    <text class="body">将导出的 JSON 文件发送到微信聊天，再从本页选择。导入前请确认当前登录账号正确。</text>
+    <view class="current">当前账号：{{username || '未登录'}}</view>
+    <button class="secondary" disabled="{{loading || !username}}" bindtap="chooseFile">选择微信聊天中的迁移文件</button>
+  </view>
+  <view wx:if="{{selectedFile}}" class="card summary">
+    <view class="section-row"><text class="section-title">{{selectedFile}}</text><text class="remove" bindtap="clearFile">×</text></view>
+    <text class="total">共 {{total}} 条记录</text>
+    <view wx:for="{{counts}}" wx:key="name" class="count-row"><text>{{item.name}}</text><text>{{item.count}} 条</text></view>
+    <button wx:if="{{packageData}}" class="primary" loading="{{loading}}" disabled="{{loading}}" bindtap="importRecords">确认归属并导入</button>
+    <text wx:if="{{imported}}" class="success">导入回执已核对；原迁移文件仍保留。</text>
+  </view>
+  <view wx:if="{{error}}" class="card error"><text>{{error}}</text></view>
+</view>

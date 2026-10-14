@@ -121,6 +121,14 @@ class SkillAgentAccountApiTests(unittest.TestCase):
             f'/skill-agent/conversations/{conversation_id}', headers=self.headers[1],
             json={'title': '越权修改'},
         ).status_code, 404)
+        self.assertEqual(self.client.put(
+            f'/skill-agent/conversations/{conversation_id}', headers=self.headers[1],
+            json={'title': '越权修改'},
+        ).status_code, 404)
+        self.assertEqual(self.client.put(
+            f'/skill-agent/conversations/{conversation_id}', headers=self.headers[0],
+            json={'title': '小程序更新标题'},
+        ).status_code, 200)
         self.assertEqual(self.client.delete(
             f'/skill-agent/conversations/{conversation_id}', headers=self.headers[1]
         ).status_code, 404)

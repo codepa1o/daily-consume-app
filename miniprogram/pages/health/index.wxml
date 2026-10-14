@@ -1,0 +1,55 @@
+<view class="page">
+  <view class="card hero">
+    <view class="section-row"><text class="section-title">你的周期</text><text class="settings" bindtap="openSettings">⚙ 周期设置</text></view>
+    <text class="prediction">{{nextStart ? '预计下次经期 ' + nextStart : settings.paused ? '预测已暂停' : '记录经期后开始预测'}}</text>
+    <text wx:if="{{nextEnd}}" class="muted">预计持续至 {{nextEnd}}</text>
+    <text class="muted">{{predictionBasis}}</text>
+    <view wx:if="{{cycleHistory.length}}" class="history"><text class="muted">近期周期</text><text wx:for="{{cycleHistory}}" wx:key="*this" class="cycle-chip">{{item}} 天</text></view>
+    <text class="notice">预测仅供个人记录参考，不构成医疗建议。</text>
+  </view>
+
+  <view class="card calendar">
+    <view class="month-heading"><text bindtap="previousMonth">‹</text><text>{{monthTitle}}</text><text bindtap="nextMonth">›</text></view>
+    <view class="weekdays"><text wx:for="{{weekdays}}" wx:key="*this">{{item}}</text></view>
+    <view class="days"><view wx:for="{{cells}}" wx:key="date" class="day-cell {{item.type}} {{item.selected ? 'selected' : ''}} {{item.future ? 'future' : ''}}" data-date="{{item.date}}" bindtap="onDayTap"><text>{{item.day}}</text></view></view>
+    <view class="legend"><text><view class="period-dot"></view>实际经期</text><text><view class="predicted-dot"></view>预测经期</text><text><view class="fertile-dot"></view>易孕期</text><text><view class="ovulation-dot"></view>排卵估计</text></view>
+    <text class="selected-date">{{selectedDate}}</text>
+  </view>
+
+  <view wx:if="{{error}}" class="card error"><text>{{error}}</text><button class="link" bindtap="retry">重试</button></view>
+  <view wx:if="{{loading}}" class="hint">正在读取健康记录…</view>
+
+  <view class="card actions">
+    <text class="section-title">经期记录</text>
+    <view class="button-row"><button class="primary" loading="{{saving}}" disabled="{{saving}}" bindtap="toggleBleeding">{{isBleeding ? '取消此日出血' : '标记此日出血'}}</button><button wx:if="{{currentPeriod && !currentPeriod.end_date}}" class="secondary" bindtap="finishPeriod">以选定日结束</button></view>
+    <button wx:if="{{currentPeriod && currentPeriod.id}}" class="danger" bindtap="deletePeriod">删除这段经期</button>
+  </view>
+
+  <view class="card daily">
+    <text class="section-title">{{selectedDate}} 的身体感受</text>
+    <text class="label">经量</text>
+    <view class="options"><text wx:for="{{flowOptions}}" wx:key="value" class="option {{selectedDay.flow === item.value ? 'chosen' : ''}}" data-value="{{item.value}}" bindtap="setFlow">{{item.label}}</text></view>
+    <text class="label">痛经程度</text>
+    <view class="options"><text wx:for="{{painOptions}}" wx:key="*this" class="option {{selectedDay.pain === item ? 'chosen' : ''}}" data-value="{{item}}" bindtap="setPain">{{item === 0 ? '无' : item}}</text></view>
+    <text class="label">症状</text>
+    <view class="options wrap"><text wx:for="{{symptomOptions}}" wx:key="value" class="option {{item.selected ? 'chosen' : ''}}" data-value="{{item.value}}" bindtap="toggleSymptom">{{item.value}}</text></view>
+    <text class="label">心情</text>
+    <view class="options wrap"><text wx:for="{{moodOptions}}" wx:key="value" class="option {{item.selected ? 'chosen' : ''}}" data-value="{{item.value}}" bindtap="setMood">{{item.value || '未记录'}}</text></view>
+    <view class="spotting"><text>点滴出血</text><switch checked="{{selectedDay.spotting}}" color="#a95d70" bindchange="setSpotting" /></view>
+    <textarea class="notes" maxlength="2000" placeholder="备注" value="{{selectedDay.notes}}" bindinput="setNotes" />
+    <view class="button-row"><button class="primary" loading="{{saving}}" disabled="{{saving}}" bindtap="saveDay">保存当天记录</button><button class="secondary" bindtap="deleteDay">删除当天记录</button></view>
+  </view>
+
+  <view wx:if="{{settingsOpen}}" class="overlay">
+    <view class="editor card">
+      <view class="section-row"><text class="section-title">周期设置</text><text class="close" bindtap="closeSettings">×</text></view>
+      <text class="muted">历史记录足够后会参考近期周期；也可以填写平时的周期长度。</text>
+      <input class="field" type="number" placeholder="通常周期长度（天，可留空）" value="{{settings.cycle_length}}" bindinput="onCycleLength" />
+      <input class="field" type="number" placeholder="通常经期长度（天，可留空）" value="{{settings.period_length}}" bindinput="onPeriodLength" />
+      <view class="spotting"><text>暂停预测</text><switch checked="{{settings.paused}}" color="#a95d70" bindchange="onPaused" /></view>
+      <button class="primary" loading="{{saving}}" disabled="{{saving}}" bindtap="saveSettings">保存设置</button>
+    </view>
+  </view>
+
+  <view class="clear-area"><text class="clear" bindtap="clearHealth">清除女性健康数据</text></view>
+</view>

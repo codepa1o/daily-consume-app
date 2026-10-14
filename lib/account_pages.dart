@@ -2,11 +2,15 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+
+import 'widgets/app_layout.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'data/api_client.dart';
 import 'data/legacy_migration.dart';
+import 'travel_export_platform.dart' as travel_export;
+import 'travel_export_types.dart';
 import 'update/app_updates_platform.dart';
 
 Future<bool> serverAction(
@@ -346,6 +350,34 @@ class _LegacyImportPageState extends State<LegacyImportPage> {
   bool _confirmed = false;
   bool _busy = false;
   String? _error;
+
+  Future<void> _exportForMiniProgram() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final bytes = await LegacyMigration.instance.exportPackage();
+      await travel_export.shareTravelFiles(
+        [
+          TravelExportFile(
+            name: '日常旧记录迁移.json',
+            mimeType: 'application/json',
+            bytes: bytes,
+          ),
+        ],
+        subject: '导入日常微信小程序',
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error =
+            error is ApiException ? error.message : '无法导出迁移文件；本机旧数据仍保留');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final snapshot = LegacyMigration.instance.pending;
@@ -408,6 +440,24 @@ class _LegacyImportPageState extends State<LegacyImportPage> {
                               }
                             },
                       child: Text(_busy ? '正在导入并核对…' : '确认归属并导入'))),
+              if (snapshot != null) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          !_confirmed || _busy ? null : _exportForMiniProgram,
+                      icon: const Icon(Icons.ios_share_rounded),
+                      label: const Text('导出迁移文件，导入微信小程序'),
+                    )),
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text(
+                    '导出不会删除本机数据。将 JSON 文件发送到微信聊天，再在小程序“我的 → 旧记录导入”中选择。',
+                    style: TextStyle(fontSize: 12, color: Color(0xff70756b)),
+                  ),
+                ),
+              ],
               TextButton(
                   onPressed: _busy ? null : widget.onContinue,
                   child: const Text('稍后导入，可在“我的”中继续')),
@@ -650,48 +700,68 @@ class _MyPageState extends State<MyPage> {
         '${account.createdAt.year}-${account.createdAt.month.toString().padLeft(2, '0')}-${account.createdAt.day.toString().padLeft(2, '0')}';
     final ageLabel = account.age == null ? '未设置' : '${account.age} 岁';
     return SafeArea(
-        child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
-            children: [
-          const Text('我的', style: TextStyle(fontFamily: 'serif', fontSize: 32)),
-          const SizedBox(height: 24),
-          Card(
-              child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        child: AppPageList(children: [
+      const Text('我的', style: TextStyle(fontFamily: 'serif', fontSize: 32)),
+      const SizedBox(height: 24),
+      Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Padding(
+              padding: appCardPadding,
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    InkWell(
+                      onTap: _busy ? null : _changeAvatar,
+                      customBorder: const CircleBorder(),
+                      child: AccountAvatar(
+                        bytes: account.avatarBytes,
+                        radius: 30,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text('点击头像更换',
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 16),
+                    Text(account.nickname,
+                        style: const TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 14),
+                    Table(
+                      columnWidths: const {
+                        0: IntrinsicColumnWidth(),
+                        1: FlexColumnWidth(),
+                      },
+                      defaultVerticalAlignment: TableCellVerticalAlignment.top,
                       children: [
-                        InkWell(
-                          onTap: _busy ? null : _changeAvatar,
-                          customBorder: const CircleBorder(),
-                          child: AccountAvatar(
-                            bytes: account.avatarBytes,
-                            radius: 30,
+                        for (final field in [
+                          ('用户名', account.username),
+                          (
+                            '性别',
+                            switch (account.gender) {
+                              'female' => '女生',
+                              'male' => '男生',
+                              _ => '未设置',
+                            }
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text('点击头像更换',
-                            style: TextStyle(fontSize: 12, color: Colors.grey)),
-                        const SizedBox(height: 16),
-                        Text(account.nickname,
-                            style: const TextStyle(
-                                fontSize: 22, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 14),
-                        Text('用户名　${account.username}'),
-                        const SizedBox(height: 10),
-                        Text('性别　${switch (account.gender) {
-                          'female' => '女生',
-                          'male' => '男生',
-                          _ => '未设置'
-                        }}'),
-                        const SizedBox(height: 10),
-                        Text('年龄　$ageLabel'),
-                        const SizedBox(height: 10),
-                        Text('注册时间　$registered'),
-                      ]))),
-          const SizedBox(height: 14),
-          Card(
-              child: ListTile(
+                          ('年龄', ageLabel),
+                          ('注册时间', registered),
+                        ])
+                          TableRow(children: [
+                            Padding(
+                                padding: const EdgeInsets.only(
+                                    right: 16, bottom: 12),
+                                child: Text(field.$1)),
+                            Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Text(field.$2)),
+                          ]),
+                      ],
+                    ),
+                  ]))),
+      const SizedBox(height: 4),
+      Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
             leading: const Icon(Icons.manage_accounts_outlined),
             title: const Text('个人资料'),
             subtitle: const Text('昵称、性别、年龄'),
@@ -699,38 +769,41 @@ class _MyPageState extends State<MyPage> {
             enabled: !_busy,
             onTap: _editProfile,
           )),
-          if (LegacyMigration.instance.pending != null)
-            Card(
-                child: ListTile(
-                    leading: const Icon(Icons.cloud_upload_outlined),
-                    title: const Text('导入本机旧记录'),
-                    subtitle: const Text('确认数据归属后导入当前账号'),
-                    trailing: const Icon(Icons.chevron_right),
-                    enabled: !_busy,
-                    onTap: _import)),
-          Card(
-              child: ListTile(
-                  leading: const Icon(Icons.system_update_outlined),
-                  title: const Text('检查更新'),
-                  subtitle: Text(UpdateScope.maybeOf(context)
-                              ?.currentVersion
-                              .isNotEmpty ==
+      if (LegacyMigration.instance.pending != null)
+        Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+                leading: const Icon(Icons.cloud_upload_outlined),
+                title: const Text('导入本机旧记录'),
+                subtitle: const Text('确认数据归属后导入当前账号'),
+                trailing: const Icon(Icons.chevron_right),
+                enabled: !_busy,
+                onTap: _import)),
+      Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+              leading: const Icon(Icons.system_update_outlined),
+              title: const Text('检查更新'),
+              subtitle: Text(
+                  UpdateScope.maybeOf(context)?.currentVersion.isNotEmpty ==
                           true
                       ? '当前版本 ${UpdateScope.maybeOf(context)!.currentVersion}'
                       : '点击检测新版本'),
-                  trailing: const Icon(Icons.chevron_right),
-                  enabled: !_busy,
-                  onTap: () => checkForAppUpdates(context))),
-          Card(
-              child: ListTile(
-                  leading: const Icon(Icons.history_outlined),
-                  title: const Text('更新日志'),
-                  trailing: const Icon(Icons.chevron_right),
-                  enabled: !_busy,
-                  onTap: () => serverAction(
-                      context, () => showInstalledUpdateLog(context)))),
-          Card(
-              child: Column(children: [
+              trailing: const Icon(Icons.chevron_right),
+              enabled: !_busy,
+              onTap: () => checkForAppUpdates(context))),
+      Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+              leading: const Icon(Icons.history_outlined),
+              title: const Text('更新日志'),
+              trailing: const Icon(Icons.chevron_right),
+              enabled: !_busy,
+              onTap: () => serverAction(
+                  context, () => showInstalledUpdateLog(context)))),
+      Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Column(children: [
             ListTile(
                 leading: const Icon(Icons.switch_account_outlined),
                 title: const Text('切换账号'),
@@ -744,14 +817,14 @@ class _MyPageState extends State<MyPage> {
                 enabled: !_busy,
                 onTap: _logout),
           ])),
-          if (_busy)
-            const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator())),
-          const SizedBox(height: 20),
-          const Text('记录保存在服务器，卸载后重新登录仍可查看。',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
-        ]));
+      if (_busy)
+        const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator())),
+      const SizedBox(height: 20),
+      const Text('记录保存在服务器，卸载后重新登录仍可查看。',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: Colors.grey)),
+    ]));
   }
 }

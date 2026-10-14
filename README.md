@@ -2,6 +2,8 @@
 
 Android 优先的 Flutter 应用，使用用户名和密码注册登录。身体、饮食消费及健身记录保存在服务器 PostgreSQL 中，必须登录并联网使用，各账号的数据独立。
 
+版本变更汇总见 [更新日志](CHANGELOG.md)；服务器部署历史、备份与回滚说明见 [部署记录](docs/DEPLOYMENTS.md)。
+
 ## 当前实现
 
 - 身体页：记录身高与每日体重，展示当前身高、最近体重和体重趋势折线图。
@@ -34,6 +36,10 @@ Android 图标由 `flutter_launcher_icons.yaml` 生成，适配多种分辨率�
 
 Web 端与 Android 共用 Flutter 代码，电脑本地启动方式、跨域设置、浏览器能力边界和发布配置见 [浏览器 Web 端指南](docs/web-development.md)。
 
+### 微信小程序
+
+原生微信小程序代码位于 `miniprogram/`，使用 TypeScript 和微信开发者工具，继续复用 FastAPI 服务与 PostgreSQL 数据。功能覆盖、数据迁移、服务器域名与隐私授权配置见 [小程序工程说明](miniprogram/README.md)。正式联调需配置小程序后台的服务器域名，并在服务端环境设置 `WECHAT_MINIPROGRAM_APPID` 与 `WECHAT_MINIPROGRAM_APPSECRET`；不要把 AppSecret 写入小程序代码。
+
 ### AI 与服务器配置
 
 AI 功能通过 DeepSeek OpenAI 兼容的 Chat Completions 接口生成内容。首次配置时将项目根目录 `.env.example` 复制为 `.env`，填写 `DEEPSEEK_API_KEY`；该文件已加入 Git 忽略规则，不要提交密钥。当前模型 ID 为 `deepseek-flash`；DeepSeek 文档说明，旧名 `deepseek-v4-flash` 仍会被接受，但会路由到 V4.1 Flash。
@@ -61,9 +67,9 @@ APK 默认输出到 build/app/outputs/flutter-apk/app-release.apk。
 
 ## 更新与发布
 
-当前发布版本为 `1.4.5+20`，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.4.5%2B20)。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧 SQLite，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
+当前发布版本为 `1.4.6+21`，更新包见 [GitHub Release](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.4.6%2B21)。自 `1.0.2+3` 起，更新源使用 GitHub Releases；早于该版本的安装包需要先手动覆盖安装新版，之后才可以从 GitHub 获取更新。覆盖安装保留旧 SQLite，待确认归属并成功导入账号后再清理；业务记录需要联网。更新检查失败不会影响已连接的业务服务。
 
-生活日历、情侣空间、番茄钟和聊天数据均按账号保存在服务器；1.4.5 后端运行于 `0014_chatbot`，聊天、技能代理和旅行规划统一读取 `DEEPSEEK_API_KEY`。科研工具由服务端调用 paperdl 搜索和下载论文。客户端发版不会自动更新业务服务器。接口、验证与部署清单见 [生活日历说明](docs/access-api/journal.md)、[情侣空间说明](docs/access-api/couple-space.md) 和 [GitHub Release 发布教程](docs/github-release-guide.md)。
+生活日历、情侣空间、番茄钟和聊天数据均按账号保存在服务器；1.4.6 后端运行于 `0016_pomodoro_reminders`，聊天、技能代理和旅行规划统一读取 `DEEPSEEK_API_KEY`。科研工具由服务端调用 paperdl 搜索和下载论文。客户端发版不会自动更新业务服务器。接口、验证与部署清单见 [生活日历说明](docs/access-api/journal.md)、[情侣空间说明](docs/access-api/couple-space.md) 和 [GitHub Release 发布教程](docs/github-release-guide.md)。
 
 默认更新地址：
 

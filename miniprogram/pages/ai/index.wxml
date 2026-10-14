@@ -1,0 +1,15 @@
+<view class="page">
+  <view class="card modes"><text class="mode {{mode === 'daily' ? 'active' : ''}}" data-value="daily" bindtap="setMode">当日总结</text><text class="mode {{mode === 'profile' ? 'active' : ''}}" data-value="profile" bindtap="setMode">个人分析</text></view>
+  <picker wx:if="{{mode === 'daily'}}" mode="date" value="{{date}}" start="2000-01-01" end="{{today}}" bindchange="onDate"><view class="card date">总结日期　{{date}}　›</view></picker>
+  <view wx:if="{{loading}}" class="card hint">正在整理你的记录…</view>
+  <view wx:if="{{error}}" class="card error"><text>{{error}}</text><button class="link" bindtap="retry">重试</button></view>
+  <view wx:if="{{report}}" class="card report">
+    <text class="title">{{report.title}}</text><text wx:if="{{report.subtitle}}" class="subtitle">{{report.subtitle}}</text>
+    <text class="summary">{{report.summary}}</text>
+    <view wx:if="{{report.highlights && report.highlights.length}}" class="highlights"><view wx:for="{{report.highlights}}" wx:key="label" class="highlight"><text class="highlight-value">{{item.value}}{{item.unit}}</text><text class="muted">{{item.label}}</text><text wx:if="{{item.caption}}" class="caption">{{item.caption}}</text></view></view>
+    <view wx:for="{{report.sections}}" wx:key="title" class="section"><text class="section-title">{{item.title}}</text><text wx:for="{{item.items}}" wx:for-item="part" wx:key="value" class="item">· {{part.value}}</text></view>
+    <view wx:if="{{report.suggestions && report.suggestions.length}}" class="section"><text class="section-title">建议</text><text wx:for="{{report.suggestions}}" wx:key="*this" class="item">· {{item}}</text></view>
+    <text wx:if="{{report.notice}}" class="notice">{{report.notice}}</text>
+  </view>
+  <button wx:if="{{!loading}}" class="primary" bindtap="generate">重新生成</button>
+</view>

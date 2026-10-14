@@ -464,6 +464,7 @@ def create_skill_agent_router(connect, current_user):
         return {'conversation': conversation, 'messages': messages}
 
     @router.patch('/conversations/{conversation_id}')
+    @router.put('/conversations/{conversation_id}')
     def rename_conversation(conversation_id: int, body: ConversationTitle, user: User):
         with connect() as db:
             row = db.execute('''UPDATE skill_agent_conversations SET title=%s,updated_at=now()

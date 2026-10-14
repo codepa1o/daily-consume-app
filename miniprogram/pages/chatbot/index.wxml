@@ -1,0 +1,21 @@
+<view class="page">
+  <view class="toolbar card"><text class="list-toggle" bindtap="toggleList">☰ 对话</text><text class="current-title">{{title || '新对话'}}</text><text class="more" bindtap="startRename">编辑</text><text class="more danger" bindtap="deleteConversation">删除</text><button class="small" bindtap="newConversation">＋</button></view>
+  <view wx:if="{{listOpen}}" class="conversation-list card"><view wx:for="{{conversations}}" wx:key="id" class="conversation {{item.id === activeId ? 'active' : ''}}" data-id="{{item.id}}" bindtap="openConversation"><text>{{item.title}}</text><text class="muted">{{item.last_question}}</text></view><text wx:if="{{!conversations.length}}" class="muted">还没有对话</text></view>
+  <view wx:if="{{error}}" class="error card"><text>{{error}}</text><button class="link" bindtap="retry">重试</button></view>
+  <view wx:if="{{loading}}" class="hint">正在加载…</view>
+  <scroll-view class="messages" scroll-y>
+    <view wx:for="{{messages}}" wx:key="id" class="message {{item.role}}">
+      <text class="role">{{item.role === 'user' ? '我' : '助手'}}</text>
+      <text class="content">{{item.content || (item.status === 'streaming' ? status : '')}}</text>
+      <text wx:if="{{item.error_message}}" class="message-error">{{item.error_message}}</text>
+      <view wx:if="{{item.metadata.sources && item.metadata.sources.length}}" class="sources"><text>参考来源</text><view wx:for="{{item.metadata.sources}}" wx:for-item="source" wx:key="index">{{source.title}}</view></view>
+    </view>
+  </scroll-view>
+  <view wx:if="{{status && streaming}}" class="status">{{status}}</view>
+  <view wx:if="{{attachment}}" class="attachment">📎 {{attachment.name}} <text class="remove" bindtap="removeAttachment">×</text></view>
+  <view class="composer card">
+    <textarea class="question" maxlength="12000" placeholder="输入你的问题" value="{{question}}" bindinput="onQuestion" />
+    <view class="composer-row"><view class="options"><text bindtap="chooseAttachment">＋ 附件</text><text>知识库 <switch checked="{{useKnowledge}}" color="#64765a" bindchange="onKnowledge" /></text></view><button wx:if="{{!streaming}}" class="send" bindtap="send">发送</button><button wx:else class="stop" bindtap="stopGeneration">停止生成</button></view>
+  </view>
+  <view wx:if="{{renameOpen}}" class="overlay"><view class="editor card"><text class="section-title">重命名对话</text><input class="field" maxlength="80" value="{{renameTitle}}" bindinput="onRenameInput" /><view class="buttons"><button class="small" bindtap="closeRename">取消</button><button class="send" bindtap="renameConversation">保存</button></view></view></view>
+</view>
