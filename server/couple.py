@@ -14,7 +14,7 @@ import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import Response
 from PIL import Image, ImageOps, UnidentifiedImageError
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
 
 def today():
@@ -97,6 +97,11 @@ class MemoryInput(Input):
 class CommentInput(Input):
     content: str = Field(min_length=1, max_length=1000)
     client_request_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+    reply_to_id: int | None = Field(default=None, gt=0, strict=True)
+
+
+class CommentLikeInput(Input):
+    liked: StrictBool
 
 
 class ReactionInput(Input):
@@ -234,6 +239,89 @@ def create_couple_router(connect, current_user):
             raise HTTPException(404, '争执记录不存在或无权访问')
         return row
 
+    # 表名仅来自固定映射，所有资源访问先校验当前账号的空间成员身份。
+    comment_sources = {
+        'memories': ('couple_comments', 'memory_id', 'couple_comment_likes', memory_for),
+        'conflicts': ('couple_conflict_comments', 'conflict_id', 'couple_conflict_comment_likes', conflict_for),
+    }
+
+    def comments_for(db, kind, ident, user):
+        table, scope, likes, authorize = comment_sources[kind]
+        authorize(db, ident, user)
+        rows = db.execute(f'''SELECT c.id,c.author_id,u.nickname AS author_name,
+            u.avatar AS author_avatar,c.content,c.created_at,c.parent_id,c.reply_to_id,
+            target_user.nickname AS reply_to_author,
+            (SELECT count(*)::integer FROM {likes} l WHERE l.comment_id=c.id) AS like_count,
+            EXISTS(SELECT 1 FROM {likes} l WHERE l.comment_id=c.id AND l.user_id=%s) AS liked_by_me
+            FROM {table} c JOIN users u ON u.id=c.author_id
+            LEFT JOIN {table} target ON target.id=c.reply_to_id
+            LEFT JOIN users target_user ON target_user.id=target.author_id
+            WHERE c.{scope}=%s ORDER BY c.created_at,c.id''', (user['id'], ident)).fetchall()
+        for row in rows:
+            avatar = row.pop('author_avatar')
+            row['avatar_base64'] = base64.b64encode(bytes(avatar)).decode('ascii') if avatar else None
+        return rows
+
+    def save_comment(kind, ident, body, user):
+        table, scope, _, authorize = comment_sources[kind]
+        with connect() as db:
+            authorize(db, ident, user)
+            parent_id = None
+            if body.reply_to_id is not None:
+                target = db.execute(f'''SELECT id,parent_id FROM {table}
+                    WHERE id=%s AND {scope}=%s FOR KEY SHARE''', (body.reply_to_id, ident)).fetchone()
+                if not target:
+                    raise HTTPException(404, '被回复的评论不存在或不属于当前记录')
+                # 回复某条回复时仍归入同一主评论，保留具体回复对象但不无限缩进。
+                parent_id = target['parent_id'] or target['id']
+            row = db.execute(f'''INSERT INTO {table}
+                ({scope},author_id,content,client_request_id,parent_id,reply_to_id)
+                VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT(author_id,client_request_id)
+                DO NOTHING RETURNING id''',
+                (ident, user['id'], body.content, body.client_request_id, parent_id, body.reply_to_id)).fetchone()
+            if not row:
+                row = db.execute(f'''SELECT id,{scope},content,reply_to_id FROM {table}
+                    WHERE author_id=%s AND client_request_id=%s''', (user['id'], body.client_request_id)).fetchone()
+                if not row or row[scope] != ident or row['content'] != body.content or row['reply_to_id'] != body.reply_to_id:
+                    raise HTTPException(409, '该留言请求已使用，请刷新后确认')
+        return {'id': row['id']}
+
+    def like_comment(kind, ident, comment_id, body, user):
+        table, scope, likes, authorize = comment_sources[kind]
+        with connect() as db:
+            authorize(db, ident, user)
+            row = db.execute(f'SELECT id FROM {table} WHERE id=%s AND {scope}=%s FOR UPDATE',
+                             (comment_id, ident)).fetchone()
+            if not row:
+                raise HTTPException(404, '评论不存在或不属于当前记录')
+            # 保存目标状态而非执行翻转；重试同一次点赞不会增加第二条记录。
+            if body.liked:
+                db.execute(f'INSERT INTO {likes}(comment_id,user_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',
+                           (comment_id, user['id']))
+            else:
+                db.execute(f'DELETE FROM {likes} WHERE comment_id=%s AND user_id=%s', (comment_id, user['id']))
+            count = db.execute(f'SELECT count(*)::integer AS n FROM {likes} WHERE comment_id=%s',
+                               (comment_id,)).fetchone()['n']
+        return {'liked': body.liked, 'like_count': count}
+
+    @router.get('/memories/{ident}/comments')
+    def memory_comments(ident: int, user: User):
+        with connect() as db:
+            return comments_for(db, 'memories', ident, user)
+
+    @router.get('/conflicts/{ident}/comments')
+    def conflict_comments(ident: int, user: User):
+        with connect() as db:
+            return comments_for(db, 'conflicts', ident, user)
+
+    @router.put('/memories/{ident}/comments/{comment_id}/like')
+    def like_memory_comment(ident: int, comment_id: int, body: CommentLikeInput, user: User):
+        return like_comment('memories', ident, comment_id, body, user)
+
+    @router.put('/conflicts/{ident}/comments/{comment_id}/like')
+    def like_conflict_comment(ident: int, comment_id: int, body: CommentLikeInput, user: User):
+        return like_comment('conflicts', ident, comment_id, body, user)
+
     @router.get('/conflicts')
     def list_conflicts(user: User, start: date, end: date):
         if start > end or start < date(2000, 1, 1) or end - start > timedelta(days=366):
@@ -283,10 +371,7 @@ def create_couple_router(connect, current_user):
                 JOIN users u ON u.id=r.author_id
                 WHERE r.conflict_id=%s AND (r.published OR r.author_id=%s)
                 ORDER BY r.created_at,r.id''', (ident, user['id'])).fetchall()
-            comments = db.execute('''SELECT c.id,c.author_id,u.nickname AS author_name,
-                c.content,c.created_at FROM couple_conflict_comments c
-                JOIN users u ON u.id=c.author_id WHERE c.conflict_id=%s
-                ORDER BY c.id''', (ident,)).fetchall()
+            comments = comments_for(db, 'conflicts', ident, user)
         conflict['reflections'] = reflections
         conflict['comments'] = comments
         return conflict
@@ -373,20 +458,7 @@ def create_couple_router(connect, current_user):
 
     @router.post('/conflicts/{ident}/comments', status_code=201)
     def comment_conflict(ident: int, body: CommentInput, user: User):
-        with connect() as db:
-            conflict_for(db, ident, user)
-            row = db.execute('''INSERT INTO couple_conflict_comments
-                (conflict_id,author_id,content,client_request_id)
-                VALUES (%s,%s,%s,%s) ON CONFLICT(author_id,client_request_id)
-                DO NOTHING RETURNING id''',
-                (ident, user['id'], body.content, body.client_request_id)).fetchone()
-            if not row:
-                row = db.execute('''SELECT id,conflict_id,content FROM couple_conflict_comments
-                    WHERE author_id=%s AND client_request_id=%s''',
-                    (user['id'], body.client_request_id)).fetchone()
-                if not row or row['conflict_id'] != ident or row['content'] != body.content:
-                    raise HTTPException(409, '该留言请求已使用，请刷新后确认')
-        return {'id': row['id']}
+        return save_comment('conflicts', ident, body, user)
 
     @router.delete('/conflicts/{ident}')
     def delete_conflict(ident: int, user: User):
@@ -573,8 +645,7 @@ def create_couple_router(connect, current_user):
     def detail(ident: int, user: User):
         with connect() as db:
             row = memory_for(db, ident, user)
-            row['comments'] = db.execute('''SELECT c.id,c.author_id,u.nickname AS author_name,c.content,c.created_at
-                FROM couple_comments c JOIN users u ON u.id=c.author_id WHERE c.memory_id=%s ORDER BY c.id''', (ident,)).fetchall()
+            row['comments'] = comments_for(db, 'memories', ident, user)
             row['reactions'] = db.execute('''SELECT r.user_id,u.nickname AS author_name,r.emoji
                 FROM couple_reactions r JOIN users u ON u.id=r.user_id WHERE r.memory_id=%s ORDER BY r.user_id''', (ident,)).fetchall()
         return row
@@ -600,17 +671,7 @@ def create_couple_router(connect, current_user):
 
     @router.post('/memories/{ident}/comments', status_code=201)
     def comment(ident: int, body: CommentInput, user: User):
-        with connect() as db:
-            memory_for(db, ident, user)
-            row = db.execute('''INSERT INTO couple_comments(memory_id,author_id,content,client_request_id)
-                VALUES (%s,%s,%s,%s) ON CONFLICT(author_id,client_request_id) DO NOTHING RETURNING id''',
-                (ident, user['id'], body.content, body.client_request_id)).fetchone()
-            if not row:
-                row = db.execute('''SELECT id,memory_id,content FROM couple_comments
-                    WHERE author_id=%s AND client_request_id=%s''', (user['id'], body.client_request_id)).fetchone()
-                if not row or row['memory_id'] != ident or row['content'] != body.content:
-                    raise HTTPException(409, '该留言请求已使用，请刷新后确认')
-        return {'id': row['id']}
+        return save_comment('memories', ident, body, user)
 
     @router.put('/memories/{ident}/reaction')
     def react(ident: int, body: ReactionInput, user: User):

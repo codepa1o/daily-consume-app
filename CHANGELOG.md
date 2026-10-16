@@ -1,10 +1,18 @@
 # 更新日志
 
-按版本编号从新到旧汇总已发布变更。最新已记录版本为 **1.4.6+21**。
+按版本编号从新到旧汇总已发布变更。最新已记录版本为 **1.4.7+22**。
 
 记录来源为 [各版本更新说明](docs/release-notes/)、[内置历史日志](assets/release_history.json) 和本地发布标签内的版本说明。较早的 GitHub 更新接入记录见 [接入说明](docs/access-api/github-updates.md)。未在原记录中确认的发布时间不作补填。
 
 服务器部署、数据库迁移、备份和回滚信息见 [部署记录](docs/DEPLOYMENTS.md)。应用内更新日志仍由 `assets/release_notes.json` 与 `assets/release_history.json` 提供。
+
+## [1.4.7+22](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.4.7%2B22)
+
+- 情侣空间的回忆与吵架反思评论支持点赞、取消点赞和回复，可继续回复具体留言。
+- 新旧评论统一展示头像、昵称和原始发布时间，使用北京时间并精确到秒。
+- 回复采用两级展示，超过两条可展开或收起，清晰显示回复对象。
+- 评论页面在前台定时同步双方互动，保留输入草稿；网络异常可安全重试，避免重复发送。
+- 服务端新增评论回复和点赞数据结构，升级保留已有评论内容及原始发布时间。
 
 ## [1.4.6+21](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.4.6%2B21)
 

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'widgets/app_layout.dart';
+import 'widgets/couple_comments.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -1003,8 +1004,6 @@ class CoupleDetail extends StatefulWidget {
 class _CoupleDetailState extends State<CoupleDetail>
     with WidgetsBindingObserver {
   late final api = widget.api ?? CoupleApi.instance;
-  final comment = TextEditingController();
-  String commentRequestId = CoupleApi.requestId();
   Map<String, dynamic>? detail;
   String? error, actionError;
   int effect = 0, revision = 0;
@@ -1020,7 +1019,6 @@ class _CoupleDetailState extends State<CoupleDetail>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    comment.dispose();
     super.dispose();
   }
 
@@ -1286,53 +1284,13 @@ class _CoupleDetailState extends State<CoupleDetail>
                         const Text('照片背后的留言',
                             style: TextStyle(fontSize: 18, color: coupleInk)),
                         const SizedBox(height: 12),
-                        if (comments.isEmpty)
-                          const Text('还没有留言，给另一半留一句话吧。',
-                              style: TextStyle(color: Color(0xff877267))),
-                        for (final entry in comments)
-                          Card(
-                              color: couplePaper,
-                              child: Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(entry['author_name'] as String,
-                                            style: const TextStyle(
-                                                color: coupleRose,
-                                                fontSize: 12)),
-                                        const SizedBox(height: 6),
-                                        Text(entry['content'] as String,
-                                            style:
-                                                const TextStyle(height: 1.6)),
-                                      ]))),
-                        const SizedBox(height: 14),
-                        TextField(
-                            controller: comment,
-                            enabled: !busy,
-                            minLines: 2,
-                            maxLines: 5,
-                            maxLength: 1000,
-                            decoration: const InputDecoration(
-                                hintText: '想对你说…',
-                                border: OutlineInputBorder())),
-                        Align(
-                            alignment: Alignment.centerRight,
-                            child: FilledButton(
-                                onPressed: busy
-                                    ? null
-                                    : () => action(() async {
-                                          if (comment.text.trim().isEmpty)
-                                            throw const ApiException('请先写下留言');
-                                          await api.comment(memory.id,
-                                              comment.text, commentRequestId);
-                                          comment.clear();
-                                          commentRequestId =
-                                              CoupleApi.requestId();
-                                          await reload();
-                                        }),
-                                child: Text(busy ? '保存中…' : '留下这句话'))),
+                        CoupleComments(
+                          key: ValueKey('memory-comments-${memory.id}'),
+                          api: api,
+                          resourceId: memory.id,
+                          initialComments: comments,
+                          onChanged: reload,
+                        ),
                         if (actionError != null)
                           Padding(
                               padding: const EdgeInsets.only(top: 12),

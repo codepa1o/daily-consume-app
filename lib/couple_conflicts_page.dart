@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'widgets/app_layout.dart';
+import 'widgets/couple_comments.dart';
 
 import 'data/api_client.dart';
 import 'data/app_database.dart' show dateKey;
@@ -339,8 +340,6 @@ class _CoupleConflictDetailPageState extends State<CoupleConflictDetailPage> {
   final _myPart = TextEditingController();
   final _request = TextEditingController();
   final _agreement = TextEditingController();
-  final _comment = TextEditingController();
-  String _commentRequestId = CoupleApi.requestId();
   Map<String, dynamic>? _data;
   DateTime? _followUpDate;
   int _agreementVersion = 0;
@@ -354,10 +353,6 @@ class _CoupleConflictDetailPageState extends State<CoupleConflictDetailPage> {
           as List)
       .map((row) => CoupleConflictReflection.fromJson(
           Map<String, dynamic>.from(row as Map)))
-      .toList();
-  List<CoupleConflictComment> get _comments => (_data!['comments'] as List)
-      .map((row) =>
-          CoupleConflictComment.fromJson(Map<String, dynamic>.from(row as Map)))
       .toList();
   int get _myId => ApiClient.instance.account?.id ?? -1;
   CoupleConflictReflection? get _myReflection {
@@ -389,7 +384,6 @@ class _CoupleConflictDetailPageState extends State<CoupleConflictDetailPage> {
     _myPart.dispose();
     _request.dispose();
     _agreement.dispose();
-    _comment.dispose();
     super.dispose();
   }
 
@@ -471,25 +465,6 @@ class _CoupleConflictDetailPageState extends State<CoupleConflictDetailPage> {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('约定已保存，并记录了你的确认')));
       }
-    } catch (failure) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(coupleError(failure))));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _sendComment() async {
-    if (_comment.text.trim().isEmpty || _busy) return;
-    setState(() => _busy = true);
-    try {
-      await widget.api
-          .commentConflict(widget.id, _comment.text, _commentRequestId);
-      _comment.clear();
-      _commentRequestId = CoupleApi.requestId();
-      await _load();
     } catch (failure) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -737,59 +712,14 @@ class _CoupleConflictDetailPageState extends State<CoupleConflictDetailPage> {
           const SizedBox(height: 12),
           _section(
             title: '评论',
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_comments.isEmpty)
-                    const Text('还没有评论，可以在这里继续交流。',
-                        style: TextStyle(color: _conflictMuted, fontSize: 12)),
-                  for (final comment in _comments)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.chat_bubble_outline_rounded,
-                                size: 17, color: _conflictGreen),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                        '${comment.author} · ${comment.createdAt.toLocal().month}月${comment.createdAt.toLocal().day}日 ${comment.createdAt.toLocal().hour.toString().padLeft(2, '0')}:${comment.createdAt.toLocal().minute.toString().padLeft(2, '0')}',
-                                        style: const TextStyle(
-                                            color: coupleRose, fontSize: 12)),
-                                    const SizedBox(height: 3),
-                                    Text(comment.content,
-                                        style: const TextStyle(height: 1.5)),
-                                  ]),
-                            ),
-                          ]),
-                    ),
-                  TextField(
-                    controller: _comment,
-                    enabled: !_busy,
-                    onChanged: (_) => setState(() {}),
-                    maxLength: 1000,
-                    minLines: 1,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: '写一句评论…',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.tonalIcon(
-                      onPressed: _busy || _comment.text.trim().isEmpty
-                          ? null
-                          : _sendComment,
-                      icon: const Icon(Icons.send_rounded, size: 17),
-                      label: Text(_busy ? '发送中…' : '发送'),
-                    ),
-                  ),
-                ]),
+            child: CoupleComments(
+              key: ValueKey('conflict-comments-${widget.id}'),
+              api: widget.api,
+              resourceId: widget.id,
+              conflict: true,
+              initialComments: _data!['comments'] as List,
+              onChanged: _load,
+            ),
           ),
         ],
       ),

@@ -200,23 +200,66 @@ class CoupleConflictReflection {
       );
 }
 
-class CoupleConflictComment {
-  const CoupleConflictComment({
+class CoupleComment {
+  const CoupleComment({
+    required this.id,
+    required this.authorId,
     required this.author,
     required this.content,
     required this.createdAt,
+    this.parentId,
+    this.replyToId,
+    this.replyToAuthor,
+    this.avatarBytes,
+    this.likeCount = 0,
+    this.likedByMe = false,
   });
 
-  final String author;
-  final String content;
+  final int id, authorId, likeCount;
+  final int? parentId, replyToId;
+  final String author, content;
+  final String? replyToAuthor;
+  final Uint8List? avatarBytes;
   final DateTime createdAt;
+  final bool likedByMe;
 
-  factory CoupleConflictComment.fromJson(Map<String, dynamic> row) =>
-      CoupleConflictComment(
+  factory CoupleComment.fromJson(Map<String, dynamic> row) => CoupleComment(
+        id: row['id'] as int,
+        authorId: row['author_id'] as int,
         author: row['author_name'] as String,
         content: row['content'] as String,
+        // 新旧评论均使用服务端保存的原始发布时间，不能以客户端加载时间代替。
         createdAt: DateTime.parse(row['created_at'] as String),
+        parentId: row['parent_id'] as int?,
+        replyToId: row['reply_to_id'] as int?,
+        replyToAuthor: row['reply_to_author'] as String?,
+        avatarBytes: row['avatar_base64'] == null
+            ? null
+            : base64Decode(row['avatar_base64'] as String),
+        likeCount: row['like_count'] as int? ?? 0,
+        likedByMe: row['liked_by_me'] as bool? ?? false,
       );
+
+  CoupleComment withLike(bool liked, int count) => CoupleComment(
+      id: id,
+      authorId: authorId,
+      author: author,
+      content: content,
+      createdAt: createdAt,
+      parentId: parentId,
+      replyToId: replyToId,
+      replyToAuthor: replyToAuthor,
+      avatarBytes: avatarBytes,
+      likeCount: count,
+      likedByMe: liked);
+}
+
+/// 固定显示北京时间，避免两人的设备时区不同导致同一条留言时间不一致。
+String coupleCommentTime(DateTime value) {
+  final time = value.toUtc().add(const Duration(hours: 8));
+  String two(int number) => number.toString().padLeft(2, '0');
+  return '${time.year.toString().padLeft(4, '0')}-${two(time.month)}-${two(time.day)} '
+      '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
 }
 
 /// Group publish-time-ordered rows. A date split across API pages keeps one marker.
@@ -327,10 +370,32 @@ class CoupleApi {
     });
   }
 
-  Future<void> comment(int id, String content, String requestId) async {
+  Future<void> comment(int id, String content, String requestId,
+      {int? replyToId}) async {
     await _request('POST', 'couple/memories/$id/comments',
         binary: false,
-        body: {'content': content.trim(), 'client_request_id': requestId});
+        body: {
+          'content': content.trim(),
+          'client_request_id': requestId,
+          if (replyToId != null) 'reply_to_id': replyToId
+        });
+  }
+
+  Future<List<CoupleComment>> comments(int id, {bool conflict = false}) async =>
+      (await _request('GET',
+              'couple/${conflict ? 'conflicts' : 'memories'}/$id/comments',
+              binary: false) as List)
+          .map((row) =>
+              CoupleComment.fromJson(Map<String, dynamic>.from(row as Map)))
+          .toList();
+
+  Future<({bool liked, int count})> likeComment(
+      int id, int commentId, bool liked,
+      {bool conflict = false}) async {
+    final result = await _request('PUT',
+        'couple/${conflict ? 'conflicts' : 'memories'}/$id/comments/$commentId/like',
+        binary: false, body: {'liked': liked}) as Map;
+    return (liked: result['liked'] as bool, count: result['like_count'] as int);
   }
 
   Future<void> react(int id, String? emoji) async {
@@ -400,10 +465,15 @@ class CoupleApi {
         });
   }
 
-  Future<void> commentConflict(int id, String content, String requestId) async {
+  Future<void> commentConflict(int id, String content, String requestId,
+      {int? replyToId}) async {
     await _request('POST', 'couple/conflicts/$id/comments',
         binary: false,
-        body: {'content': content.trim(), 'client_request_id': requestId});
+        body: {
+          'content': content.trim(),
+          'client_request_id': requestId,
+          if (replyToId != null) 'reply_to_id': replyToId
+        });
   }
 
   Future<void> deleteConflict(int id) async {

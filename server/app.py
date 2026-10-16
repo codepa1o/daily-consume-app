@@ -80,7 +80,7 @@ def plain_ai_text(value):
     return value.strip()
 
 
-app = FastAPI(title='日常 API', version='1.4.6',
+app = FastAPI(title='日常 API', version='1.4.7',
               docs_url=None, redoc_url=None, openapi_url=None)
 
 web_origins = [

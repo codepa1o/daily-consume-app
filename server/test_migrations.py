@@ -21,7 +21,7 @@ from psycopg.conninfo import make_conninfo
 
 SERVER = Path(__file__).resolve().parent
 BASELINE_SQL = (SERVER / 'migrations/versions/0001_schema.sql').read_text(encoding='utf-8')
-HEAD_REVISION = '0016_pomodoro_reminders'
+HEAD_REVISION = '0017_couple_comment_interactions'
 MIGRATION_TABLES = set(re.findall(r'CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(\w+)', BASELINE_SQL))
 for migration in (SERVER / 'migrations/versions').glob('*.py'):
     MIGRATION_TABLES.update(re.findall(
@@ -64,6 +64,30 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(self.execute("SELECT count(*) FROM pg_tables WHERE schemaname=current_schema()"), [(EXPECTED_TABLE_COUNT,)])
         self.assertEqual(self.execute("INSERT INTO users(username,username_key,password_hash,nickname) "
                                      "VALUES ('new','new','hash','新账号') RETURNING id,gender"), [(1, 'unset')])
+
+    def test_comment_upgrade_keeps_old_rows_and_blocks_lossy_downgrade(self):
+        """旧留言保留为主评论，有新互动数据时拒绝删列回退。"""
+        command.upgrade(self.config, '0016_pomodoro_reminders')
+        self.execute("INSERT INTO users(username,username_key,password_hash,nickname) VALUES ('old','old','hash','旧账号') RETURNING id")
+        self.execute("INSERT INTO couple_spaces(title,since_date,created_by) VALUES ('空间','2024-02-29',1) RETURNING id")
+        self.execute("""INSERT INTO couple_memories(space_id,author_id,memory_date,title,content,mood,client_request_id,request_hash)
+            VALUES (1,1,'2024-02-29','回忆','','',repeat('a',32),repeat('b',64)) RETURNING id""")
+        self.execute("INSERT INTO couple_comments(memory_id,author_id,content,client_request_id) VALUES (1,1,'旧留言',repeat('c',32)) RETURNING id")
+        before = self.execute('SELECT id,content,created_at FROM couple_comments')
+        command.upgrade(self.config, 'head')
+        self.assertEqual(self.execute('SELECT id,content,created_at FROM couple_comments'), before)
+        self.assertEqual(self.execute('SELECT parent_id,reply_to_id FROM couple_comments'), [(None, None)])
+        self.execute('INSERT INTO couple_comment_likes(comment_id,user_id) VALUES (1,1) RETURNING comment_id')
+        with self.assertRaisesRegex(RuntimeError, 'discard comment likes'):
+            command.downgrade(self.config, '0016_pomodoro_reminders')
+        self.execute('DELETE FROM couple_comment_likes RETURNING comment_id')
+        self.execute("INSERT INTO couple_comments(memory_id,author_id,content,client_request_id,parent_id,reply_to_id) VALUES (1,1,'回复',repeat('d',32),1,1) RETURNING id")
+        with self.assertRaisesRegex(RuntimeError, 'discard comment replies'):
+            command.downgrade(self.config, '0016_pomodoro_reminders')
+        self.execute('DELETE FROM couple_comments WHERE parent_id IS NOT NULL RETURNING id')
+        command.downgrade(self.config, '0016_pomodoro_reminders')
+        command.upgrade(self.config, 'head')
+        self.assertEqual(self.execute('SELECT id,content,created_at FROM couple_comments'), before)
 
     def test_adoption_preserves_rows_and_sequence(self):
         self.install_legacy_schema()

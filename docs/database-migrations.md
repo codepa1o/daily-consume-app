@@ -24,6 +24,7 @@
 - `server/migrations/versions/0014_chatbot.py`：新增账号隔离的聊天对话与消息表，支持消息状态、元数据、长期记忆摘要和单对话流式回答唯一约束；存在聊天记录时拒绝回退删表。
 - `server/migrations/versions/0015_wechat_identity.py`：新增微信身份与账号关联，保持微信和账号绑定的唯一约束；有绑定数据时拒绝回退删表。
 - `server/migrations/versions/0016_pomodoro_reminders.py`：新增账号隔离的番茄钟订阅提醒队列及到期索引；有提醒数据时拒绝回退删表。
+- `server/migrations/versions/0017_couple_comment_interactions.py`：为回忆和反思评论新增主评论/回复对象关联、跨记录组合外键及账号唯一点赞表。原评论与发布时间保留；存在回复或点赞时拒绝丢弃互动数据的回退。已于 2026-10-16 随 1.4.7+22 部署执行；历史评论的内容与原始时间摘要保持一致。
 
 `DATABASE_URL` 接受 psycopg/libpq 的连接字符串或 PostgreSQL URI，不必转换为 SQLAlchemy URL。未设置时，使用 `dbname=daily_consume user=daily_consume host=/var/run/postgresql`，由系统用户 `daily-consume` 通过 peer 映射认证。不要将数据库密码提交到仓库。迁移使用连接的 `current_schema()`，版本表也位于同一 schema；本地测试通过独立 `search_path` 隔离。
 

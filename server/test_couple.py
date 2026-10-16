@@ -5,7 +5,7 @@ import os
 import secrets
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import psycopg
@@ -128,6 +128,88 @@ class CoupleApiTests(unittest.TestCase):
         response = self.client.post('/couple/memories', headers=header or self.a, json=self.body(**changes))
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
+
+    def test_comment_replies_likes_retry_scope_and_cascade(self):
+        """两种评论均验证两级回复、重复请求、成员隔离与级联清理。"""
+        self.start()
+        for kind, table, scope, likes in (
+                ('memories', 'couple_comments', 'memory_id', 'couple_comment_likes'),
+                ('conflicts', 'couple_conflict_comments', 'conflict_id', 'couple_conflict_comment_likes')):
+            with self.subTest(kind=kind):
+                def resource():
+                    if kind == 'memories':
+                        return self.create(photo_base64=None)['id']
+                    result = self.client.post('/couple/conflicts', headers=self.a, json={
+                        'conflict_date': today().isoformat(), 'title': '反思评论测试',
+                        'client_request_id': secrets.token_hex(16)})
+                    self.assertEqual(result.status_code, 201, result.text)
+                    return result.json()['id']
+
+                ident, other = resource(), resource()
+                path, other_path = f'/couple/{kind}/{ident}', f'/couple/{kind}/{other}'
+                root_body = dict(content='主评论', client_request_id=secrets.token_hex(16))
+                root = self.client.post(path + '/comments', headers=self.a, json=root_body).json()['id']
+                self.assertEqual(self.client.post(path + '/comments', headers=self.a, json=root_body).json()['id'], root)
+                foreign = self.client.post(other_path + '/comments', headers=self.a,
+                    json=dict(content='其他记录评论', client_request_id=secrets.token_hex(16))).json()['id']
+                reply_body = dict(content='第一次回复', reply_to_id=root, client_request_id=secrets.token_hex(16))
+                reply = self.client.post(path + '/comments', headers=self.b, json=reply_body).json()['id']
+                self.assertEqual(self.client.post(path + '/comments', headers=self.b, json=reply_body).json()['id'], reply)
+                nested_body = dict(content='继续回复', reply_to_id=reply, client_request_id=secrets.token_hex(16))
+                nested = self.client.post(path + '/comments', headers=self.a, json=nested_body).json()['id']
+                rows = self.client.get(path + '/comments', headers=self.a).json()
+                by_id = {row['id']: row for row in rows}
+                self.assertIsNone(by_id[root]['parent_id'])
+                self.assertEqual(by_id[reply]['parent_id'], root)
+                self.assertEqual(by_id[nested]['parent_id'], root)
+                self.assertEqual(by_id[nested]['reply_to_id'], reply)
+                self.assertIn('reply_to_author', by_id[nested])
+                self.assertIn('avatar_base64', by_id[root])
+                self.assertIsNotNone(datetime.fromisoformat(by_id[root]['created_at']).tzinfo)
+                self.assertEqual(len(rows), 3)
+                self.assertEqual(self.client.post(path + '/comments', headers=self.a,
+                    json=nested_body | {'reply_to_id': root}).status_code, 409)
+                self.assertEqual(self.client.post(path + '/comments', headers=self.b,
+                    json=reply_body | {'client_request_id': secrets.token_hex(16), 'reply_to_id': foreign}).status_code, 404)
+                for extra in ({'reply_to_id': True}, {'parent_id': root}):
+                    self.assertEqual(self.client.post(path + '/comments', headers=self.b,
+                        json=reply_body | extra).status_code, 422)
+                like_path = path + f'/comments/{root}/like'
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    results = list(pool.map(lambda _: self.client.put(like_path, headers=self.a, json={'liked': True}), range(2)))
+                for result in results:
+                    self.assertEqual(result.status_code, 200, result.text)
+                    self.assertEqual(result.json(), {'liked': True, 'like_count': 1})
+                self.assertEqual(self.client.put(like_path, headers=self.b, json={'liked': True}).json()['like_count'], 2)
+                self.assertEqual(self.client.put(path + f'/comments/{reply}/like', headers=self.b,
+                    json={'liked': True}).json()['like_count'], 1)
+                for _ in range(2):
+                    self.assertEqual(self.client.put(like_path, headers=self.a,
+                        json={'liked': False}).json(), {'liked': False, 'like_count': 1})
+                mine = self.client.get(path + '/comments', headers=self.a).json()[0]
+                theirs = self.client.get(path + '/comments', headers=self.b).json()[0]
+                self.assertFalse(mine['liked_by_me'])
+                self.assertTrue(theirs['liked_by_me'])
+                self.assertEqual(theirs['like_count'], 1)
+                self.assertEqual(self.client.put(like_path, headers=self.a, json={'liked': 1}).status_code, 422)
+                self.assertEqual(self.client.put(path + f'/comments/{foreign}/like', headers=self.a,
+                    json={'liked': True}).status_code, 404)
+                self.assertEqual(self.client.get(path + '/comments', headers=self.c).status_code, 404)
+                self.assertEqual(self.client.post(path + '/comments', headers=self.c, json=root_body).status_code, 404)
+                self.assertEqual(self.client.put(like_path, headers=self.c, json={'liked': True}).status_code, 404)
+                self.assertEqual(self.client.get(path + '/comments').status_code, 401)
+                self.assertEqual(self.client.put(like_path, json={'liked': True}).status_code, 401)
+                # 数据库外键也拒绝跨记录的父评论，防止绕过接口检查后写入非法关系。
+                with self.assertRaises(psycopg.errors.ForeignKeyViolation):
+                    with api.connect() as db:
+                        db.execute(f'INSERT INTO {table}({scope},author_id,content,client_request_id,parent_id,reply_to_id) VALUES (%s,%s,%s,%s,%s,%s)',
+                            (ident, self.users[0], '非法跨记录回复', secrets.token_hex(16), foreign, foreign))
+                self.assertEqual(self.client.delete(path, headers=self.a).status_code, 200)
+                with api.connect() as db:
+                    self.assertEqual(db.execute(f'SELECT count(*) AS n FROM {table} WHERE {scope}=%s', (ident,)).fetchone()['n'], 0)
+                    self.assertEqual(db.execute(f'SELECT count(*) AS n FROM {likes} WHERE comment_id IN (%s,%s)', (root, reply)).fetchone()['n'], 0)
+                # 本用例额外创建的另一条反思也清理，避免影响同一 schema 的回退保护检查。
+                self.assertEqual(self.client.delete(other_path, headers=self.a).status_code, 200)
 
     def test_conflict_private_drafts_comments_and_two_member_agreement(self):
         self.start()

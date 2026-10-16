@@ -124,7 +124,9 @@ void main() {
         ];
         return {'saved': true};
       }
-      if (path.endsWith('/comments')) {
+      if (method == 'GET' && path.endsWith('/comments'))
+        return record['comments'];
+      if (method == 'POST' && path.endsWith('/comments')) {
         record['agreement'] = '每周五晚一起确认安排';
         record['agreement_version'] = 1;
         record['agreement_confirmed_by'] = [2];

@@ -54,17 +54,29 @@ Flutter 客户端和 FastAPI/PostgreSQL 后端实现。入口：日常 → 情�
 | couple/memories/{id}/photo | GET | thumbnail=true/false，返回鉴权后的 JPEG |
 | couple/memories/{id}/photos | GET | 按顺序返回这条相册的缩略图 |
 | couple/memories/{id}/photos/{position} | GET | 返回 0–8 位置的鉴权 JPEG；thumbnail=true/false |
-| couple/memories/{id}/comments | POST | content、client_request_id |
+| couple/memories/{id}/comments | GET / POST | 获取留言、回复和点赞状态；保存 content、client_request_id、可选 reply_to_id |
+| couple/memories/{id}/comments/{comment_id}/like | PUT | liked 为布尔值，保存当前账号的点赞目标状态，返回 liked、like_count |
 | couple/memories/{id}/reaction | PUT | emoji，null 清除自己的表情 |
 | couple/conflicts | GET / POST | 按 start/end 查询争执日历；保存 conflict_date、title、summary、client_request_id |
 | couple/conflicts/{id} | GET / DELETE | 获取双方已发布反思、自己的草稿与评论；创建者删除 |
 | couple/conflicts/{id}/reflection | PUT | 保存自己的 observations、feelings、needs、my_part、request；published 控制是否对另一半公开 |
 | couple/conflicts/{id}/agreement | PUT | 保存 agreement、可选 follow_up_date 与 expected_version 并确认；过期版本返回 409；双方确认后标记共识 |
-| couple/conflicts/{id}/comments | POST | content、client_request_id |
+| couple/conflicts/{id}/comments | GET / POST | 获取评论、回复和点赞状态；保存 content、client_request_id、可选 reply_to_id |
+| couple/conflicts/{id}/comments/{comment_id}/like | PUT | 与回忆评论采用相同的成员校验、唯一点赞和取消规则 |
+
+### 评论互动
+
+1.4.7+22 已备份并部署迁移 `0017_couple_comment_interactions`。原有评论保留为主评论，原始 `created_at` 不变。
+
+评论返回 `id`、`author_id`、`author_name`、`avatar_base64`、`content`、`created_at`、`parent_id`、`reply_to_id`、`reply_to_author`、`like_count`、`liked_by_me`。时间由数据库生成并带时区；Flutter 固定换算北京时间，显示 `YYYY-MM-DD HH:mm:ss`。
+
+`reply_to_id` 可指向同一回忆或反思中的主评论、回复。服务端确定主评论 `parent_id`，客户端不能自行提交父级；回复某条回复仍使用两级布局，并显示具体回复对象。跨记录、跨空间的引用或点赞被拒绝。相同创建请求编号只有内容、资源和回复对象均一致时才返回原记录；点赞 `PUT` 保存目标状态，重复请求不叠加数量。
+
+Flutter 两处评论共用组件：即时显示自己的点赞，失败恢复原状态；发送结果不确定时保留并锁定原草稿和回复对象，重试复用请求编号。前台当前页面每 15 秒同步一次，支持手动刷新及返回前台刷新；刷新不清空草稿。回复默认展示两条，超过两条可以展开或收起。
 
 ## 部署与验证
 
-升级至 Alembic `0013_couple_conflicts`（依赖 `0012_workout_actions`）；上传 couple.py、app.py、迁移目录和相关验证脚本。按数据库迁移指南先备份，再迁移并重启服务。API 安装包使用现有服务器地址和证书。
+本轮评论互动上线需要升级至 Alembic `0017_couple_comment_interactions`（依赖 `0016_pomodoro_reminders`）；部署 couple.py、迁移目录和相关验证脚本。按数据库迁移指南先备份、执行迁移，再部署服务代码并重启。API 安装包使用现有服务器地址和证书。
 
 真实 PostgreSQL 检查：设置 `TEST_DATABASE_URL` 指向隔离测试库，运行 `python -m unittest discover -s server -p 'test_*.py' -v`。用例覆盖邀请码失效/并发抢占、第三人访问、图片验证/缩放/元数据清理、重试去重、表情覆盖、作者删除、发布时间分组与分页拼贴，以及已有表数据保留。
 
@@ -81,7 +93,15 @@ runuser -u daily-consume -- ./venv/bin/python check_couple_api.py \
 
 Flutter 检查：`flutter analyze`、`flutter test`、`flutter build apk --release`。界面用例覆盖显影/翻面/刮刮卡/星空交互、320 像素大字体六种玩法、失败保留输入和成功重试返回、纯文字记录不请求照片，以及首页到详情导航。
 
-## 本次验证结果
+## 评论互动验证与上线（1.4.7+22）
+
+- Flutter：本轮修改文件静态分析无问题；21 项情侣空间相关检查通过，覆盖秒级北京时间、点赞/取消、重试保留回复对象、前台同步、旧刷新结果保护、账号切换和窄屏大字号。
+- PostgreSQL：独立临时数据库的 40 项后端检查通过，覆盖两种评论的并发点赞、回复嵌套归并、越权与跨记录引用、级联清理、旧评论保留和拒绝有损回退。测试库与测试角色已清理。
+- 2026-10-16：生产迁移到 `0017_couple_comment_interactions`，43 张既有表行数保持一致；5 条历史评论内容、原始时间摘要前后一致，无缺失时间。服务和 Nginx 为 active，固定 CA 校验的公网 health 正常，新评论接口要求登录。
+- 签名 APK：`1.4.7+22`，68,986,640 字节；原签名一致，SHA256 `279ab91c925c8a95cdf9125b6ca0643e8015b091883519ef8a3fc78428d184be`。部署详情见 [1.4.7-deployment.json](../release-notes/1.4.7-deployment.json)。
+- 本次修改的 6 个 Dart 文件静态分析无问题；全仓分析仍有 5 条原有提示，位于聊天、文件选择和临时预览代码。
+
+## 历史上线验证结果（1.3.0+8）
 
 - 本地真实 PostgreSQL：全部 29 项后端/迁移测试通过，使用独立实例和随机 schema，结束后停止测试实例。
 - Flutter：分析无问题，全部 47 项测试通过；六种玩法已用 320 像素宽、1.6 倍文字验证，并渲染检查界面。

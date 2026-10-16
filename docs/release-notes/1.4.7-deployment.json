@@ -1,0 +1,48 @@
+{
+  "version": "1.4.7+22",
+  "release_tag": "v1.4.7+22",
+  "completed_at": "2026-10-16T14:53:23.349658+00:00",
+  "migration": "0017_couple_comment_interactions",
+  "backup": "/var/backups/daily-consume/daily-consume-pre-1.4.7-20261016T145204Z",
+  "service": "active",
+  "nginx": "active",
+  "backend_version": "1.4.7",
+  "pre_release_backend_checks_passed": 40,
+  "pre_release_flutter_checks_passed": 21,
+  "database_sha256": "2060e201c911025239013f12a7e7ca40622c4594d5f734898deadbe61b592203",
+  "code_sha256": "f983e5befa6e98a3feb8ba6e44926c5871a78d432a31ee16cdcb016b1eb5fa0b",
+  "source_manifest_sha256": "38241f7eb2677b5ae05b98212552ea24b5ea48058e43a6d5edee404547760710",
+  "existing_tables_preserved": 43,
+  "historical_comments_preserved": true,
+  "historical_comments": {
+    "couple_comments": {
+      "count": 5,
+      "missing_times": 0,
+      "rows_sha256": "1dda9ad0b22d500f67fdb53dcd39a73d611f8354385a69d97238122d101d70c3",
+      "timestamps_sha256": "f12c2199d6fe834b7ba33a979a440fcfd578bc6b550897c5b53daaed7396d534"
+    },
+    "couple_conflict_comments": {
+      "count": 0,
+      "missing_times": 0,
+      "rows_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "timestamps_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "https_checks": [
+    {
+      "method": "GET",
+      "path": "/api/v1/health",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/couple/memories/1/comments",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/couple/conflicts/1/comments",
+      "status": 401
+    }
+  ]
+}
