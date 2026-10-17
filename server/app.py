@@ -80,7 +80,7 @@ def plain_ai_text(value):
     return value.strip()
 
 
-app = FastAPI(title='日常 API', version='1.4.7',
+app = FastAPI(title='日常 API', version='1.4.8',
               docs_url=None, redoc_url=None, openapi_url=None)
 
 web_origins = [
@@ -811,6 +811,28 @@ class OtherExpenseInput(DatedInput):
         return value.strip()
 
 
+class IncomeInput(DatedInput):
+    category: str = Field(min_length=1, max_length=80)
+    income_cents: int = Field(gt=0, le=10000000000, strict=True)
+    notes: str = Field(default='', max_length=1000)
+
+    @field_validator('category')
+    @classmethod
+    def income_category(cls, value):
+        if not value.strip():
+            raise ValueError('收入分类不能为空')
+        return value.strip()
+
+    @field_validator('notes')
+    @classmethod
+    def income_notes(cls, value):
+        return value.strip()
+
+
+class IncomeCreate(IncomeInput):
+    client_request_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+
+
 def upsert(db, table, owner, row, keys):
     columns = list(row)
     updates = ','.join(f'{c}=EXCLUDED.{c}' for c in columns if c not in keys)
@@ -932,6 +954,61 @@ def delete_other_expense(expense_id: int, user: User):
             WHERE user_id=%s AND id=%s RETURNING id''', (user['id'], expense_id)).fetchone()
         if not removed:
             raise HTTPException(404, '其他消费记录不存在')
+    return {'ok': True}
+
+
+@app.get('/incomes')
+def incomes(user: User, start: date, end: date):
+    if start > end or start < date(2000, 1, 1) or (end - start).days > 366:
+        raise HTTPException(422, '收入查询日期范围不正确，最多查询一年')
+    with connect() as db:
+        return db.execute('''SELECT id,date,category,income_cents,notes FROM income_entries
+            WHERE user_id=%s AND date BETWEEN %s AND %s ORDER BY date DESC,id DESC''',
+            (user['id'], start, end)).fetchall()
+
+
+@app.post('/incomes', status_code=201)
+def create_income(body: IncomeCreate, user: User):
+    # 金额始终按整数分保存；原始请求摘要保留到编辑之后，防止网络重试重复记账。
+    payload = body.model_dump(mode='json', exclude={'client_request_id'})
+    fingerprint = hashlib.sha256(json.dumps(
+        payload, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
+    with connect() as db:
+        row = db.execute('''INSERT INTO income_entries
+            (user_id,date,category,income_cents,notes,client_request_id,request_hash)
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT(user_id,client_request_id) DO NOTHING
+            RETURNING id,date,category,income_cents,notes''',
+            (user['id'], body.date, body.category, body.income_cents,
+             body.notes, body.client_request_id, fingerprint)).fetchone()
+        if row is None:
+            row = db.execute('''SELECT id,date,category,income_cents,notes,request_hash
+                FROM income_entries WHERE user_id=%s AND client_request_id=%s''',
+                (user['id'], body.client_request_id)).fetchone()
+            if row is None or row.pop('request_hash') != fingerprint:
+                raise HTTPException(409, '该收入请求已使用，请刷新后确认原记录')
+        return row
+
+
+@app.put('/incomes/{income_id}')
+def update_income(income_id: int, body: IncomeInput, user: User):
+    with connect() as db:
+        row = db.execute('''UPDATE income_entries SET date=%s,category=%s,income_cents=%s,notes=%s
+            WHERE user_id=%s AND id=%s RETURNING id,date,category,income_cents,notes''',
+            (body.date, body.category, body.income_cents, body.notes, user['id'], income_id)).fetchone()
+        if row is None:
+            raise HTTPException(404, '收入记录不存在')
+        return row
+
+
+@app.delete('/incomes/{income_id}')
+def delete_income(income_id: int, user: User):
+    with connect() as db:
+        # 修改和删除均限定当前账号，不能通过猜测记录编号操作他人的收入。
+        row = db.execute('DELETE FROM income_entries WHERE user_id=%s AND id=%s RETURNING id',
+                         (user['id'], income_id)).fetchone()
+        if row is None:
+            raise HTTPException(404, '收入记录不存在')
     return {'ok': True}
 
 

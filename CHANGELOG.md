@@ -1,10 +1,19 @@
 # 更新日志
 
-按版本编号从新到旧汇总已发布变更。最新已记录版本为 **1.4.7+22**。
+按版本编号从新到旧汇总已发布变更。最新已记录版本为 **1.4.8+23**。
 
 记录来源为 [各版本更新说明](docs/release-notes/)、[内置历史日志](assets/release_history.json) 和本地发布标签内的版本说明。较早的 GitHub 更新接入记录见 [接入说明](docs/access-api/github-updates.md)。未在原记录中确认的发布时间不作补填。
 
 服务器部署、数据库迁移、备份和回滚信息见 [部署记录](docs/DEPLOYMENTS.md)。应用内更新日志仍由 `assets/release_notes.json` 与 `assets/release_history.json` 提供。
+
+## [1.4.8+23](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.4.8%2B23)
+
+- 饮食消费新增收入记录，支持同日多笔、历史补记、分类、备注、编辑和删除。
+- 收入与支出按日期绘制在同一张柱状图中：收入向上、支出向下，每根柱子直接显示具体金额。
+- 日、周、月统计统一展示收入、支出和期间结余；月视图可横向滑动查看每天的数据。
+- 新增收入分类饼图，展示具体金额与占比，支持点击扇区和分类查看；支出饼图同步跟随统计时间范围。
+- 服务端通过独立收入表保存账号数据，按整数分统计，并防止网络重试重复入账。
+- 服务端已部署并完成 `0018_income_entries` 迁移，原有餐食与消费记录保持完整。
 
 ## [1.4.7+22](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.4.7%2B22)
 

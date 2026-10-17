@@ -23,6 +23,8 @@ import 'widgets/app_logo.dart';
 import 'widgets/body_data_icon.dart';
 import 'widgets/travel_planning_icon.dart';
 import 'widgets/app_layout.dart';
+import 'widgets/cash_flow_chart.dart';
+import 'widgets/income_records.dart';
 import 'skill_agent_page.dart';
 import 'research_tools_page.dart';
 import 'chatbot_page.dart';
@@ -1540,10 +1542,12 @@ class _DiaryPageState extends State<DiaryPage> {
   final db = AppDatabase.instance;
   DateTime selectedDate = DateTime.now();
   _Period period = _Period.day;
+  bool _showIncomePie = false;
   List<MealEntry> dayMeals = [];
   List<MealEntry> periodMeals = [];
   List<OtherExpenseEntry> dayOtherExpenses = [];
   List<OtherExpenseEntry> periodOtherExpenses = [];
+  List<IncomeEntry> periodIncomes = [];
   bool loading = true;
   String? loadError;
   int _loadVersion = 0;
@@ -1580,6 +1584,7 @@ class _DiaryPageState extends State<DiaryPage> {
         db.getMealsBetween(start, end),
         db.getOtherExpensesBetween(date, date),
         db.getOtherExpensesBetween(start, end),
+        db.getIncomesBetween(start, end),
       ]);
       if (!mounted || version != _loadVersion) return;
       setState(() {
@@ -1587,6 +1592,7 @@ class _DiaryPageState extends State<DiaryPage> {
         periodMeals = data[1] as List<MealEntry>;
         dayOtherExpenses = data[2] as List<OtherExpenseEntry>;
         periodOtherExpenses = data[3] as List<OtherExpenseEntry>;
+        periodIncomes = data[4] as List<IncomeEntry>;
         loading = false;
       });
     } catch (error) {
@@ -1599,7 +1605,7 @@ class _DiaryPageState extends State<DiaryPage> {
   }
 
   Future<void> setDate(DateTime date) async {
-    if (date.isAfter(DateTime.now())) return;
+    if (date.isBefore(DateTime(2000)) || date.isAfter(DateTime.now())) return;
     setState(() {
       selectedDate = DateTime(date.year, date.month, date.day);
       loading = true;
@@ -1917,6 +1923,45 @@ class _DiaryPageState extends State<DiaryPage> {
     await reload();
   }
 
+  List<IncomeEntry> get dayIncomes => periodIncomes
+      .where((entry) => dateKey(entry.date) == dateKey(selectedDate))
+      .toList();
+
+  int get dayIncomeTotal =>
+      dayIncomes.fold(0, (sum, item) => sum + item.incomeCents);
+  int get periodIncomeTotal =>
+      periodIncomes.fold(0, (sum, item) => sum + item.incomeCents);
+
+  Future<void> editIncome({IncomeEntry? existing}) async {
+    final savedDate =
+        await showIncomeEditor(context, date: selectedDate, existing: existing);
+    if (!mounted) return;
+    // 即使关闭了结果不确定的表单也重新读取，确认服务器是否已经记账。
+    if (savedDate != null) selectedDate = savedDate;
+    await reload();
+  }
+
+  Future<void> deleteIncome(IncomeEntry entry) async {
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+              title: const Text('删除这笔收入？'),
+              content:
+                  Text('${entry.category} · ${formatMoney(entry.incomeCents)}'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text('取消')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text('删除'))
+              ],
+            ));
+    if (confirmed != true || !mounted) return;
+    if (await serverAction(context, () => db.deleteIncome(entry.id)) && mounted)
+      await reload();
+  }
+
   int get dayTotal =>
       dayMeals.fold(0, (sum, item) => sum + item.expenseCents) +
       dayOtherExpenses.fold(0, (sum, item) => sum + item.expenseCents);
@@ -1927,25 +1972,30 @@ class _DiaryPageState extends State<DiaryPage> {
   int get periodOtherExpenseTotal =>
       periodOtherExpenses.fold(0, (sum, item) => sum + item.expenseCents);
 
-  List<_PieSlice> get dailyPieSlices {
+  List<_PieSlice> pieSlices({required bool income}) {
     final totals = <String, int>{};
-    for (final meal in dayMeals) {
-      totals.update(meal.mealType, (value) => value + meal.expenseCents,
-          ifAbsent: () => meal.expenseCents);
-    }
-    for (final expense in dayOtherExpenses) {
-      totals.update(expense.category, (value) => value + expense.expenseCents,
-          ifAbsent: () => expense.expenseCents);
+    void add(String category, int cents) => totals
+        .update(category, (value) => value + cents, ifAbsent: () => cents);
+    if (income) {
+      for (final entry in periodIncomes) {
+        add(entry.category, entry.incomeCents);
+      }
+    } else {
+      for (final meal in periodMeals) {
+        add(meal.mealType, meal.expenseCents);
+      }
+      for (final entry in periodOtherExpenses) {
+        add(entry.category, entry.expenseCents);
+      }
     }
     final entries = totals.entries.where((entry) => entry.value > 0).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     return [
       for (var index = 0; index < entries.length; index++)
         _PieSlice(
-          label: entries[index].key,
-          cents: entries[index].value,
-          color: _pieColors[index % _pieColors.length],
-        ),
+            label: entries[index].key,
+            cents: entries[index].value,
+            color: _pieColors[index % _pieColors.length])
     ];
   }
 
@@ -1953,44 +2003,29 @@ class _DiaryPageState extends State<DiaryPage> {
       .where((meal) => meal.mealType == type)
       .fold(0, (sum, meal) => sum + meal.expenseCents);
 
-  List<_ChartValue> chartValues() {
-    if (period == _Period.day) {
-      return dailyPieSlices
-          .map((slice) => _ChartValue(
-                slice.label.length > 2
-                    ? slice.label.substring(0, 2)
-                    : slice.label,
-                slice.cents,
-              ))
-          .toList();
+  List<CashFlowPoint> chartValues() {
+    // 日、周、月统一按自然日期归集，收入与支出始终使用同一横轴。
+    final income = <String, int>{}, expense = <String, int>{};
+    for (final entry in periodIncomes) {
+      income.update(dateKey(entry.date), (value) => value + entry.incomeCents,
+          ifAbsent: () => entry.incomeCents);
     }
-    if (period == _Period.week) {
-      const labels = ['一', '二', '三', '四', '五', '六', '日'];
-      return List.generate(7, (index) {
-        final date = rangeStart.add(Duration(days: index));
-        final cents = periodMeals
-                .where((meal) => dateKey(meal.date) == dateKey(date))
-                .fold<int>(0, (sum, meal) => sum + meal.expenseCents) +
-            periodOtherExpenses
-                .where((expense) => dateKey(expense.date) == dateKey(date))
-                .fold<int>(0, (sum, expense) => sum + expense.expenseCents);
-        return _ChartValue(labels[index], cents);
-      });
+    for (final entry in periodMeals) {
+      expense.update(dateKey(entry.date), (value) => value + entry.expenseCents,
+          ifAbsent: () => entry.expenseCents);
     }
-    final days = rangeEnd.day;
-    final weekCount = ((days + 6) / 7).floor();
-    return List.generate(weekCount, (index) {
-      final firstDay = index * 7 + 1;
-      final lastDay = math.min(firstDay + 6, days).toInt();
-      final cents = periodMeals
-              .where((meal) =>
-                  meal.date.day >= firstDay && meal.date.day <= lastDay)
-              .fold<int>(0, (sum, meal) => sum + meal.expenseCents) +
-          periodOtherExpenses
-              .where((expense) =>
-                  expense.date.day >= firstDay && expense.date.day <= lastDay)
-              .fold<int>(0, (sum, expense) => sum + expense.expenseCents);
-      return _ChartValue((index + 1).toString() + '周', cents);
+    for (final entry in periodOtherExpenses) {
+      expense.update(dateKey(entry.date), (value) => value + entry.expenseCents,
+          ifAbsent: () => entry.expenseCents);
+    }
+    final start = DateTime(rangeStart.year, rangeStart.month, rangeStart.day);
+    final end = DateTime(rangeEnd.year, rangeEnd.month, rangeEnd.day);
+    return List.generate(end.difference(start).inDays + 1, (index) {
+      final date = start.add(Duration(days: index)), key = dateKey(date);
+      return CashFlowPoint(
+          date: date,
+          incomeCents: income[key] ?? 0,
+          expenseCents: expense[key] ?? 0);
     });
   }
 
@@ -2005,34 +2040,67 @@ class _DiaryPageState extends State<DiaryPage> {
     final isToday = dateKey(selectedDate) == dateKey(DateTime.now());
     return LayoutBuilder(builder: (context, constraints) {
       final wide = constraints.maxWidth >= 1050;
+      final dailyHeader =
+          Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        AppDateNavigator(
+          title: formatDate(selectedDate, year: true),
+          isToday: isToday,
+          subtitle:
+              '${weekdayName(selectedDate.weekday)} · ${isToday ? '今天' : '历史记录'}',
+          onPrevious: () =>
+              setDate(selectedDate.subtract(const Duration(days: 1))),
+          onNext: isToday
+              ? null
+              : () => setDate(selectedDate.add(const Duration(days: 1))),
+          onChoose: chooseDate,
+          onToday: () => setDate(DateTime.now()),
+        ),
+        const SizedBox(height: 12),
+        Container(
+            padding: appCardPadding,
+            decoration: BoxDecoration(
+                color: sageSoft, borderRadius: BorderRadius.circular(18)),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('当天收支', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 14),
+              CashFlowSummary(
+                  incomeCents: dayIncomeTotal, expenseCents: dayTotal),
+            ])),
+        const SizedBox(height: 12),
+        Wrap(spacing: 12, runSpacing: 8, children: [
+          FilledButton.icon(
+              onPressed: () => editIncome(),
+              icon: const Icon(Icons.add),
+              label: const Text('记收入')),
+          OutlinedButton.icon(
+              onPressed: () => editOtherExpense(),
+              icon: const Icon(Icons.add),
+              label: const Text('记其他支出')),
+        ]),
+      ]);
       final dailyRecords = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppDateNavigator(
-            title: formatDate(selectedDate, year: true),
-            isToday: isToday,
-            subtitle:
-                '${weekdayName(selectedDate.weekday)} · ${isToday ? '今天' : '历史记录'}',
-            onPrevious: () =>
-                setDate(selectedDate.subtract(const Duration(days: 1))),
-            onNext: isToday
-                ? null
-                : () => setDate(selectedDate.add(const Duration(days: 1))),
-            onChoose: chooseDate,
-            onToday: () => setDate(DateTime.now()),
-          ),
-          const SizedBox(height: 8),
-          _DailySpendCard(
-            totalCents: dayTotal,
-            mealCount: dayMeals.length,
-            otherExpenseCount: dayOtherExpenses.length,
-          ),
+          Row(children: [
+            const Expanded(
+                child: Text('收入记录',
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
+            Text('${dayIncomes.length} 笔', style: const TextStyle(color: muted))
+          ]),
           const SizedBox(height: 10),
-          _DailyExpensePieCard(
-            title: isToday ? '今日消费构成' : '当天消费构成',
-            totalCents: dayTotal,
-            slices: dailyPieSlices,
-          ),
+          if (dayIncomes.isEmpty)
+            const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child:
+                    Text('当天暂无收入记录，点击“记收入”添加', style: TextStyle(color: muted)))
+          else
+            for (final entry in dayIncomes)
+              IncomeRecordCard(
+                  entry: entry,
+                  onEdit: () => editIncome(existing: entry),
+                  onDelete: () => deleteIncome(entry)),
           const SizedBox(height: 19),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2102,6 +2170,12 @@ class _DiaryPageState extends State<DiaryPage> {
         dinnerCents: mealTotal('晚餐'),
         otherExpenseCents: periodOtherExpenseTotal,
         chartValues: chartValues(),
+        incomeCents: periodIncomeTotal,
+        expenseSlices: pieSlices(income: false),
+        incomeSlices: pieSlices(income: true),
+        rangeLabel: '${dateKey(rangeStart)} 至 ${dateKey(rangeEnd)}',
+        incomePie: _showIncomePie,
+        onPieChanged: (value) => setState(() => _showIncomePie = value),
         onPeriodChanged: setPeriod,
       );
 
@@ -2109,15 +2183,17 @@ class _DiaryPageState extends State<DiaryPage> {
         child: ListView(
           padding: appPagePadding(constraints.maxWidth),
           children: [
-            const _Kicker('饮食日记'),
+            const _Kicker('饮食消费'),
             const SizedBox(height: 7),
-            Text('今天吃了什么？',
+            Text('记录饮食，也记清收支。',
                 style: TextStyle(
                     color: ink,
                     fontFamily: 'serif',
                     fontSize: wide ? 36 : 32,
                     letterSpacing: -1)),
             const SizedBox(height: 16),
+            dailyHeader,
+            const SizedBox(height: 18),
             if (wide)
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(flex: 6, child: dailyRecords),
@@ -2125,9 +2201,9 @@ class _DiaryPageState extends State<DiaryPage> {
                 Expanded(flex: 4, child: statistics),
               ])
             else ...[
-              dailyRecords,
-              const SizedBox(height: 14),
               statistics,
+              const SizedBox(height: 20),
+              dailyRecords,
             ],
           ],
         ),
@@ -2721,49 +2797,6 @@ bool _sameDates(List<DateTime> first, List<DateTime> second) {
   return true;
 }
 
-class _DailySpendCard extends StatelessWidget {
-  const _DailySpendCard({
-    required this.totalCents,
-    required this.mealCount,
-    required this.otherExpenseCount,
-  });
-  final int totalCents;
-  final int mealCount;
-  final int otherExpenseCount;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: appCardPadding,
-        decoration: BoxDecoration(
-            color: sageSoft, borderRadius: BorderRadius.circular(18)),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('当天总消费',
-                      style: TextStyle(color: sage, fontSize: 10)),
-                  const SizedBox(height: 5),
-                  Text(formatMoney(totalCents),
-                      style: const TextStyle(
-                          color: Color(0xff35412f),
-                          fontFamily: 'serif',
-                          fontSize: 28)),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text('$mealCount 餐 · $otherExpenseCount 笔其他消费',
-                  style: const TextStyle(color: sage, fontSize: 10)),
-            ),
-          ],
-        ),
-      );
-}
-
 class _OtherExpenseCard extends StatelessWidget {
   const _OtherExpenseCard({
     required this.expense,
@@ -2793,7 +2826,7 @@ class _OtherExpenseCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12)),
             ),
-            Text(formatMoney(expense.expenseCents),
+            Text('−${formatMoney(expense.expenseCents)}',
                 style: const TextStyle(fontFamily: 'serif', fontSize: 15)),
             IconButton(
               onPressed: onEdit,
@@ -3021,12 +3054,6 @@ class _MealItemFields extends StatelessWidget {
       );
 }
 
-class _ChartValue {
-  const _ChartValue(this.label, this.cents);
-  final String label;
-  final int cents;
-}
-
 class _PieSlice {
   const _PieSlice({
     required this.label,
@@ -3049,281 +3076,261 @@ const _pieColors = [
   Color(0xffc87962),
 ];
 
-class _DailyExpensePieCard extends StatelessWidget {
-  const _DailyExpensePieCard({
-    required this.title,
-    required this.totalCents,
-    required this.slices,
-  });
-
-  final String title;
+/// 饼图与图例共用选中分类，点击任一处都能查看金额和占比。
+class _CategoryPieCard extends StatefulWidget {
+  const _CategoryPieCard(
+      {super.key,
+      required this.income,
+      required this.totalCents,
+      required this.slices});
+  final bool income;
   final int totalCents;
   final List<_PieSlice> slices;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: appCardPadding,
-        decoration: BoxDecoration(
-          color: const Color(0xfff0efe8),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(title,
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
-                ),
-                Text(formatMoney(totalCents),
-                    style: const TextStyle(fontFamily: 'serif', fontSize: 16)),
-              ],
-            ),
-            const SizedBox(height: 11),
-            if (slices.isEmpty)
-              const SizedBox(
-                height: 112,
-                child: Center(
-                  child: Text('当天暂无消费金额',
-                      style: TextStyle(color: muted, fontSize: 11)),
-                ),
-              )
-            else
-              AppFormRow(
-                breakpoint: 420,
-                children: [
-                  Center(
-                      child: SizedBox(
-                    width: 116,
-                    height: 116,
-                    child: CustomPaint(
-                      painter: _ExpensePiePainter(slices),
-                    ),
-                  )),
-                  Column(
-                    children: [
-                      for (final slice in slices)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                    color: slice.color, shape: BoxShape.circle),
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(slice.label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        color: muted, fontSize: 10)),
-                              ),
-                              const SizedBox(width: 5),
-                              Text(formatMoney(slice.cents),
-                                  style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-          ],
-        ),
-      );
+  State<_CategoryPieCard> createState() => _CategoryPieCardState();
 }
 
-class _ExpensePiePainter extends CustomPainter {
-  const _ExpensePiePainter(this.slices);
+class _CategoryPieCardState extends State<_CategoryPieCard> {
+  int? _selected;
 
-  final List<_PieSlice> slices;
+  void _select(int index) =>
+      setState(() => _selected = _selected == index ? null : index);
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final total = slices.fold<int>(0, (sum, slice) => sum + slice.cents);
-    if (total == 0) return;
-
-    final bounds = Offset.zero & size;
-    var startAngle = -math.pi / 2;
-    for (final slice in slices) {
-      final sweepAngle = math.pi * 2 * slice.cents / total;
-      canvas.drawArc(
-        bounds,
-        startAngle,
-        sweepAngle,
-        true,
-        Paint()..color = slice.color,
-      );
-      startAngle += sweepAngle;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ExpensePiePainter oldDelegate) =>
-      oldDelegate.slices != slices;
-}
-
-class _StatisticsCard extends StatefulWidget {
-  const _StatisticsCard({
-    required this.period,
-    required this.totalCents,
-    required this.breakfastCents,
-    required this.lunchCents,
-    required this.dinnerCents,
-    required this.otherExpenseCents,
-    required this.chartValues,
-    required this.onPeriodChanged,
-  });
-
-  final _Period period;
-  final int totalCents;
-  final int breakfastCents;
-  final int lunchCents;
-  final int dinnerCents;
-  final int otherExpenseCents;
-  final List<_ChartValue> chartValues;
-  final ValueChanged<_Period> onPeriodChanged;
-
-  @override
-  State<_StatisticsCard> createState() => _StatisticsCardState();
-}
-
-class _StatisticsCardState extends State<_StatisticsCard> {
-  int _selectedIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedIndex = widget.chartValues.isEmpty || widget.period == _Period.day
-        ? 0
-        : widget.chartValues.length - 1;
-  }
-
-  @override
-  void didUpdateWidget(covariant _StatisticsCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.chartValues.isEmpty) {
-      _selectedIndex = 0;
-    } else if (oldWidget.period != widget.period) {
-      _selectedIndex =
-          widget.period == _Period.day ? 0 : widget.chartValues.length - 1;
-    } else {
-      _selectedIndex =
-          _selectedIndex.clamp(0, widget.chartValues.length - 1).toInt();
+  void _selectSector(Offset position) {
+    final delta = position - const Offset(78, 78);
+    if (delta.distance < 48 || delta.distance > 78) return;
+    final angle =
+        (math.atan2(delta.dy, delta.dx) + math.pi / 2) % (math.pi * 2);
+    var end = 0.0;
+    for (var index = 0; index < widget.slices.length; index++) {
+      end += widget.slices[index].cents / widget.totalCents * math.pi * 2;
+      if (angle <= end) {
+        _select(index);
+        return;
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final label = switch (widget.period) {
-      _Period.day => '当日',
-      _Period.week => '本周',
-      _Period.month => '本月',
-    };
-    final maximum = widget.chartValues.fold<int>(
-        0, (current, point) => math.max(current, point.cents).toInt());
-    final selected = widget.chartValues.isEmpty
-        ? null
-        : widget.chartValues[
-            _selectedIndex.clamp(0, widget.chartValues.length - 1).toInt()];
-    return Container(
+    final name = widget.income ? '收入' : '支出';
+    if (widget.slices.isEmpty)
+      return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 30),
+          child: Center(
+              child: Text('该时间范围暂无$name记录',
+                  style: const TextStyle(color: muted))));
+    final selected = _selected != null && _selected! < widget.slices.length
+        ? _selected
+        : null;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      AppFormRow(breakpoint: 560, children: [
+        Center(
+            child: GestureDetector(
+                onTapDown: (details) => _selectSector(details.localPosition),
+                child: SizedBox(
+                    width: 156,
+                    height: 156,
+                    child: Stack(alignment: Alignment.center, children: [
+                      Positioned.fill(
+                          child: CustomPaint(
+                              painter:
+                                  _ExpensePiePainter(widget.slices, selected))),
+                      SizedBox(
+                          width: 96,
+                          child:
+                              Column(mainAxisSize: MainAxisSize.min, children: [
+                            Text('总$name',
+                                style: const TextStyle(
+                                    color: muted, fontSize: 11)),
+                            const SizedBox(height: 4),
+                            FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(formatMoney(widget.totalCents),
+                                    style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600))),
+                          ])),
+                    ])))),
+        Column(children: [
+          for (var index = 0; index < widget.slices.length; index++)
+            Semantics(
+                button: true,
+                selected: index == selected,
+                onTap: () => _select(index),
+                label:
+                    '${widget.slices[index].label}，${formatMoney(widget.slices[index].cents)}，占比${(widget.slices[index].cents * 100 / widget.totalCents).toStringAsFixed(1)}%',
+                excludeSemantics: true,
+                child: InkWell(
+                    onTap: () => _select(index),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 8),
+                        decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            color: index == selected
+                                ? widget.slices[index].color
+                                    .withValues(alpha: .12)
+                                : null),
+                        child: Row(children: [
+                          Container(
+                              width: 9,
+                              height: 9,
+                              decoration: BoxDecoration(
+                                  color: widget.slices[index].color,
+                                  shape: BoxShape.circle)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: Text(widget.slices[index].label,
+                                  style: const TextStyle(fontSize: 12))),
+                          const SizedBox(width: 8),
+                          Flexible(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                        formatMoney(widget.slices[index].cents),
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600))),
+                                Text(
+                                    '${(widget.slices[index].cents * 100 / widget.totalCents).toStringAsFixed(1)}%',
+                                    style: const TextStyle(
+                                        color: muted, fontSize: 11)),
+                              ])),
+                        ]))))
+        ]),
+      ]),
+      if (selected != null)
+        Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+                '${widget.slices[selected].label} · ${formatMoney(widget.slices[selected].cents)}',
+                style: const TextStyle(fontWeight: FontWeight.w600))),
+      const SizedBox(height: 8),
+      const Text('点击扇区或分类查看详情', style: TextStyle(color: muted, fontSize: 11)),
+    ]);
+  }
+}
+
+class _ExpensePiePainter extends CustomPainter {
+  const _ExpensePiePainter(this.slices, this.selected);
+  final List<_PieSlice> slices;
+  final int? selected;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = slices.fold<int>(0, (sum, slice) => sum + slice.cents);
+    if (total == 0) return;
+    final bounds = Offset.zero & size;
+    var start = -math.pi / 2;
+    for (var index = 0; index < slices.length; index++) {
+      final sweep = math.pi * 2 * slices[index].cents / total;
+      canvas.drawArc(
+          bounds,
+          start,
+          sweep,
+          true,
+          Paint()
+            ..color = slices[index].color.withValues(
+                alpha: selected == null || selected == index ? 1 : .35));
+      start += sweep;
+    }
+    canvas.drawCircle(size.center(Offset.zero), size.shortestSide * .31,
+        Paint()..color = const Color(0xfff0efe8));
+  }
+
+  @override
+  bool shouldRepaint(covariant _ExpensePiePainter oldDelegate) =>
+      oldDelegate.slices != slices || oldDelegate.selected != selected;
+}
+
+class _StatisticsCard extends StatelessWidget {
+  const _StatisticsCard(
+      {required this.period,
+      required this.totalCents,
+      required this.incomeCents,
+      required this.breakfastCents,
+      required this.lunchCents,
+      required this.dinnerCents,
+      required this.otherExpenseCents,
+      required this.chartValues,
+      required this.incomeSlices,
+      required this.expenseSlices,
+      required this.rangeLabel,
+      required this.incomePie,
+      required this.onPieChanged,
+      required this.onPeriodChanged});
+
+  final _Period period;
+  final int totalCents,
+      incomeCents,
+      breakfastCents,
+      lunchCents,
+      dinnerCents,
+      otherExpenseCents;
+  final List<CashFlowPoint> chartValues;
+  final List<_PieSlice> incomeSlices, expenseSlices;
+  final String rangeLabel;
+  final bool incomePie;
+  final ValueChanged<bool> onPieChanged;
+  final ValueChanged<_Period> onPeriodChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
       padding: appCardPadding,
       decoration: BoxDecoration(
           color: const Color(0xfff0efe8),
           borderRadius: BorderRadius.circular(18)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                  child: Text('消费统计',
-                      style: TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600))),
-              _PeriodSelector(
-                  period: widget.period, onChanged: widget.onPeriodChanged),
-            ],
-          ),
-          const SizedBox(height: 10),
-          AppMetricValue(
-            value: formatMoney(widget.totalCents),
-            unit: label,
-            valueStyle: const TextStyle(fontFamily: 'serif', fontSize: 23),
-            unitStyle: const TextStyle(color: muted, fontSize: 12),
-          ),
-          const SizedBox(height: 8),
-          LayoutBuilder(builder: (context, constraints) {
-            final showEveryValue = widget.chartValues.isNotEmpty &&
-                constraints.maxWidth / widget.chartValues.length >= 76;
-            return Column(children: [
-              if (!showEveryValue && selected != null) ...[
-                Row(children: [
-                  Text('${selected.label}消费',
-                      style: const TextStyle(color: muted, fontSize: 12)),
-                  const SizedBox(width: 8),
-                  Text(formatMoney(selected.cents),
-                      style: const TextStyle(
-                          fontFamily: 'serif',
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600)),
-                  const Spacer(),
-                  const Text('点柱查看',
-                      style: TextStyle(color: muted, fontSize: 11)),
-                ]),
-                const SizedBox(height: 4),
-              ],
-              SizedBox(
-                height: 110,
-                child: widget.chartValues.isEmpty
-                    ? const Center(
-                        child: Text('当天暂无消费金额',
-                            style: TextStyle(color: muted, fontSize: 12)))
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          for (var index = 0;
-                              index < widget.chartValues.length;
-                              index++)
-                            Expanded(
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 2),
-                                child: _spendBar(
-                                  context,
-                                  widget.chartValues[index],
-                                  index,
-                                  maximum,
-                                  showValue: showEveryValue,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-              ),
-            ]);
-          }),
-          const Padding(
-            padding: EdgeInsets.only(top: 9),
-            child: Divider(height: 1, color: Color(0xffe2e0d7)),
-          ),
-          const SizedBox(height: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Expanded(
+              child:
+                  Text('收支统计', style: TextStyle(fontWeight: FontWeight.w600))),
+          _PeriodSelector(period: period, onChanged: onPeriodChanged)
+        ]),
+        const SizedBox(height: 10),
+        Text(rangeLabel, style: const TextStyle(color: muted, fontSize: 11)),
+        const SizedBox(height: 16),
+        CashFlowSummary(incomeCents: incomeCents, expenseCents: totalCents),
+        const SizedBox(height: 6),
+        const Text('结余为所选时间范围的收入减支出，不代表账户余额。',
+            style: TextStyle(color: muted, fontSize: 11)),
+        const SizedBox(height: 20),
+        CashFlowChart(points: chartValues),
+        const Divider(height: 28),
+        Wrap(spacing: 12, runSpacing: 6, children: [
+          ChoiceChip(
+              label: const Text('支出构成'),
+              selected: !incomePie,
+              onSelected: (_) => onPieChanged(false)),
+          ChoiceChip(
+              label: const Text('收入构成'),
+              selected: incomePie,
+              onSelected: (_) => onPieChanged(true)),
+        ]),
+        const SizedBox(height: 16),
+        _CategoryPieCard(
+            key: ValueKey('$incomePie-$rangeLabel'),
+            income: incomePie,
+            totalCents: incomePie ? incomeCents : totalCents,
+            slices: incomePie ? incomeSlices : expenseSlices),
+        if (!incomePie) ...[
+          const Divider(height: 28),
           LayoutBuilder(builder: (context, constraints) {
             final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
             final columns = constraints.maxWidth >= 360 * scale ? 4 : 2;
             final width = (constraints.maxWidth - (columns - 1) * 16) / columns;
             return Wrap(spacing: 16, runSpacing: 16, children: [
               for (final item in [
-                ('早餐', widget.breakfastCents),
-                ('午餐', widget.lunchCents),
-                ('晚餐', widget.dinnerCents),
-                ('其他', widget.otherExpenseCents),
+                ('早餐', breakfastCents),
+                ('午餐', lunchCents),
+                ('晚餐', dinnerCents),
+                ('其他', otherExpenseCents)
               ])
                 SizedBox(
                     width: width,
@@ -3331,66 +3338,7 @@ class _StatisticsCardState extends State<_StatisticsCard> {
             ]);
           }),
         ],
-      ),
-    );
-  }
-
-  Widget _spendBar(
-      BuildContext context, _ChartValue point, int index, int maximum,
-      {required bool showValue}) {
-    final ratio = maximum == 0 ? 0.0 : point.cents / maximum;
-    final selected = index == _selectedIndex;
-    void select() => setState(() => _selectedIndex = index);
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: '${point.label}，消费${formatMoney(point.cents)}',
-      onTap: select,
-      excludeSemantics: true,
-      child: InkWell(
-        onTap: select,
-        borderRadius: BorderRadius.circular(5),
-        child: Column(
-          children: [
-            if (showValue)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(formatMoney(point.cents),
-                      style: TextStyle(
-                        color: selected ? sage : muted,
-                        fontSize: 11,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w400,
-                      )),
-                ),
-              ),
-            Expanded(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 18,
-                  height: 6 + 46 * ratio,
-                  decoration: BoxDecoration(
-                    color: selected || (point.cents == maximum && maximum > 0)
-                        ? sage
-                        : const Color(0xffbdc7b4),
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(5)),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(point.label,
-                style: const TextStyle(color: muted, fontSize: 9)),
-          ],
-        ),
-      ),
-    );
-  }
+      ]));
 }
 
 class _Breakdown extends StatelessWidget {

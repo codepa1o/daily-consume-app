@@ -4,15 +4,15 @@
 
 ## 本次版本
 
-- 应用显示版本：1.4.7。
-- 内部版本编号：22，即 `pubspec.yaml` 中的 `1.4.7+22`。
-- Release 标签：`v1.4.7+22`。
-- 更新日志原稿：`docs/release-notes/1.4.7.txt`，每行一条。
-- 本版服务端迁移至 `0017_couple_comment_interactions`，新增评论回复与点赞，保留旧评论内容和原始发布时间；发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
+- 应用显示版本：1.4.8。
+- 内部版本编号：23，即 `pubspec.yaml` 中的 `1.4.8+23`。
+- Release 标签：`v1.4.8+23`。
+- 更新日志原稿：`docs/release-notes/1.4.8.txt`，每行一条。
+- 本版服务端迁移至 `0018_income_entries`，新增账号隔离的收入明细；发布 APK 不会自动部署后端。参见 [数据库迁移指南](database-migrations.md)。
 
 ## 以后发布新版的推荐步骤
 
-以下以 **1.4.7+22** 为例。每次正式发布都应使用新的版本号和内部版本编号。
+以下以 **1.4.8+23** 为例。每次正式发布都应使用新的版本号和内部版本编号。
 
 ### 1. 验证代码
 
@@ -28,13 +28,13 @@ Set-Location C:\my_project\daily-consume-app
 
 ### 2. 写日志并构建
 
-新建 UTF-8 文件 `docs/release-notes/1.4.7.txt`，每行一条给用户看的更新内容，然后执行：
+新建 UTF-8 文件 `docs/release-notes/1.4.8.txt`，每行一条给用户看的更新内容，然后执行：
 
 ```powershell
 .\scripts\build_release.ps1 `
-  -VersionName '1.4.7' `
-  -VersionCode 22 `
-  -NotesFile '.\docs\release-notes\1.4.7.txt' `
+  -VersionName '1.4.8' `
+  -VersionCode 23 `
+  -NotesFile '.\docs\release-notes\1.4.8.txt' `
   -Flutter 'C:\dev_env\flutter\bin\flutter.bat'
 ```
 
@@ -78,7 +78,7 @@ python scripts/publish_github_release.py
 
 成功后终端会显示 Release、Manifest 和 APK 地址。网络中断后可重试相同发布命令；相同附件会复用，不同内容不会被覆盖。一次只运行一个发布进程；正式发布后还要修改 APK 时，应增加 `VersionCode`，不要覆盖旧附件。
 
-生成的清单位于 `build/github-release/<VersionCode>/latest.json`，本次为 `build/github-release/22/latest.json`，无需手工编写。
+生成的清单位于 `build/github-release/<VersionCode>/latest.json`，本次为 `build/github-release/23/latest.json`，无需手工编写。
 
 ## 网页手动发布
 
@@ -97,6 +97,6 @@ python scripts/publish_github_release.py
 - [最新 Release](https://github.com/codepa1o/daily-consume-app/releases/latest) 显示新版本。
 - [固定清单](https://github.com/codepa1o/daily-consume-app/releases/latest/download/latest.json) 中版本和编号正确。
 - 用旧版 App 冷启动检查更新，下载完成后确认覆盖安装；首次可能需要允许“安装未知应用”。
-- 覆盖安装后确认登录、原记录及更新日志；本次重点检查旧评论的原始时间、点赞与回复。
+- 覆盖安装后确认登录、原记录及更新日志；本次重点检查收入记录、收支上下柱状图和收入饼图。
 
 脚本验证通过证明公开附件可下载；设备安装和真实业务功能仍需在后端部署后实际验收。

@@ -96,6 +96,37 @@ class OtherExpenseEntry {
       );
 }
 
+/// 收入与支出分开保存，金额按整数分参与统计，避免累计浮点误差。
+class IncomeEntry {
+  const IncomeEntry(
+      {required this.id,
+      required this.date,
+      required this.category,
+      required this.incomeCents,
+      this.notes = ''});
+  final int id, incomeCents;
+  final DateTime date;
+  final String category, notes;
+
+  factory IncomeEntry.fromMap(Map<String, Object?> row) => IncomeEntry(
+        id: row['id']! as int,
+        date: dateFromKey(row['date']! as String),
+        category: row['category']! as String,
+        incomeCents: row['income_cents']! as int,
+        notes: row['notes']! as String,
+      );
+}
+
+/// 严格接受两位以内小数，不把三位小数、科学计数或负数静默四舍五入。
+int? parseIncomeCents(String text) {
+  final value = text.trim();
+  if (!RegExp(r'^\d{1,9}(\.\d{1,2})?$').hasMatch(value)) return null;
+  final parts = value.split('.');
+  final cents = int.parse(parts[0]) * 100 +
+      (parts.length == 1 ? 0 : int.parse(parts[1].padRight(2, '0')));
+  return cents > 0 && cents <= 10000000000 ? cents : null;
+}
+
 class WorkoutMuscle {
   const WorkoutMuscle(
       {required this.name, required this.colorValue, this.builtIn = false});
@@ -137,9 +168,7 @@ class WorkoutAction {
 
 class WorkoutLog {
   const WorkoutLog(
-      {required this.date,
-      required this.muscles,
-      this.actions = const []});
+      {required this.date, required this.muscles, this.actions = const []});
 
   final DateTime date;
   final List<WorkoutMuscle> muscles;
@@ -160,8 +189,8 @@ class WorkoutLog {
       actions: (rawActions is String
               ? jsonDecode(rawActions) as List<dynamic>
               : rawActions as List<dynamic>? ?? const [])
-          .map((item) => WorkoutAction.fromMap(
-              Map<String, Object?>.from(item as Map)))
+          .map((item) =>
+              WorkoutAction.fromMap(Map<String, Object?>.from(item as Map)))
           .toList(),
     );
   }
@@ -335,6 +364,35 @@ class AppDatabase {
     await _api.request('DELETE', 'other-expenses/$id');
   }
 
+  Future<List<IncomeEntry>> getIncomesBetween(
+          DateTime start, DateTime end) async =>
+      (await _rows('incomes',
+              query: {'start': dateKey(start), 'end': dateKey(end)}))
+          .map(IncomeEntry.fromMap)
+          .toList();
+
+  Future<void> saveIncome(
+      {int? id,
+      required DateTime date,
+      required String category,
+      required int incomeCents,
+      required String notes,
+      required String requestId}) async {
+    await _api.request(
+        id == null ? 'POST' : 'PUT', id == null ? 'incomes' : 'incomes/$id',
+        body: {
+          'date': dateKey(date),
+          'category': category,
+          'income_cents': incomeCents,
+          'notes': notes,
+          if (id == null) 'client_request_id': requestId,
+        });
+  }
+
+  Future<void> deleteIncome(int id) async {
+    await _api.request('DELETE', 'incomes/$id');
+  }
+
   Future<List<WorkoutMuscle>> getWorkoutMuscles() async =>
       (await _rows('workout/muscles')).map(WorkoutMuscle.fromMap).toList();
   Future<void> addWorkoutMuscle(String name, int colorValue) async {
@@ -378,8 +436,7 @@ class AppDatabase {
               query: {'start': dateKey(start), 'end': dateKey(end)}))
           .map(WorkoutLog.fromMap)
           .toList();
-  Future<void> saveWorkoutLog(
-      DateTime date, List<WorkoutMuscle> muscles,
+  Future<void> saveWorkoutLog(DateTime date, List<WorkoutMuscle> muscles,
       {List<WorkoutAction> actions = const []}) async {
     await _api.request('POST', 'workout/logs', body: {
       'date': dateKey(date),

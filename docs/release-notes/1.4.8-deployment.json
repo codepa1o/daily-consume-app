@@ -1,0 +1,59 @@
+{
+  "version": "1.4.8+23",
+  "release_tag": "v1.4.8+23",
+  "completed_at": "2026-10-17T15:59:54.508957+00:00",
+  "migration": "0018_income_entries",
+  "backup": "/var/backups/daily-consume/daily-consume-pre-1.4.8-20261017T155944Z",
+  "service": "active",
+  "nginx": "active",
+  "backend_version": "1.4.8",
+  "database_sha256": "2d6aaf552eb405976dff02e93e333195a905df447090f5eb71d99b445e380666",
+  "code_sha256": "779698ee3614b1c552942eb5d31b45f7613cdaa539d303b505c572c32f62b548",
+  "source_manifest_sha256": "6d1c85d2f98f2c3c947e4cbc792fc4780344c0d4a1c00acf783fcb999f5db30e",
+  "existing_tables_preserved": 45,
+  "historical_comments_preserved": true,
+  "historical_comments": {
+    "couple_comments": {
+      "count": 6,
+      "missing_times": 0,
+      "rows_sha256": "09407344bb8f0e5e8c4ad7690a2e404743f0e06ec4486df6d36a182cadd69160",
+      "timestamps_sha256": "aadd68e193f579f2ea6a1880558ce129ee5c345e4b5e906792b4dcb87d381e71"
+    },
+    "couple_conflict_comments": {
+      "count": 0,
+      "missing_times": 0,
+      "rows_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "timestamps_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "financial_records_preserved": true,
+  "historical_financial_records": {
+    "meal_entries": {
+      "count": 56,
+      "sha256": "f37e80452c5d52095930d4e89110b4e2b3141c3cd476907210d84391a0b2dfed"
+    },
+    "other_expense_entries": {
+      "count": 10,
+      "sha256": "726928178723c8c9939619d1bea2af2aad08dea48b2aa4a031ceb831c4ebe6d5"
+    }
+  },
+  "unit_tests_run": false,
+  "https_checks": [
+    {
+      "method": "GET",
+      "path": "/api/v1/health",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/incomes?start=2026-10-01&end=2026-10-31",
+      "status": 401
+    }
+  ],
+  "apk": {
+    "version": "1.4.8+23",
+    "size": 69085296,
+    "sha256": "1d5ce906c35e757d9cf8b4ff2a34eba7186019d685210bbf0448386ee9b74618",
+    "original_signing_certificate_verified": true
+  }
+}

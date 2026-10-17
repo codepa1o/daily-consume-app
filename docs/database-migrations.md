@@ -26,6 +26,8 @@
 - `server/migrations/versions/0016_pomodoro_reminders.py`：新增账号隔离的番茄钟订阅提醒队列及到期索引；有提醒数据时拒绝回退删表。
 - `server/migrations/versions/0017_couple_comment_interactions.py`：为回忆和反思评论新增主评论/回复对象关联、跨记录组合外键及账号唯一点赞表。原评论与发布时间保留；存在回复或点赞时拒绝丢弃互动数据的回退。已于 2026-10-16 随 1.4.7+22 部署执行；历史评论的内容与原始时间摘要保持一致。
 
+- `server/migrations/versions/0018_income_entries.py`：新增账号隔离的收入明细、整数分金额、备注和创建请求唯一约束。保留原有餐食与支出表；有收入数据时拒绝删表回退。已于 2026-10-17 随 1.4.8+23 部署执行，当前生产版本为 `0018_income_entries`；原有 45 张表行数及餐食/其他消费内容摘要不变。
+
 `DATABASE_URL` 接受 psycopg/libpq 的连接字符串或 PostgreSQL URI，不必转换为 SQLAlchemy URL。未设置时，使用 `dbname=daily_consume user=daily_consume host=/var/run/postgresql`，由系统用户 `daily-consume` 通过 peer 映射认证。不要将数据库密码提交到仓库。迁移使用连接的 `current_schema()`，版本表也位于同一 schema；本地测试通过独立 `search_path` 隔离。
 
 安装后端依赖并进入 `server` 目录、激活后端虚拟环境后运行：
