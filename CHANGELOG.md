@@ -1,10 +1,16 @@
 # 更新日志
 
-按版本编号从新到旧汇总已发布变更。最新已记录版本为 **1.4.8+23**。
+按版本编号从新到旧汇总已发布变更。最新已记录版本为 **1.4.9+24**。
 
 记录来源为 [各版本更新说明](docs/release-notes/)、[内置历史日志](assets/release_history.json) 和本地发布标签内的版本说明。较早的 GitHub 更新接入记录见 [接入说明](docs/access-api/github-updates.md)。未在原记录中确认的发布时间不作补填。
 
 服务器部署、数据库迁移、备份和回滚信息见 [部署记录](docs/DEPLOYMENTS.md)。应用内更新日志仍由 `assets/release_notes.json` 与 `assets/release_history.json` 提供。
+
+## [1.4.9+24](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.4.9%2B24)
+
+- 修复 Android 无法连接服务器的问题：服务端证书自动续期后切换到 Let’s Encrypt，旧版 APK 信任的证书不再匹配。
+- APK 更新受信任证书，继续校验 IP 地址、证书链及有效期，不跳过 HTTPS 验证。
+- 更新后可继续通过 GitHub 自动下载安装更新包；无需修改服务器或更新数据库。
 
 ## [1.4.8+23](https://github.com/codepa1o/daily-consume-app/releases/tag/v1.4.8%2B23)
 

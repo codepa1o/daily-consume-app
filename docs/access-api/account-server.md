@@ -23,7 +23,7 @@
 - 2026-10-11 后端部署至 1.4.0，Alembic head 为 `0009_body_weight_goal`，新增目标体重设置表，保留 `0008_other_expenses` 及其记录表，共 25 张业务表。部署前数据库备份 `/var/backups/daily-consume/daily_consume-pre-1.4.0-20261010T160016Z.dump`（SHA256 `ca742a29e76d529d6afe3f2c9ac9d787c869298fb95128e4d48e5f14ec979734`，`pg_restore --list` 校验通过），代码快照 `/var/backups/daily-consume/daily-consume-code-pre-1.4.0-20261010T160016Z.tar.gz`（SHA256 `eac3e2f6fc348ca9a259f72ba4d6a94a40a9c6712b247a728ebd2a8b135d7f4b`，未包含 `.env` 和虚拟环境）。部署后服务为 active，health 检查通过；旅行规划所需高德地图 Key 已配置在服务器 `.env` 中。
 - 2026-10-11 后端部署至 1.4.1，Alembic head 为 `0010_skill_agent`，新增技能实验室的 10 张账号隔离业务表，共 35 张业务表。迁移前数据库备份 `/var/backups/daily-consume/daily_consume-pre-1.4.1-20261011T045054Z.dump`（SHA256 `cd7dea49a44e88d7041a8acb31736cae49c230835be6a418e341c5ffde0014d9`，约 9.7 MB，`pg_restore --list` 校验通过），代码快照 `/var/backups/daily-consume/daily-consume-code-pre-1.4.1-20261011T045307Z.tar.gz`（SHA256 `70a1592185d49c32fa1b0ec6e28d717fd7892dfaa94e78fcdcf84c9d1e2ac6f9`，未包含 `.env` 和虚拟环境）。部署后服务 active、health 正常。技能实验室模型回答使用服务器 `.env` 中的 `DEEPSEEK_API_KEY`，向量知识库使用 `DASHSCOPE_API_KEY`；Tavily 搜索密钥为可选项。
 - 用户密码使用 Argon2 哈希，会话使用随机 Bearer 凭证，数据库只保存其 SHA256。会话有效期 30 天，过期重新登录，退出立即撤销当前会话。
-- HTTPS 使用带 IP SAN 的专用证书，客户端仅信任 APK 内的 `assets/server_ca.pem`；仍校验服务器地址和有效期，没有跳过 TLS 检查。当前证书有效期至 2029-10-02；轮换前需要先为客户端发布兼容的新证书。
+- HTTPS 由 Nginx 使用带 IP SAN、自动续期的 Let’s Encrypt 证书。Android 客户端的 `assets/server_ca.pem` 限定信任旧版服务器证书以及 ISRG Root X1/X2，仍校验服务器 IP SAN 与证书有效期，不跳过 TLS 检查。若未来更换到其他根 CA，先发布包含新信任根的客户端，再切换服务端证书。
 - 登录/注册按来源 IP 限流。服务端拒绝客户端提交用户 ID 等未定义字段，业务查询从会话确定归属。
 - SSH 密码仅从临时环境变量读取，不在代码、APK、文档或日志中保存。
 

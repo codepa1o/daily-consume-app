@@ -1,12 +1,10 @@
 {
-  "versionCode": 23,
-  "releaseNotes": [
-    "饮食消费新增收入记录，支持同日多笔、历史补记、分类、备注、编辑和删除。",
-    "收入与支出按日期绘制在同一张柱状图中：收入向上、支出向下，每根柱子直接显示具体金额。",
-    "日、周、月统计统一展示收入、支出和期间结余；月视图可横向滑动查看每天的数据。",
-    "新增收入分类饼图，展示具体金额与占比，支持点击扇区和分类查看；支出饼图同步跟随统计时间范围。",
-    "服务端通过独立收入表保存账号数据，按整数分统计，并防止网络重试重复入账。"
-  ],
   "updateManifestUrl": "https://github.com/codepa1o/daily-consume-app/releases/latest/download/latest.json",
-  "versionName": "1.4.8"
+  "versionName": "1.4.9",
+  "releaseNotes": [
+    "修复 Android 客户端无法连接服务端的问题，适配自动续期的 Let’s Encrypt 证书。",
+    "APK 信任旧版服务器证书及 ISRG Root X1/X2，仍校验 IP 地址、证书链和有效期。",
+    "无需更新服务器或数据库；旧安装可从 GitHub 更新页下载安装此版本。"
+  ],
+  "versionCode": 24
 }

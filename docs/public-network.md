@@ -2,7 +2,7 @@
 
 目标实例：华东 1（杭州，`cn-hangzhou`），`i-bp10wel7neiak77wz4mb`，公网 IP `47.99.142.117`。
 
-主机上的 Nginx、HTTPS 443 和 PostgreSQL/后端已经部署，UFW 已允许 443。当前问题是外部 TCP 443 连接超时，外部请求未到达主机；22、80 可访问。独立澳大利亚节点也验证了 80 可连接、443 超时。
+2026-10-20 检查：daily-consume、Nginx 和 PostgreSQL 均运行正常，API health 返回 200。Nginx 使用自动续期的 Let’s Encrypt 证书；Android 1.4.8 内置的旧自签名证书因此无法验证 HTTPS。1.4.9+24 APK 在继续校验证书链、IP SAN 和有效期的同时信任 ISRG Root X1/X2。服务器现有 Nginx 配置和数据库无需更改。
 
 ## 1. 检查实际绑定的安全组
 
@@ -48,7 +48,7 @@ Test-NetConnection 47.99.142.117 -Port 443
 curl.exe --noproxy "*" --connect-timeout 10 --cacert assets/server_ca.pem https://47.99.142.117/api/v1/health
 ```
 
-应返回 `{"status":"ok"}`。这是带证书验证的 HTTPS 检查；项目 APK 已内置该服务器证书，不需要给手机另行安装证书。
+应返回 `{"status":"ok"}`。这是带证书验证的 HTTPS 检查；1.4.9+24 APK 内置兼容的 CA 根证书，无需给手机另行安装证书。
 
 如果 TCP 443 成功但 HTTPS 失败，把错误信息交给维护者检查；如果 TCP 443 仍失败，提供实际绑定的安全组 ID 与完整 443 规则（方向、协议、端口、来源、目的 IP、优先级、允许/拒绝），以便继续定位。
 
