@@ -1,13 +1,13 @@
 {
   "version": "1.4.9+24",
-  "issue": "Nginx rotated to a Let’s Encrypt IP SAN certificate; the previous Android APK trusted only the legacy self-signed server certificate.",
+  "issue": "Nginx rotated to a Let’s Encrypt IP SAN certificate; Android 1.4.8 trusted only the previous self-signed server certificate.",
   "nginx_certificate_sha256": "ac29a6cc2ef193283e45dced512b5dd1fa054ab5f606a674211843fa523ec7d9",
   "previous_server_anchor_sha256": "112c3f51ab1bbebf6d0bb07bce524e90abdaa8566d93d098571a20ad7a49e0a2",
   "added_trust_roots": {
     "ISRG Root X1": "96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6",
     "ISRG Root X2": "69729b8e15a86efc177a57afb7171dfc64add28c2fca8cf1507e34453ccb1470"
   },
-  "verification": "Both current Let’s Encrypt chain and legacy certificate validate against the APK bundle; the bundled CA completed local Nginx HTTPS health with HTTP 200.",
+  "verification": "Both current Let’s Encrypt chain and legacy server certificate validate against the APK bundle; bundled CA HTTPS health check returned HTTP 200.",
   "server_and_database_changed": false,
   "apk": {
     "packageName": "com.example.daily_consume",
@@ -19,7 +19,8 @@
       "7c65743fc4742993301068fb1e95e15c3178f63de22705c224c58b9cf116a634"
     ]
   },
-  "flutter_analysis": "Changed file passes; full project reports five pre-existing issues.",
+  "changed_dart_file_analysis": "passed",
+  "full_project_analysis_issues": 5,
   "unit_tests_run": false,
   "device_installation_tested": false
 }
